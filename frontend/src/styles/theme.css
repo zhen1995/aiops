@@ -1,0 +1,167 @@
+:root {
+  /* 主题色：深青 */
+  --c-primary: #0e7c72;
+  --c-primary-dark: #0a5f57;
+  --c-primary-tint: #e7f3f1;
+  --c-primary-soft: #f0f7f6;
+
+  /* 中性色：白色体系 */
+  --c-bg: #f6f8f7;
+  --c-surface: #ffffff;
+  --c-border: #e4e9e7;
+  --c-text: #20302d;
+  --c-text-2: #5c6b68;
+  --c-text-3: #93a19d;
+
+  /* 严重程度 */
+  --c-p0: #c93b3b;
+  --c-p0-bg: #faecec;
+  --c-p1: #d97b29;
+  --c-p1-bg: #faf1e6;
+  --c-p2: #b8961f;
+  --c-p2-bg: #faf6e4;
+  --c-p3: #0e7c72;
+  --c-p3-bg: #e7f3f1;
+  --c-p4: #8a9693;
+  --c-p4-bg: #f0f2f1;
+
+  --c-success: #3d8a5a;
+  --c-success-bg: #eaf4ee;
+  --c-danger: #c93b3b;
+
+  --shadow-card: 0 1px 2px rgba(32, 48, 45, 0.04), 0 2px 8px rgba(32, 48, 45, 0.05);
+  --radius-card: 10px;
+  --radius-tag: 6px;
+
+  --sidebar-w: 232px;
+  --topbar-h: 60px;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #app {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--c-primary); text-decoration: none; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #cdd6d3; border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* 通用卡片 */
+.card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 18px 20px;
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--c-text);
+  margin: 0 0 4px;
+}
+
+.card-sub {
+  font-size: 12px;
+  color: var(--c-text-3);
+  margin: 0 0 14px;
+}
+
+/* 通用表格 */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--c-text-2);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-primary-soft);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--c-border);
+  color: var(--c-text);
+  vertical-align: middle;
+}
+
+.table tbody tr:hover { background: var(--c-primary-soft); }
+.table tbody tr:last-child td { border-bottom: none; }
+
+/* 通用按钮 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text-2);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn:hover { border-color: var(--c-primary); color: var(--c-primary); }
+
+.btn-primary {
+  background: var(--c-primary);
+  border-color: var(--c-primary);
+  color: #fff;
+}
+
+.btn-primary:hover { background: var(--c-primary-dark); border-color: var(--c-primary-dark); color: #fff; }
+
+.btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+
+/* 状态点 */
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.mono { font-family: 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace; font-size: 12.5px; }
+
+.muted { color: var(--c-text-3); font-size: 12px; }
+
+/* 进度条 */
+.progress {
+  height: 6px;
+  background: var(--c-p4-bg);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress > i {
+  display: block;
+  height: 100%;
+  background: var(--c-primary);
+  border-radius: 3px;
+}
