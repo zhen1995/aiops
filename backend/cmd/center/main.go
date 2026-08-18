@@ -47,4 +47,5 @@ func main() {
 
 	//启动服务器,默认端口8080
 	router.Run(cfg.Server.Port)
+
 }
