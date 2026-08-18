@@ -12,3 +12,8 @@
 1.添加新包时：先用go get xx，再用go mod tidy 确保干净
 2.日常开发/提交前：运行 go mod tidy 保证依赖整洁
 3.不要手动编辑 go.mod :用这两个命令管理即可。
+
+
+
+## 安装 go 拓展
+按 Ctrl + Shift + P → 输入 Go: Install/Update Tools，把工具都装一遍。
