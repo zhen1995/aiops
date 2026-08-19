@@ -1,5 +1,5 @@
 <template>
-  <span class="level-tag" :style="style">{{ text }}</span>
+  <span class="level-tag" :style="style"><slot>{{ text }}</slot></span>
 </template>
 
 <script setup>

@@ -45,6 +45,34 @@ func main() {
 	//定义路由
 	router.GET("/login", controllers.LoginHandler(db))
 
+	api := router.Group("/api")
+
+	// LLM 配置相关路由
+	llmCtrl := controllers.NewLLMConfigController(db)
+	llmGroup := api.Group("/llm-config")
+	{
+		llmGroup.GET("", llmCtrl.List)
+		llmGroup.GET("/suppliers", llmCtrl.SupplierCategoryList)
+		llmGroup.GET("/:id", llmCtrl.Get)
+		llmGroup.POST("", llmCtrl.Create)
+		llmGroup.PUT("/:id", llmCtrl.Update)
+		llmGroup.DELETE("/:id", llmCtrl.Delete)
+		llmGroup.PATCH("/:id/toggle", llmCtrl.ToggleEnabled)
+	}
+
+	// 数据源相关路由
+	dsCtrl := controllers.NewDatasourceController(db)
+	dsGroup := api.Group("/datasources")
+	{
+		dsGroup.GET("", dsCtrl.List)
+		dsGroup.GET("/types", dsCtrl.TypeList)
+		dsGroup.GET("/:id", dsCtrl.Get)
+		dsGroup.POST("", dsCtrl.Create)
+		dsGroup.PUT("/:id", dsCtrl.Update)
+		dsGroup.DELETE("/:id", dsCtrl.Delete)
+		dsGroup.PATCH("/:id/toggle", dsCtrl.ToggleEnabled)
+	}
+
 	//启动服务器,默认端口8080
 	router.Run(cfg.Server.Port)
 
