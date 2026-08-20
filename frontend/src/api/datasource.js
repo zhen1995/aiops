@@ -1,12 +1,25 @@
-// 数据源 API
+import { getAuthHeader } from '../utils/auth.js'
+
 const BASE_URL = '/api/datasources'
 
 async function request(url, options = {}) {
   const resp = await fetch(BASE_URL + url, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeader(),
+      ...(options.headers || {})
+    },
     body: options.body ? JSON.stringify(options.body) : undefined
   })
+
+  // 401 未授权
+  if (resp.status === 401) {
+    localStorage.removeItem('aiops_token')
+    localStorage.removeItem('aiops_user')
+    window.location.hash = '#/login'
+    throw new Error('登录已过期，请重新登录')
+  }
 
   const data = await resp.json()
 

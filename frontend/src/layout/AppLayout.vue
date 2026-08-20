@@ -83,11 +83,19 @@
             </svg>
             <i class="bell-dot"></i>
           </button>
-          <div class="user">
-            <span class="avatar">运</span>
+          <div class="user" @click="toggleUserMenu">
+            <span class="avatar">{{ avatarText }}</span>
             <div class="user-info">
-              <b>运维管理员</b>
-              <span>SRE 团队</span>
+              <b>{{ currentUser?.name || currentUser?.username || '用户' }}</b>
+              <span>{{ currentUser?.username || '' }}</span>
+            </div>
+            <div v-if="showUserMenu" class="user-dropdown" @click.stop>
+              <div class="user-dropdown-item" @click="handleLogout">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+                退出登录
+              </div>
             </div>
           </div>
         </div>
@@ -101,10 +109,47 @@
 </template>
 
 <script setup>
-import { reactive } from 'vue'
-import { useRoute } from 'vue-router'
+import { reactive, ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { getUser, clearAuth } from '../utils/auth.js'
 
 const route = useRoute()
+const router = useRouter()
+
+const showUserMenu = ref(false)
+const currentUser = ref(getUser())
+
+const avatarText = computed(() => {
+  const name = currentUser.value?.name || currentUser.value?.username || 'U'
+  return name.charAt(0).toUpperCase()
+})
+
+function handleLogout() {
+  showUserMenu.value = false
+  if (confirm('确定要退出登录吗？')) {
+    clearAuth()
+    router.push('/login')
+  }
+}
+
+function toggleUserMenu() {
+  showUserMenu.value = !showUserMenu.value
+}
+
+function handleDocClick(e) {
+  const target = e.target
+  if (target instanceof Element && !target.closest('.user')) {
+    showUserMenu.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleDocClick)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocClick)
+})
 
 const isActive = (p) => (p === '/' ? route.path === '/' : route.path.startsWith(p))
 
@@ -409,9 +454,51 @@ const menus = [
   font-size: 14px;
 }
 
-.user-info { display: flex; flex-direction: column; line-height: 1.3; }
+.user-info { display: flex; flex-direction: column; line-height: 1.3; cursor: pointer; }
 .user-info b { font-size: 13px; }
 .user-info span { font-size: 11px; color: var(--c-text-3); }
+
+.user {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+.user:hover { background: var(--c-primary-soft); }
+
+.user-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  min-width: 140px;
+  padding: 6px;
+  z-index: 100;
+}
+
+.user-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--c-text-2);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.user-dropdown-item:hover {
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+}
 
 .content { flex: 1; overflow-y: auto; padding: 22px 24px 32px; }
 </style>

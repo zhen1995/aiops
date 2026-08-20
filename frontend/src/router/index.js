@@ -1,6 +1,8 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { isLoggedIn } from '../utils/auth.js'
 
 const routes = [
+  { path: '/login', name: 'login', component: () => import('../views/LoginView.vue'), meta: { title: '登录', public: true } },
   { path: '/', redirect: '/chat' },
   { path: '/chat', name: 'chat', component: () => import('../views/ChatView.vue'), meta: { title: 'AI 对话' } },
   { path: '/dashboard', name: 'dashboard', component: () => import('../views/Dashboard.vue'), meta: { title: '总览大盘' } },
@@ -21,10 +23,32 @@ const routes = [
   { path: '/org', redirect: '/org/user' },
   { path: '/org/user', name: 'org-user', component: () => import('../views/org/UserManagementView.vue'), meta: { title: '用户管理' } },
   { path: '/org/role', name: 'org-role', component: () => import('../views/org/RoleManagementView.vue'), meta: { title: '角色管理' } },
-  { path: '/datasource', name: 'datasource', component: () => import('../views/DatasourceView.vue'), meta: { title: '数据源接入' } }
+  { path: '/datasource', name: 'datasource', component: () => import('../views/DatasourceView.vue'), meta: { title: '数据源接入' } },
+  { path: '/:pathMatch(.*)*', redirect: '/chat' }
 ]
 
-export default createRouter({
+const router = createRouter({
   history: createWebHashHistory(),
   routes
 })
+
+// 全局路由守卫
+router.beforeEach((to, from, next) => {
+  const loggedIn = isLoggedIn()
+
+  // 已登录访问登录页，跳转到首页
+  if (to.path === '/login' && loggedIn) {
+    next({ path: '/chat' })
+    return
+  }
+
+  // 未登录访问非公开页面，跳转到登录页
+  if (!to.meta.public && !loggedIn) {
+    next({ path: '/login' })
+    return
+  }
+
+  next()
+})
+
+export default router
