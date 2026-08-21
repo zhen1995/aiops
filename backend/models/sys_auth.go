@@ -1,0 +1,40 @@
+package models
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
+
+// SysAuth 权限表（菜单）
+type SysAuth struct {
+	ID        string         `gorm:"primaryKey;size:40;comment:id" json:"id"`
+	Name      string         `gorm:"size:50;comment:名称" json:"name"`
+	Type      int            `gorm:"not null;comment:1-菜单 2-操作" json:"type"`
+	CreatedAt *time.Time     `gorm:"column:created_at;comment:创建时间" json:"created_at"`
+	Updated   *time.Time     `gorm:"column:updated;comment:更新时间" json:"updated"`
+	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;comment:删除时间" json:"deleted_at"`
+}
+
+func (SysAuth) TableName() string {
+	return "sys_auth"
+}
+
+// BeforeCreate 创建前自动生成 ID 并设置时间戳
+func (a *SysAuth) BeforeCreate(tx *gorm.DB) error {
+	if a.ID == "" {
+		a.ID = uuid.New().String()
+	}
+	now := time.Now()
+	a.CreatedAt = &now
+	a.Updated = &now
+	return nil
+}
+
+// BeforeUpdate 更新前自动刷新 Updated
+func (a *SysAuth) BeforeUpdate(tx *gorm.DB) error {
+	now := time.Now()
+	a.Updated = &now
+	return nil
+}

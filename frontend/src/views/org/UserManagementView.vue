@@ -33,6 +33,7 @@
           <tr>
             <th>用户名</th>
             <th>姓名</th>
+            <th>角色</th>
             <th>创建时间</th>
             <th>更新时间</th>
             <th>状态</th>
@@ -43,6 +44,10 @@
           <tr v-for="u in users" :key="u.id">
             <td><b>{{ u.username }}</b></td>
             <td>{{ u.name }}</td>
+            <td>
+              <span v-for="role in (u.roles || [])" :key="role" class="role-tag">{{ role }}</span>
+              <span v-if="!u.roles || u.roles.length === 0" class="muted">-</span>
+            </td>
             <td class="muted">{{ formatTime(u.created_at) }}</td>
             <td class="muted">{{ formatTime(u.update_at) }}</td>
             <td>
@@ -59,10 +64,10 @@
             </td>
           </tr>
           <tr v-if="!loading && users.length === 0">
-            <td colspan="6" class="empty-row">暂无用户数据，请点击"新增用户"添加</td>
+            <td colspan="7" class="empty-row">暂无用户数据，请点击"新增用户"添加</td>
           </tr>
           <tr v-if="loading">
-            <td colspan="6" class="empty-row">加载中...</td>
+            <td colspan="7" class="empty-row">加载中...</td>
           </tr>
         </tbody>
       </table>
@@ -114,6 +119,22 @@
               maxlength="10"
             />
             <span v-if="errors.name" class="form-error">{{ errors.name }}</span>
+          </div>
+
+          <div class="form-item">
+            <label class="form-label">角色</label>
+            <div v-if="!rolesLoading && roleOptions.length === 0" class="muted" style="font-size: 12px;">暂无角色，请先到角色管理创建</div>
+            <div v-else-if="rolesLoading" class="muted" style="font-size: 12px;">加载角色列表中...</div>
+            <div v-else class="role-select">
+              <label v-for="role in roleOptions" :key="role.id" class="role-option">
+                <input
+                  type="checkbox"
+                  :value="role.id"
+                  v-model="form.roleIds"
+                />
+                <span>{{ role.name }}</span>
+              </label>
+            </div>
           </div>
         </div>
         <div class="modal-footer">
@@ -179,11 +200,16 @@ import { ref, reactive, onMounted } from 'vue'
 import PageHeader from '../../components/PageHeader.vue'
 import LevelTag from '../../components/LevelTag.vue'
 import { userApi } from '../../api/user.js'
+import { roleApi } from '../../api/role.js'
 
 // 数据
 const users = ref([])
 const loading = ref(false)
 const saving = ref(false)
+
+// 角色选项
+const roleOptions = ref([])
+const rolesLoading = ref(false)
 
 // 搜索
 const searchKeyword = ref('')
@@ -197,7 +223,8 @@ const errors = reactive({})
 const form = reactive({
   username: '',
   password: '',
-  name: ''
+  name: '',
+  roleIds: []
 })
 
 // 重置密码弹窗
@@ -221,6 +248,19 @@ const formatTime = (t) => {
 
 const isDeleted = (u) => {
   return u.deleted_at && new Date(u.deleted_at).getTime() > 0
+}
+
+// 加载角色选项
+async function loadRoleOptions() {
+  rolesLoading.value = true
+  try {
+    roleOptions.value = await roleApi.listSimple() || []
+  } catch (err) {
+    console.error('加载角色列表失败', err)
+    roleOptions.value = []
+  } finally {
+    rolesLoading.value = false
+  }
 }
 
 // 加载数据
@@ -247,6 +287,7 @@ function resetForm() {
   form.username = ''
   form.password = ''
   form.name = ''
+  form.roleIds = []
   Object.keys(errors).forEach(k => delete errors[k])
 }
 
@@ -260,7 +301,7 @@ function openCreateModal() {
 }
 
 // 编辑
-function openEditModal(u) {
+async function openEditModal(u) {
   isEdit.value = true
   editingId.value = u.id
   resetForm()
@@ -268,6 +309,15 @@ function openEditModal(u) {
   form.name = u.name
   form.password = ''
   showPassword.value = false
+
+  // 加载用户详情获取角色 ID
+  try {
+    const detail = await userApi.get(u.id)
+    form.roleIds = detail?.roleIds || []
+  } catch (err) {
+    form.roleIds = []
+  }
+
   modalVisible.value = true
 }
 
@@ -323,16 +373,17 @@ async function saveUser() {
     if (isEdit.value) {
       await userApi.update(editingId.value, {
         username: form.username.trim(),
-        name: form.name.trim()
+        name: form.name.trim(),
+        roleIds: form.roleIds
       })
     } else {
       await userApi.create({
         username: form.username.trim(),
         password: form.password,
-        name: form.name.trim()
+        name: form.name.trim(),
+        roleIds: form.roleIds
       })
     }
-    // 关闭弹窗并刷新
     saving.value = false
     modalVisible.value = false
     await loadData()
@@ -401,6 +452,7 @@ async function submitResetPwd() {
 
 onMounted(() => {
   loadData()
+  loadRoleOptions()
 })
 </script>
 
@@ -470,5 +522,46 @@ onMounted(() => {
   color: var(--c-text-2);
   font-size: 13px;
   margin-bottom: 16px;
+}
+
+.role-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-tag);
+  font-size: 12px;
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+  margin-right: 4px;
+  margin-bottom: 2px;
+}
+
+.role-select {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.role-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 13px;
+}
+
+.role-option:hover {
+  border-color: var(--c-primary);
+  background: var(--c-primary-soft);
+}
+
+.role-option input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--c-primary);
 }
 </style>

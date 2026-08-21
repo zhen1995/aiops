@@ -9,7 +9,7 @@ import (
 
 // SysUser 用户表
 type SysUser struct {
-	ID        string         `gorm:"primaryKey;size:32;comment:id" json:"id"`
+	ID        string         `gorm:"primaryKey;size:40;comment:id" json:"id"`
 	Username  string         `gorm:"size:30;not null;comment:用户名" json:"username"`
 	Password  string         `gorm:"size:30;not null;comment:密码" json:"password"`
 	Name      string         `gorm:"size:10;not null;comment:姓名" json:"name"`

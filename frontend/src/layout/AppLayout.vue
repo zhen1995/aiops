@@ -111,13 +111,14 @@
 <script setup>
 import { reactive, ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getUser, clearAuth } from '../utils/auth.js'
+import { getUser, clearAuth, getPermissions } from '../utils/auth.js'
 
 const route = useRoute()
 const router = useRouter()
 
 const showUserMenu = ref(false)
 const currentUser = ref(getUser())
+const userPermissions = ref(getPermissions())
 
 const avatarText = computed(() => {
   const name = currentUser.value?.name || currentUser.value?.username || 'U'
@@ -169,48 +170,73 @@ const toggle = (title) => {
 const ic = (d) =>
   `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`
 
-const menus = [
-  { path: '/chat', title: '对话', icon: ic('<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>') },
-  { path: '/dashboard', title: '总览大盘', icon: ic('<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>') },
+// 菜单定义，auth 字段对应 sys_auth 表中的 name
+const allMenus = [
+  { path: '/chat', title: '对话', auth: '对话', icon: ic('<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>') },
+  { path: '/dashboard', title: '总览大盘', auth: '总览大盘', icon: ic('<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>') },
   {
     title: '告警管理',
     icon: ic('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>'),
     children: [
-      { path: '/alerts/console', title: '告警控制台', badge: '12' },
-      { path: '/alerts/denoise', title: '告警降噪' }
+      { path: '/alerts/console', title: '告警控制台', auth: '告警控制台', badge: '12' },
+      { path: '/alerts/denoise', title: '告警降噪', auth: '告警降噪' }
     ]
   },
-  { path: '/anomaly', title: '异常检测', icon: ic('<path d="M3 12h4l3-8 4 16 3-8h4"/>') },
-  { path: '/rca', title: '根因分析', icon: ic('<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>') },
-  { path: '/logs', title: '日志分析', icon: ic('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>') },
+  { path: '/anomaly', title: '异常检测', auth: '异常检测', icon: ic('<path d="M3 12h4l3-8 4 16 3-8h4"/>') },
+  { path: '/rca', title: '根因分析', auth: '根因分析', icon: ic('<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>') },
+  { path: '/logs', title: '日志分析', auth: '日志分析', icon: ic('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>') },
   {
     title: 'AI 配置',
     icon: ic('<path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 2a10 10 0 0 1 10 10"/><path d="M12 12l7-7"/>'),
     children: [
-      { path: '/ai-config/llm', title: 'LLM 管理' },
-      { path: '/ai-config/skill', title: 'Skill 管理' }
+      { path: '/ai-config/llm', title: 'LLM 管理', auth: 'LLM 管理' },
+      { path: '/ai-config/skill', title: 'Skill 管理', auth: 'Skill 管理' }
     ]
   },
-  { path: '/knowledge-base', title: '运维知识库', icon: ic('<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>') },
-  { path: '/inspection', title: '巡检报告管理', icon: ic('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>') },
+  { path: '/knowledge-base', title: '运维知识库', auth: '运维知识库', icon: ic('<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>') },
+  { path: '/inspection', title: '巡检报告管理', auth: '巡检报告管理', icon: ic('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>') },
   {
     title: '通知管理',
     icon: ic('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M2 8c0-2.2 1.8-4 4-4h12a4 4 0 0 1 4 4"/>'),
     children: [
-      { path: '/notification/policy', title: '通知策略' },
-      { path: '/notification/medium', title: '通知媒介' }
+      { path: '/notification/policy', title: '通知策略', auth: '通知策略' },
+      { path: '/notification/medium', title: '通知媒介', auth: '通知媒介' }
     ]
   },
   {
     title: '人员组织',
     icon: ic('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
     children: [
-      { path: '/org/user', title: '用户管理' },
-      { path: '/org/role', title: '角色管理' }
+      { path: '/org/user', title: '用户管理', auth: '用户管理' },
+      { path: '/org/role', title: '角色管理', auth: '角色管理' }
     ]
   },
-  { path: '/datasource', title: '数据源接入', icon: ic('<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>') }
+  { path: '/datasource', title: '数据源接入', auth: '数据源接入', icon: ic('<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>') }
 ]
+
+// 根据用户权限过滤菜单
+const menus = computed(() => {
+  const perms = userPermissions.value
+
+  // 无权限时不显示任何菜单
+  if (!perms || perms.length === 0) {
+    return []
+  }
+
+  const filterMenu = (menu) => {
+    // 有 children 的菜单组：过滤子项，至少有一个子项有权限才显示
+    if (menu.children) {
+      const visibleChildren = menu.children.filter(c => c.auth && perms.includes(c.auth))
+      if (visibleChildren.length === 0) return null
+      return { ...menu, children: visibleChildren }
+    }
+    // 无子项的顶级菜单：检查自身权限
+    if (menu.auth && !perms.includes(menu.auth)) return null
+    return menu
+  }
+
+  return allMenus.map(filterMenu).filter(Boolean)
+})
 </script>
 
 <style scoped>

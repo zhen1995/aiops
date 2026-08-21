@@ -7,6 +7,7 @@ import (
 	"aiops/configs"
 	"aiops/controllers"
 	"aiops/middleware"
+	"aiops/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/mysql"
@@ -86,6 +87,28 @@ func main() {
 		userGroup.PATCH("/:id/reset-password", userCtrl.ResetPassword)
 	}
 
-	//启动服务器
+	// 角色管理相关路由
+	roleCtrl := controllers.NewRoleController(db)
+	roleGroup := api.Group("/roles")
+	{
+		roleGroup.GET("", roleCtrl.List)
+		roleGroup.GET("/simple", roleCtrl.ListRolesSimple)
+		roleGroup.GET("/auths", roleCtrl.ListAuths)
+		roleGroup.GET("/:id", roleCtrl.Get)
+		roleGroup.POST("", roleCtrl.Create)
+		roleGroup.PUT("/:id", roleCtrl.Update)
+		roleGroup.DELETE("/:id", roleCtrl.Delete)
+		roleGroup.PUT("/:id/auths", roleCtrl.SetAuths)
+	}
+
+	// 自动迁移（如表不存在则创建）
+	db.AutoMigrate(
+		&models.SysRole{},
+		&models.SysAuth{},
+		&models.SysRoleAuthRelation{},
+		&models.SysUserRoleRelation{},
+	)
+
+	// 启动服务器
 	router.Run(cfg.Server.Port)
 }
