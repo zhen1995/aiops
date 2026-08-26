@@ -107,6 +107,8 @@ func main() {
 		&models.SysAuth{},
 		&models.SysRoleAuthRelation{},
 		&models.SysUserRoleRelation{},
+		&models.ChatSession{},
+		&models.ChatMessage{},
 	)
 
 	// 启动服务器
