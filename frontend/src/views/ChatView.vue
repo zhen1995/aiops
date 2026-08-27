@@ -1,5 +1,26 @@
 <template>
   <div class="chat-page">
+    <!-- 左侧会话列表 -->
+    <aside class="session-list">
+      <div class="session-header">
+        <button class="btn btn-primary" @click="createNewSession">+ 新会话</button>
+      </div>
+      <div class="session-items">
+        <div
+          v-for="session in sessions"
+          :key="session.id"
+          class="session-item"
+          :class="{ active: session.id === currentSessionId }"
+          @click="switchSession(session.id)"
+        >
+          <div class="session-title">{{ session.title }}</div>
+          <div class="session-meta">{{ session.last_msg || '暂无消息' }}</div>
+          <button class="session-delete" @click.stop="removeSession(session.id)">×</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 右侧主区域 -->
     <div class="chat-card card">
       <div class="chat-header">
         <div>
@@ -8,11 +29,7 @@
         </div>
         <div class="model-selector">
           <span class="muted">当前模型</span>
-          <select v-model="currentModel" class="select">
-            <option value="gpt-4o">GPT-4o</option>
-            <option value="qwen-max">Qwen-Max</option>
-            <option value="deepseek-coder">DeepSeek</option>
-          </select>
+          <span class="model-name">{{ defaultModelName }}</span>
         </div>
       </div>
 
@@ -30,31 +47,40 @@
           <div class="message-body">
             <div class="message-meta">
               <b>{{ msg.role === 'assistant' ? 'AIOPS 助手' : '运维管理员' }}</b>
-              <span class="muted">{{ fmtTime(msg.time) }}</span>
+              <span class="muted">{{ fmtTime(msg.created_at) }}</span>
             </div>
-            <div class="message-content">{{ msg.content }}</div>
+            <div class="message-content">
+              <template v-if="isThinkingMessage(msg)">
+                <span class="thinking-indicator">
+                  <span class="thinking-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </span>
+                  <span class="thinking-text">正在思考中</span>
+                </span>
+              </template>
+              <template v-else>{{ msg.content }}</template>
+            </div>
           </div>
         </div>
       </div>
 
       <div class="chat-input-area">
         <div class="chat-toolbar">
-          <button class="tool-btn" title="快捷提问" @click="quickAsk('今天有哪些 P0 告警？')">今日 P0 告警</button>
-          <button class="tool-btn" title="快捷提问" @click="quickAsk('分析一下当前最高优先级的根因')">根因分析</button>
-          <button class="tool-btn" title="快捷提问" @click="quickAsk('生成今日巡检摘要')">巡检摘要</button>
+          <button class="tool-btn" @click="quickAsk('今天有哪些 P0 告警？')">今日 P0 告警</button>
+          <button class="tool-btn" @click="quickAsk('分析一下当前最高优先级的根因')">根因分析</button>
+          <button class="tool-btn" @click="quickAsk('生成今日巡检摘要')">巡检摘要</button>
         </div>
         <div class="chat-input">
           <textarea
             v-model="input"
             rows="2"
+            :disabled="isStreaming"
             placeholder="输入问题，例如：今天系统状态如何？"
             @keydown.enter.prevent="send"
           />
-          <button class="btn btn-primary send-btn" :disabled="!input.trim()" @click="send">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13" />
-              <polygon points="22 2 15 22 11 13 2 9 22 2" />
-            </svg>
+          <button class="btn btn-primary send-btn" :disabled="!input.trim() || isStreaming" @click="send">
             发送
           </button>
         </div>
@@ -64,50 +90,271 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue'
-import { chatMessages, fmtTime } from '../mock/data'
+import { ref, nextTick, onMounted, onUnmounted } from 'vue'
+import { fmtTime } from '../mock/data'
+import { getSessions, createSession, deleteSession, getMessages, streamChat } from '../api/chat'
+import { llmConfigApi } from '../api/llmConfig'
 
-const messages = ref([...chatMessages])
+const sessions = ref([])
+const currentSessionId = ref('')
+const messages = ref([])
 const input = ref('')
-const currentModel = ref('gpt-4o')
+const isStreaming = ref(false)
+const isThinking = ref(false)
 const messagesRef = ref(null)
+const defaultModelName = ref('默认模型')
 
-const quickAsk = (text) => {
+function isThinkingMessage(msg) {
+  return msg.role === 'assistant' && msg.content === '' && isThinking.value
+}
+
+let currentEventSource = null
+
+onMounted(() => {
+  loadSessions()
+  loadDefaultModelName()
+})
+
+async function loadDefaultModelName() {
+  try {
+    const configs = await llmConfigApi.list()
+    const defaultConfig = configs.find(c => c.is_default === 1 && c.is_enabled === 1)
+    if (defaultConfig) {
+      defaultModelName.value = defaultConfig.name
+    } else {
+      defaultModelName.value = '未配置默认模型'
+    }
+  } catch (e) {
+    defaultModelName.value = '默认模型'
+  }
+}
+
+onUnmounted(() => {
+  if (currentEventSource) {
+    currentEventSource.close()
+    currentEventSource = null
+  }
+})
+
+function resetStreaming() {
+  if (currentEventSource) {
+    currentEventSource.close()
+    currentEventSource = null
+  }
+  isStreaming.value = false
+  isThinking.value = false
+}
+
+async function loadSessions() {
+  try {
+    const data = await getSessions()
+    sessions.value = data || []
+    if (sessions.value.length === 0) {
+      await handleCreateSession()
+    } else if (!currentSessionId.value) {
+      currentSessionId.value = sessions.value[0].id
+      await loadMessages(currentSessionId.value)
+    }
+  } catch (e) {
+    console.error('加载会话失败', e)
+  }
+}
+
+async function handleCreateSession() {
+  resetStreaming()
+  try {
+    const data = await createSession('新会话')
+    sessions.value.unshift(data)
+    currentSessionId.value = data.id
+    messages.value = []
+  } catch (e) {
+    console.error('创建会话失败', e)
+  }
+}
+
+function createNewSession() {
+  handleCreateSession()
+}
+
+async function switchSession(id) {
+  resetStreaming()
+  if (id === currentSessionId.value) return
+  currentSessionId.value = id
+  await loadMessages(id)
+}
+
+async function loadMessages(id) {
+  try {
+    const data = await getMessages(id)
+    messages.value = data || []
+    scrollToBottom()
+  } catch (e) {
+    console.error('加载消息失败', e)
+  }
+}
+
+async function removeSession(id) {
+  try {
+    await deleteSession(id)
+    sessions.value = sessions.value.filter(s => s.id !== id)
+    if (currentSessionId.value === id) {
+      if (sessions.value.length > 0) {
+        await switchSession(sessions.value[0].id)
+      } else {
+        await handleCreateSession()
+      }
+    }
+  } catch (e) {
+    console.error('删除会话失败', e)
+  }
+}
+
+function quickAsk(text) {
   input.value = text
 }
 
-const send = () => {
+function scrollToBottom() {
+  nextTick(() => {
+    if (messagesRef.value) {
+      messagesRef.value.scrollTop = messagesRef.value.scrollHeight
+    }
+  })
+}
+
+function send() {
   const text = input.value.trim()
-  if (!text) return
+  if (!text || isStreaming.value) return
+
+  const sessionId = currentSessionId.value
+  if (!sessionId) return
 
   messages.value.push({
     role: 'user',
     content: text,
-    time: new Date().toISOString()
+    created_at: new Date().toISOString()
   })
   input.value = ''
+  scrollToBottom()
 
-  nextTick(() => {
-    messagesRef.value.scrollTop = messagesRef.value.scrollHeight
+  isStreaming.value = true
+  isThinking.value = true
+  const assistantIndex = messages.value.length
+  messages.value.push({
+    role: 'assistant',
+    content: '',
+    created_at: new Date().toISOString()
   })
 
-  setTimeout(() => {
-    messages.value.push({
-      role: 'assistant',
-      content: '已收到你的问题，正在基于当前监控数据生成回答…\n（此为前端原型演示，真实回复将由后端 LLM 服务返回）',
-      time: new Date().toISOString()
-    })
-    nextTick(() => {
-      messagesRef.value.scrollTop = messagesRef.value.scrollHeight
-    })
-  }, 800)
+  currentEventSource = streamChat(sessionId, text, {
+    onChunk: (chunk) => {
+      isThinking.value = false
+      messages.value[assistantIndex].content += chunk
+      scrollToBottom()
+    },
+    onDone: () => {
+      isStreaming.value = false
+      isThinking.value = false
+      loadSessions()
+    },
+    onError: (err) => {
+      isStreaming.value = false
+      isThinking.value = false
+      messages.value[assistantIndex].content += '\n[错误：' + err + ']'
+      scrollToBottom()
+    }
+  })
 }
 </script>
 
 <style scoped>
-.chat-page { max-width: 960px; margin: 0 auto; }
+.chat-page {
+  display: flex;
+  gap: 16px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.session-list {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.session-header {
+  padding: 14px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.session-header button {
+  width: 100%;
+}
+
+.session-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.session-item {
+  position: relative;
+  padding: 10px 28px 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+
+.session-item:hover,
+.session-item.active {
+  background: var(--c-primary-tint);
+}
+
+.session-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--c-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-meta {
+  font-size: 11px;
+  color: var(--c-text-2);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-delete {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--c-text-2);
+  cursor: pointer;
+  display: none;
+}
+
+.session-item:hover .session-delete {
+  display: block;
+}
+
+.session-delete:hover {
+  color: var(--c-danger, #c93b3b);
+}
 
 .chat-card {
+  flex: 1;
   display: flex;
   flex-direction: column;
   height: calc(100vh - var(--topbar-h) - 44px);
@@ -129,7 +376,7 @@ const send = () => {
   gap: 10px;
 }
 
-.select {
+.model-name {
   padding: 6px 10px;
   border: 1px solid var(--c-border);
   border-radius: 8px;
@@ -193,6 +440,39 @@ const send = () => {
 
 .message.user .message-content { background: var(--c-primary-tint); border-color: #cfe6e2; }
 
+.thinking-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--c-text-2);
+  font-size: 13.5px;
+}
+
+.thinking-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 28px;
+  height: 8px;
+}
+
+.thinking-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-primary);
+  animation: thinking-bounce 1.4s infinite ease-in-out both;
+}
+
+.thinking-dots span:nth-child(1) { animation-delay: -0.32s; }
+.thinking-dots span:nth-child(2) { animation-delay: -0.16s; }
+.thinking-dots span:nth-child(3) { animation-delay: 0s; }
+
+@keyframes thinking-bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
 .chat-input-area {
   padding: 14px 20px 18px;
   border-top: 1px solid var(--c-border);
@@ -231,6 +511,12 @@ const send = () => {
   font-size: 14px;
   font-family: inherit;
   outline: none;
+}
+
+.chat-input textarea:disabled {
+  background: var(--c-bg);
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .chat-input textarea:focus { border-color: var(--c-primary); }

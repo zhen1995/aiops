@@ -49,6 +49,17 @@ func main() {
 	api := router.Group("/api")
 	api.Use(middleware.AuthRequired())
 
+	// Chat 对话相关路由
+	chatCtrl := controllers.NewChatController(db)
+	chatGroup := api.Group("/chat")
+	{
+		chatGroup.GET("/sessions", chatCtrl.ListSessions)
+		chatGroup.POST("/sessions", chatCtrl.CreateSession)
+		chatGroup.DELETE("/sessions/:id", chatCtrl.DeleteSession)
+		chatGroup.GET("/sessions/:id/messages", chatCtrl.ListMessages)
+		chatGroup.GET("/sessions/:id/stream", chatCtrl.StreamChat)
+	}
+
 	// LLM 配置相关路由
 	llmCtrl := controllers.NewLLMConfigController(db)
 	llmGroup := api.Group("/llm-config")

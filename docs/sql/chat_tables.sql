@@ -1,8 +1,8 @@
 -- AIOPS 智能运维助手对话模块
 
 CREATE TABLE IF NOT EXISTS `chat_session` (
-    `id`              VARCHAR(32)  NOT NULL COMMENT '会话ID',
-    `user_id`         VARCHAR(32)  NOT NULL COMMENT '用户ID',
+    `id`              VARCHAR(36)  NOT NULL COMMENT '会话ID',
+    `user_id`         VARCHAR(36)  NOT NULL COMMENT '用户ID',
     `title`           VARCHAR(100) NOT NULL DEFAULT '新会话' COMMENT '会话标题',
     `status`          VARCHAR(20)  NOT NULL DEFAULT 'active' COMMENT '状态 active/archived',
     `created_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -14,8 +14,8 @@ CREATE TABLE IF NOT EXISTS `chat_session` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='对话会话';
 
 CREATE TABLE IF NOT EXISTS `chat_message` (
-    `id`                VARCHAR(32) NOT NULL COMMENT '消息ID',
-    `session_id`        VARCHAR(32) NOT NULL COMMENT '会话ID',
+    `id`                VARCHAR(36) NOT NULL COMMENT '消息ID',
+    `session_id`        VARCHAR(36) NOT NULL COMMENT '会话ID',
     `role`              VARCHAR(20) NOT NULL COMMENT '角色 system/user/assistant',
     `content`           LONGTEXT    NOT NULL COMMENT '消息内容',
     `prompt_tokens`     INT                  DEFAULT 0 COMMENT '输入token数',

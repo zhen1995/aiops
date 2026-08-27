@@ -13,6 +13,10 @@ import (
 func AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
+		// SSE 等 GET 场景无法携带自定义请求头，允许通过 query 参数 token  fallback 认证
+		if authHeader == "" && c.Request.Method == http.MethodGet {
+			authHeader = c.Query("token")
+		}
 
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{
