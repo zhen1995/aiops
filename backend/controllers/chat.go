@@ -2,9 +2,9 @@ package controllers
 
 import (
 	"net/http"
-	"strings"
 
 	"aiops/internal/chat"
+	"aiops/internal/chat/tools"
 	"aiops/models"
 
 	"github.com/gin-gonic/gin"
@@ -154,50 +154,53 @@ func (c *ChatController) StreamChat(ctx *gin.Context) {
 		return
 	}
 
-	// 5. 流式生成
-	streamReader, err := cm.Stream(ctx, messages)
-	if err != nil {
-		c.writeSSEError(ctx, 500, "启动流式生成失败")
-		return
-	}
-
-	// 6. SSE 输出
+	// 5. SSE 响应头（必须在发送任何事件前设置）
 	ctx.Writer.Header().Set("Content-Type", "text/event-stream")
 	ctx.Writer.Header().Set("Cache-Control", "no-cache")
 	ctx.Writer.Header().Set("Connection", "keep-alive")
 	ctx.Writer.Header().Set("X-Accel-Buffering", "no")
 	ctx.Writer.WriteHeaderNow()
 
-	var fullContent strings.Builder
+	// 6. 使用 Function Calling Agent 执行对话（支持查询数据源）
+	registry := tools.NewRegistry(c.DB)
+	agent := chat.NewAgent(cm, registry)
+
+	var fullContent string
 	var promptTokens, completionTokens, totalTokens int
 
-	chunkCh, errCh := chat.StreamMessages(ctx, streamReader)
-	for {
-		select {
-		case chunk, ok := <-chunkCh:
-			if !ok {
-				chunkCh = nil
-				break
-			}
-			fullContent.WriteString(chunk)
-			ctx.SSEvent("message", gin.H{"chunk": chunk})
+	resp, err := agent.Run(ctx, messages, &chat.AgentCallbacks{
+		OnStatus: func(status string) {
+			ctx.SSEvent("status", gin.H{"status": status})
 			ctx.Writer.Flush()
-		case err := <-errCh:
-			if err != nil {
-				ctx.SSEvent("error", gin.H{"code": 500, "message": "生成失败: " + err.Error()})
-				ctx.Writer.Flush()
-				return
-			}
-		case <-ctx.Request.Context().Done():
-			return
-		}
-		if chunkCh == nil {
-			break
-		}
+		},
+		OnToolCall: func(name, args string) {
+			ctx.SSEvent("tool_call", gin.H{"name": name, "arguments": args})
+			ctx.Writer.Flush()
+		},
+		OnToolResult: func(name, result string) {
+			ctx.SSEvent("tool_result", gin.H{"name": name, "result": result})
+			ctx.Writer.Flush()
+		},
+		OnChunk: func(chunk string) {
+			fullContent = chunk
+			// 为保持流式体验，将最终答案拆成小块逐字发送
+			c.streamText(ctx, chunk)
+		},
+	})
+	if err != nil {
+		ctx.SSEvent("error", gin.H{"code": 500, "message": "生成失败: " + err.Error()})
+		ctx.Writer.Flush()
+		return
+	}
+
+	if resp.ResponseMeta != nil && resp.ResponseMeta.Usage != nil {
+		promptTokens = resp.ResponseMeta.Usage.PromptTokens
+		completionTokens = resp.ResponseMeta.Usage.CompletionTokens
+		totalTokens = resp.ResponseMeta.Usage.TotalTokens
 	}
 
 	// 保存助手消息
-	assistantMsg, err := chat.SaveAssistantMessage(c.DB, sessionID, userID, fullContent.String(), promptTokens, completionTokens, totalTokens)
+	assistantMsg, err := chat.SaveAssistantMessage(c.DB, sessionID, userID, fullContent, promptTokens, completionTokens, totalTokens)
 	if err != nil {
 		ctx.SSEvent("error", gin.H{"code": 500, "message": "保存回复失败"})
 		ctx.Writer.Flush()
@@ -220,6 +223,20 @@ func (c *ChatController) StreamChat(ctx *gin.Context) {
 		"done":       true,
 	})
 	ctx.Writer.Flush()
+}
+
+// streamText 把一段文本拆成小块发送，模拟流式输出
+func (c *ChatController) streamText(ctx *gin.Context, text string) {
+	runes := []rune(text)
+	chunkSize := 4
+	for i := 0; i < len(runes); i += chunkSize {
+		end := i + chunkSize
+		if end > len(runes) {
+			end = len(runes)
+		}
+		ctx.SSEvent("message", gin.H{"chunk": string(runes[i:end])})
+		ctx.Writer.Flush()
+	}
 }
 
 func (c *ChatController) writeSSEError(ctx *gin.Context, code int, message string) {

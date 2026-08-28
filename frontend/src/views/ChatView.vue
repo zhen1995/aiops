@@ -60,6 +60,7 @@
                   <span class="thinking-text">正在思考中</span>
                 </span>
               </template>
+              <MarkdownContent v-else-if="msg.role === 'assistant'" :content="msg.content" />
               <template v-else>{{ msg.content }}</template>
             </div>
           </div>
@@ -94,6 +95,7 @@ import { ref, nextTick, onMounted, onUnmounted } from 'vue'
 import { fmtTime } from '../mock/data'
 import { getSessions, createSession, deleteSession, getMessages, streamChat } from '../api/chat'
 import { llmConfigApi } from '../api/llmConfig'
+import MarkdownContent from '../components/MarkdownContent.vue'
 
 const sessions = ref([])
 const currentSessionId = ref('')
