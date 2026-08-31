@@ -104,6 +104,10 @@ func main() {
 	ruleCtrl := controllers.NewAlertRuleController(db)
 	api.GET("/alert-rules", ruleCtrl.List)
 
+	// 告警事件代理路由
+	eventCtrl := controllers.NewAlertEventController(db)
+	api.GET("/alert-events", eventCtrl.List)
+
 	// 用户管理相关路由
 	userCtrl := controllers.NewUserController(db)
 	userGroup := api.Group("/users")
