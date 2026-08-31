@@ -28,7 +28,7 @@
         <tbody>
           <tr v-for="cfg in engines" :key="cfg.id">
             <td><b>{{ cfg.name }}</b></td>
-            <td class="muted mono" style="max-width: 220px; overflow: hidden; text-overflow: ellipsis">{{ cfg.base_url }}</td>
+            <td class="muted mono cell-ellipsis">{{ cfg.base_url }}</td>
             <td class="mono">{{ maskToken(cfg.token) }}</td>
             <td class="muted">{{ cfg.gids || '-' }}</td>
             <td>
@@ -280,6 +280,12 @@ onMounted(() => {
   color: var(--c-text-3);
   padding: 40px 0 !important;
 }
+.cell-ellipsis {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* 弹窗样式 */
 .modal-mask {
@@ -406,7 +412,7 @@ onMounted(() => {
   width: 16px;
   left: 3px;
   bottom: 3px;
-  background-color: white;
+  background-color: var(--c-surface);
   transition: .3s;
   border-radius: 50%;
 }
