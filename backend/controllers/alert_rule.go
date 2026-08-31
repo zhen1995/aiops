@@ -41,7 +41,7 @@ func (c *AlertRuleController) List(ctx *gin.Context) {
 func loadEnabledConfig(db *gorm.DB) (*models.AlertEngineConfig, error) {
 	var cfg models.AlertEngineConfig
 	if err := db.Where("is_enabled = ?", 1).Order("created_at ASC").First(&cfg).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("未找到启用的告警引擎配置，请先配置")
 		}
 		return nil, err

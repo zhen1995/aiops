@@ -83,7 +83,10 @@ func (c *AlertEngineController) Update(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新失败", "error": err.Error()})
 		return
 	}
-	c.DB.First(&cfg, "id = ?", id)
+	if err := c.DB.First(&cfg, "id = ?", id).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询失败"})
+		return
+	}
 	ctx.JSON(http.StatusOK, gin.H{"code": 0, "data": cfg})
 }
 
@@ -124,7 +127,10 @@ func (c *AlertEngineController) ToggleEnabled(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "操作失败", "error": err.Error()})
 		return
 	}
-	c.DB.First(&cfg, "id = ?", id)
+	if err := c.DB.First(&cfg, "id = ?", id).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询失败"})
+		return
+	}
 	ctx.JSON(http.StatusOK, gin.H{"code": 0, "data": cfg})
 }
 

@@ -37,6 +37,10 @@ func (c *AlertEventController) List(ctx *gin.Context) {
 	}
 
 	scope := ctx.DefaultQuery("scope", "active")
+	if scope != "active" && scope != "history" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "scope 参数必须是 active 或 history"})
+		return
+	}
 	var result *nightingale.EventList
 	if scope == "history" {
 		result, err = cli.ListHistoryEvents(ctx, req)

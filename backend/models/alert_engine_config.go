@@ -8,7 +8,7 @@ import (
 )
 
 type AlertEngineConfig struct {
-	ID        string         `gorm:"primaryKey;size:32;comment:id" json:"id"`
+	ID        string         `gorm:"primaryKey;size:40;comment:id" json:"id"`
 	Name      string         `gorm:"size:30;not null;comment:名称" json:"name"`
 	BaseURL   string         `gorm:"size:100;not null;comment:夜莺地址" json:"base_url"`
 	Token     string         `gorm:"size:100;not null;comment:用户Token" json:"token"`
