@@ -29,8 +29,5 @@ func (c *AlertEngineConfig) BeforeCreate(tx *gorm.DB) error {
 	if c.ID == "" {
 		c.ID = uuid.New().String()
 	}
-	if c.IsEnabled == 0 {
-		c.IsEnabled = 1
-	}
 	return nil
 }

@@ -3,6 +3,7 @@ package controllers
 import (
 	"errors"
 	"net/http"
+	"net/url"
 
 	"aiops/internal/nightingale"
 	"aiops/models"
@@ -47,7 +48,19 @@ func (c *AlertEngineController) Create(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误", "error": err.Error()})
 		return
 	}
-	if err := c.DB.Create(&cfg).Error; err != nil {
+	if err := validateBaseURL(cfg.BaseURL); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+
+	if err := c.DB.Transaction(func(tx *gorm.DB) error {
+		if cfg.IsDefault == 1 {
+			if err := tx.Model(&models.AlertEngineConfig{}).Where("is_default = ?", 1).Update("is_default", 0).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Create(&cfg).Error
+	}); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建失败", "error": err.Error()})
 		return
 	}
@@ -70,6 +83,11 @@ func (c *AlertEngineController) Update(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误", "error": err.Error()})
 		return
 	}
+	if err := validateBaseURL(req.BaseURL); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+
 	updates := map[string]interface{}{
 		"name":       req.Name,
 		"base_url":   req.BaseURL,
@@ -79,7 +97,14 @@ func (c *AlertEngineController) Update(ctx *gin.Context) {
 		"is_enabled": req.IsEnabled,
 		"is_default": req.IsDefault,
 	}
-	if err := c.DB.Model(&cfg).Updates(updates).Error; err != nil {
+	if err := c.DB.Transaction(func(tx *gorm.DB) error {
+		if req.IsDefault == 1 {
+			if err := tx.Model(&models.AlertEngineConfig{}).Where("is_default = ? AND id != ?", 1, id).Update("is_default", 0).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Model(&cfg).Updates(updates).Error
+	}); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新失败", "error": err.Error()})
 		return
 	}
@@ -151,4 +176,18 @@ func (c *AlertEngineController) Test(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"code": 0, "message": "连接成功"})
+}
+
+func validateBaseURL(raw string) error {
+	if raw == "" {
+		return errors.New("夜莺地址不能为空")
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return errors.New("夜莺地址格式不正确")
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return errors.New("夜莺地址必须使用 http 或 https 协议")
+	}
+	return nil
 }

@@ -26,14 +26,35 @@ func (c *AlertEventController) List(ctx *gin.Context) {
 	}
 	cli := nightingale.NewClient(cfg)
 
+	hours, err := parseInt64(ctx.DefaultQuery("hours", "24"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "hours 参数必须是整数"})
+		return
+	}
+	page, err := parseInt(ctx.DefaultQuery("page", "1"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "page 参数必须是整数"})
+		return
+	}
+	limit, err := parseInt(ctx.DefaultQuery("limit", "20"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "limit 参数必须是整数"})
+		return
+	}
+
 	req := nightingale.EventListRequest{
-		Hours: parseInt64(ctx.DefaultQuery("hours", "24")),
-		Page:  parseInt(ctx.DefaultQuery("page", "1")),
-		Limit: parseInt(ctx.DefaultQuery("limit", "20")),
+		Hours: hours,
+		Page:  page,
+		Limit: limit,
 		Query: ctx.Query("query"),
 	}
 	if s := ctx.Query("severity"); s != "" {
-		req.Severity = parseInt(s)
+		sev, err := parseInt(s)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "severity 参数必须是整数"})
+			return
+		}
+		req.Severity = sev
 	}
 
 	scope := ctx.DefaultQuery("scope", "active")
@@ -54,12 +75,10 @@ func (c *AlertEventController) List(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"code": 0, "data": result})
 }
 
-func parseInt64(s string) int64 {
-	v, _ := strconv.ParseInt(s, 10, 64)
-	return v
+func parseInt64(s string) (int64, error) {
+	return strconv.ParseInt(s, 10, 64)
 }
 
-func parseInt(s string) int {
-	v, _ := strconv.Atoi(s)
-	return v
+func parseInt(s string) (int, error) {
+	return strconv.Atoi(s)
 }
