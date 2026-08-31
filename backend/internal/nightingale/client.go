@@ -201,9 +201,9 @@ type activeEvent struct {
 	GroupName      string `json:"group_name"`
 	TriggerTime    int64  `json:"trigger_time"`
 	LastEvalTime   int64  `json:"last_eval_time"`
-	Tags           string `json:"tags"`
-	TriggerValue   string `json:"trigger_value"`
-	NotifyChannels string `json:"notify_channels"`
+	Tags           []string `json:"tags"`
+	TriggerValue   string   `json:"trigger_value"`
+	NotifyChannels []string `json:"notify_channels"`
 }
 
 func (e activeEvent) normalize() AlertEvent {
@@ -221,30 +221,30 @@ func (e activeEvent) normalize() AlertEvent {
 		GroupName:      e.GroupName,
 		TriggerTime:    e.TriggerTime,
 		LastEvalTime:   e.LastEvalTime,
-		Tags:           e.Tags,
+		Tags:           strings.Join(e.Tags, ","),
 		TriggerValue:   e.TriggerValue,
-		NotifyChannels: e.NotifyChannels,
+		NotifyChannels: strings.Join(e.NotifyChannels, ","),
 	}
 }
 
 // historyEvent 为夜莺 /alert-his-events/list 原始行，字段与 activeEvent 相同，但 is_recovered 为 int
 type historyEvent struct {
-	ID             int64  `json:"id"`
-	RuleID         int64  `json:"rule_id"`
-	RuleName       string `json:"rule_name"`
-	RuleNote       string `json:"rule_note"`
-	Severity       int    `json:"severity"`
-	Status         int    `json:"status"`
-	IsRecoveredInt int    `json:"is_recovered"`
-	TargetIdent    string `json:"target_ident"`
-	TargetNote     string `json:"target_note"`
-	GroupID        int64  `json:"group_id"`
-	GroupName      string `json:"group_name"`
-	TriggerTime    int64  `json:"trigger_time"`
-	LastEvalTime   int64  `json:"last_eval_time"`
-	Tags           string `json:"tags"`
-	TriggerValue   string `json:"trigger_value"`
-	NotifyChannels string `json:"notify_channels"`
+	ID             int64    `json:"id"`
+	RuleID         int64    `json:"rule_id"`
+	RuleName       string   `json:"rule_name"`
+	RuleNote       string   `json:"rule_note"`
+	Severity       int      `json:"severity"`
+	Status         int      `json:"status"`
+	IsRecoveredInt int      `json:"is_recovered"`
+	TargetIdent    string   `json:"target_ident"`
+	TargetNote     string   `json:"target_note"`
+	GroupID        int64    `json:"group_id"`
+	GroupName      string   `json:"group_name"`
+	TriggerTime    int64    `json:"trigger_time"`
+	LastEvalTime   int64    `json:"last_eval_time"`
+	Tags           []string `json:"tags"`
+	TriggerValue   string   `json:"trigger_value"`
+	NotifyChannels []string `json:"notify_channels"`
 }
 
 func (e historyEvent) normalize() AlertEvent {
@@ -262,9 +262,9 @@ func (e historyEvent) normalize() AlertEvent {
 		GroupName:      e.GroupName,
 		TriggerTime:    e.TriggerTime,
 		LastEvalTime:   e.LastEvalTime,
-		Tags:           e.Tags,
+		Tags:           strings.Join(e.Tags, ","),
 		TriggerValue:   e.TriggerValue,
-		NotifyChannels: e.NotifyChannels,
+		NotifyChannels: strings.Join(e.NotifyChannels, ","),
 	}
 }
 
