@@ -100,6 +100,10 @@ func main() {
 		engineGroup.GET("/:id/test", engineCtrl.Test)
 	}
 
+	// 告警规则代理路由
+	ruleCtrl := controllers.NewAlertRuleController(db)
+	api.GET("/alert-rules", ruleCtrl.List)
+
 	// 用户管理相关路由
 	userCtrl := controllers.NewUserController(db)
 	userGroup := api.Group("/users")
