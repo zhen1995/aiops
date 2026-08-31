@@ -179,11 +179,11 @@ const allMenus = [
     icon: ic('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>'),
     children: [
       { path: '/alerts/console', title: '告警控制台', auth: '告警控制台', badge: '12' },
-      { path: '/alerts/denoise', title: '告警降噪', auth: '告警降噪' }
+      { path: '/alerts/denoise', title: '告警降噪', auth: '告警降噪' },
+      { path: '/alert-engine', title: '告警引擎', auth: '告警引擎' },
+      { path: '/alert-rules', title: '告警规则', auth: '告警规则' }
     ]
   },
-  { path: '/alert-engine', title: '告警引擎', auth: '告警引擎', icon: ic('<path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 2a10 10 0 0 1 10 10"/><path d="M12 12l7-7"/>') },
-  { path: '/alert-rules', title: '告警规则', auth: '告警规则', icon: ic('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>') },
   { path: '/anomaly', title: '异常检测', auth: '异常检测', icon: ic('<path d="M3 12h4l3-8 4 16 3-8h4"/>') },
   { path: '/rca', title: '根因分析', auth: '根因分析', icon: ic('<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>') },
   { path: '/logs', title: '日志分析', auth: '日志分析', icon: ic('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>') },

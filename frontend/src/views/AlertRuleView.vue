@@ -7,7 +7,7 @@
           <input
             v-model="gids"
             type="text"
-            placeholder="逗号分隔，留空使用引擎配置"
+            placeholder="逗号分隔，留空获取全部规则"
             @keyup.enter="loadData"
           />
         </div>

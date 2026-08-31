@@ -27,9 +27,6 @@ func (c *AlertRuleController) List(ctx *gin.Context) {
 	}
 	cli := nightingale.NewClient(cfg)
 	gids := ctx.Query("gids")
-	if gids == "" {
-		gids = cfg.Gids
-	}
 	rules, err := cli.ListRules(ctx, gids)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询告警规则失败", "error": err.Error()})
