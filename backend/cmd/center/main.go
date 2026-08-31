@@ -87,6 +87,19 @@ func main() {
 		dsGroup.PATCH("/:id/toggle", dsCtrl.ToggleEnabled)
 	}
 
+	// 告警引擎配置相关路由
+	engineCtrl := controllers.NewAlertEngineController(db)
+	engineGroup := api.Group("/alert-engines")
+	{
+		engineGroup.GET("", engineCtrl.List)
+		engineGroup.GET("/:id", engineCtrl.Get)
+		engineGroup.POST("", engineCtrl.Create)
+		engineGroup.PUT("/:id", engineCtrl.Update)
+		engineGroup.DELETE("/:id", engineCtrl.Delete)
+		engineGroup.PATCH("/:id/toggle", engineCtrl.ToggleEnabled)
+		engineGroup.GET("/:id/test", engineCtrl.Test)
+	}
+
 	// 用户管理相关路由
 	userCtrl := controllers.NewUserController(db)
 	userGroup := api.Group("/users")
