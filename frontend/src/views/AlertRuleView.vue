@@ -30,6 +30,7 @@
             <th>规则名称</th>
             <th>业务组ID</th>
             <th>告警级别</th>
+            <th>PromQL</th>
             <th>启用状态</th>
             <th>评估间隔（秒）</th>
             <th>持续时间（秒）</th>
@@ -46,6 +47,7 @@
                 {{ severityText[rule.severity] || rule.severity }}
               </LevelTag>
             </td>
+            <td class="mono">{{ rule.prom_ql || '-' }}</td>
             <td>
               <LevelTag :level="rule.disabled === 1 ? 'info' : 'running'">
                 {{ statusText[rule.disabled] || rule.disabled }}
@@ -57,10 +59,10 @@
             <td class="muted">{{ fmtTime(rule.create_at) }}</td>
           </tr>
           <tr v-if="!loading && rules.length === 0">
-            <td colspan="8" class="empty-row">暂无告警规则数据</td>
+            <td colspan="9" class="empty-row">暂无告警规则数据</td>
           </tr>
           <tr v-if="loading">
-            <td colspan="8" class="empty-row">加载中...</td>
+            <td colspan="9" class="empty-row">加载中...</td>
           </tr>
         </tbody>
       </table>
@@ -137,6 +139,15 @@ onMounted(() => {
   font-size: 13px;
   width: 200px;
   color: var(--c-text);
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .empty-row {

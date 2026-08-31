@@ -80,11 +80,69 @@ type AlertRule struct {
 	Disabled         int    `json:"disabled"`
 	Severity         int    `json:"severity"`
 	Severities       []int  `json:"severities"`
+	PromQL           string `json:"prom_ql"`
 	PromForDuration  int    `json:"prom_for_duration"`
 	PromEvalInterval int    `json:"prom_eval_interval"`
 	CurEventCount    int    `json:"cur_event_count"`
 	CreateAt         int64  `json:"create_at"`
 	UpdateAt         int64  `json:"update_at"`
+}
+
+// ruleQuery 对应 rule_config.queries 中的单个查询
+type ruleQuery struct {
+	PromQL string `json:"prom_ql"`
+}
+
+// ruleConfig 对应夜莺规则配置，实际 PromQL 存放在 queries 数组中
+type ruleConfig struct {
+	Queries []ruleQuery `json:"queries"`
+}
+
+// rawAlertRule 用于接收夜莺原始字段，字段与 AlertRule 一致，但不带自定义反序列化
+type rawAlertRule struct {
+	ID               int64      `json:"id"`
+	GroupID          int64      `json:"group_id"`
+	Name             string     `json:"name"`
+	Note             string     `json:"note"`
+	Cate             string     `json:"cate"`
+	Disabled         int        `json:"disabled"`
+	Severity         int        `json:"severity"`
+	Severities       []int      `json:"severities"`
+	PromQL           string     `json:"prom_ql"`
+	PromForDuration  int        `json:"prom_for_duration"`
+	PromEvalInterval int        `json:"prom_eval_interval"`
+	CurEventCount    int        `json:"cur_event_count"`
+	CreateAt         int64      `json:"create_at"`
+	UpdateAt         int64      `json:"update_at"`
+	RuleConfig       ruleConfig `json:"rule_config"`
+}
+
+// UnmarshalJSON 在反序列化后，如果顶层 prom_ql 为空，则从 rule_config.queries 中补回第一个 PromQL
+func (r *AlertRule) UnmarshalJSON(data []byte) error {
+	var raw rawAlertRule
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*r = AlertRule{
+		ID:               raw.ID,
+		GroupID:          raw.GroupID,
+		Name:             raw.Name,
+		Note:             raw.Note,
+		Cate:             raw.Cate,
+		Disabled:         raw.Disabled,
+		Severity:         raw.Severity,
+		Severities:       raw.Severities,
+		PromQL:           raw.PromQL,
+		PromForDuration:  raw.PromForDuration,
+		PromEvalInterval: raw.PromEvalInterval,
+		CurEventCount:    raw.CurEventCount,
+		CreateAt:         raw.CreateAt,
+		UpdateAt:         raw.UpdateAt,
+	}
+	if r.PromQL == "" && len(raw.RuleConfig.Queries) > 0 {
+		r.PromQL = raw.RuleConfig.Queries[0].PromQL
+	}
+	return nil
 }
 
 func (c *Client) ListRules(ctx context.Context, gids string) ([]AlertRule, error) {
