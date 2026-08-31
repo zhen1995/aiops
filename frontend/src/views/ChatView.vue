@@ -92,10 +92,14 @@
 
 <script setup>
 import { ref, nextTick, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { fmtTime } from '../mock/data'
 import { getSessions, createSession, deleteSession, getMessages, streamChat } from '../api/chat'
 import { llmConfigApi } from '../api/llmConfig'
 import MarkdownContent from '../components/MarkdownContent.vue'
+
+const route = useRoute()
+const router = useRouter()
 
 const sessions = ref([])
 const currentSessionId = ref('')
@@ -115,6 +119,7 @@ let currentEventSource = null
 onMounted(() => {
   loadSessions()
   loadDefaultModelName()
+  handleRcaParam()
 })
 
 async function loadDefaultModelName() {
@@ -215,6 +220,50 @@ function quickAsk(text) {
   input.value = text
 }
 
+function decodeEvent(encoded) {
+  try {
+    return JSON.parse(decodeURIComponent(atob(encoded)))
+  } catch (e) {
+    console.error('解析 RCA 事件参数失败', e)
+    return null
+  }
+}
+
+function buildRcaPrompt(event) {
+  const statusText = event.is_recovered ? '已恢复' : '告警中'
+  const severityText = { 1: 'P1-紧急', 2: 'P2-警告', 3: 'P3-提醒' }[event.severity] || event.severity
+  const timeStr = event.trigger_time ? new Date(event.trigger_time * 1000).toLocaleString() : '-'
+  return `请对以下告警事件进行根因分析：
+- 规则名称：${event.rule_name || '-'}
+- 告警对象：${event.target_ident || '-'}
+- 触发时间：${timeStr}
+- 级别：${severityText}
+- 状态：${statusText}
+- 标签：${event.tags || '-'}
+- 触发值：${event.trigger_value || '-'}
+
+请查询相关 Prometheus 指标和 Elasticsearch 日志，排查宕机原因，并给出根因、证据链和修复建议。`
+}
+
+async function handleRcaParam() {
+  if (route.query.rca !== '1' || !route.query.event) return
+  const event = decodeEvent(route.query.event)
+  if (!event) {
+    alert('根因分析参数无效')
+    clearRcaQuery()
+    return
+  }
+  const prompt = buildRcaPrompt(event)
+  input.value = prompt
+  clearRcaQuery()
+  await nextTick()
+  send()
+}
+
+function clearRcaQuery() {
+  router.replace({ path: '/chat', query: {} })
+}
+
 function scrollToBottom() {
   nextTick(() => {
     if (messagesRef.value) {
@@ -223,12 +272,23 @@ function scrollToBottom() {
   })
 }
 
-function send() {
+async function send() {
   const text = input.value.trim()
   if (!text || isStreaming.value) return
 
-  const sessionId = currentSessionId.value
-  if (!sessionId) return
+  let sessionId = currentSessionId.value
+  if (!sessionId) {
+    try {
+      const data = await createSession('新会话')
+      sessions.value.unshift(data)
+      currentSessionId.value = data.id
+      sessionId = data.id
+      messages.value = []
+    } catch (e) {
+      console.error('创建会话失败', e)
+      return
+    }
+  }
 
   messages.value.push({
     role: 'user',
