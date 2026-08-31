@@ -1,192 +1,343 @@
 <template>
   <div>
-    <PageHeader title="异常检测" desc="多算法融合的指标 / 日志异常检测 · 可解释性输出">
-      <button class="btn">检测配置</button>
-      <button class="btn btn-primary">新建检测任务</button>
-    </PageHeader>
+    <PageHeader title="异常检测" desc="接入 Nightingale 的活跃与历史告警事件查询" />
 
     <div class="kpi-grid">
-      <StatCard label="运行中模型" :value="runningModels" deltaType="flat" :hint="`共 ${anomalyAlgorithms.length} 种算法`" />
-      <StatCard label="今日检测任务" :value="186" delta="+12" deltaType="flat" hint="覆盖全部核心服务" />
-      <StatCard label="命中异常" :value="47" delta="+8" deltaType="down" hint="今日异常点" />
-      <StatCard label="平均置信度" :value="avgConfidence" unit="%" delta="+2.1%" deltaType="up" hint="Top 4 命中结果" />
+      <StatCard label="活跃告警数" :value="activeCount" deltaType="flat" hint="当前列表" />
+      <StatCard label="历史告警数（今日）" :value="historyCount" deltaType="flat" hint="当前列表" />
+      <StatCard label="P1 告警数" :value="p1Count" deltaType="down" hint="当前列表" />
+      <StatCard label="P2 告警数" :value="p2Count" deltaType="up" hint="当前列表" />
     </div>
 
-    <div class="row-main">
-      <!-- 指标时序图 -->
-      <div class="card">
-        <h3 class="card-title">指标时序检测：node_cpu_seconds_total</h3>
-        <p class="card-sub">order-db-primary · Prophet 时序分解 · 红点为命中的异常点（30 分钟粒度）</p>
-        <ChartBox :option="seriesOption" height="380px" />
-      </div>
-
-      <!-- 检测结果详情 -->
-      <div class="card result-card">
-        <h3 class="card-title">检测结果详情</h3>
-        <p class="card-sub">最近命中的异常结果与可解释性说明</p>
-        <div class="result-list">
-          <div v-for="r in anomalyResults" :key="r.metric + r.time" class="result-item">
-            <div class="result-head">
-              <div>
-                <div class="mono result-metric">{{ r.metric }}</div>
-                <div class="muted">{{ r.service }} · {{ r.algorithm }} · {{ fmtTime(r.time) }}</div>
-              </div>
-              <LevelTag :level="r.severity" />
-            </div>
-
-            <div class="score-row">
-              <div class="score-item">
-                <div class="score-label"><span>异常评分</span><b>{{ r.score.toFixed(2) }}</b></div>
-                <div class="progress"><i :style="{ width: r.score * 100 + '%' }"></i></div>
-              </div>
-              <div class="score-item">
-                <div class="score-label"><span>置信度</span><b>{{ Math.round(r.confidence * 100) }}%</b></div>
-                <div class="progress"><i :style="{ width: r.confidence * 100 + '%' }"></i></div>
-              </div>
-            </div>
-
-            <div class="value-row">
-              <div class="value-item"><span class="muted">实际值</span><b class="actual">{{ fmtNum(r.value) }}</b></div>
-              <div class="value-item"><span class="muted">期望值</span><b>{{ fmtNum(r.expected) }}</b></div>
-              <div class="value-item">
-                <span class="muted">偏差</span>
-                <b :class="r.deviation >= 0 ? 'dev-up' : 'dev-down'">{{ r.deviation >= 0 ? '+' : '' }}{{ fmtNum(r.deviation) }}</b>
-              </div>
-            </div>
-
-            <div class="explain">
-              <div class="explain-row"><span class="explain-key">检测方法</span><span>{{ r.explanation.method }}</span></div>
-              <div class="explain-row"><span class="explain-key">趋势</span><span>{{ r.explanation.trend }}</span></div>
-              <div class="explain-row"><span class="explain-key">周期性</span><span>{{ r.explanation.seasonality }}</span></div>
-              <div class="explain-row"><span class="explain-key">判定原因</span><span>{{ r.explanation.reason }}</span></div>
-            </div>
+    <div class="card">
+      <div class="card-head-flex">
+        <div class="tabs">
+          <button
+            v-for="tab in tabs"
+            :key="tab.value"
+            class="tab-btn"
+            :class="{ active: scope === tab.value }"
+            @click="switchScope(tab.value)"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+        <div class="filters">
+          <div class="filter-group">
+            <label>时间窗口</label>
+            <select v-model.number="hours" @change="loadData">
+              <option :value="24">最近 24 小时</option>
+              <option :value="168">最近 7 天</option>
+              <option :value="720">最近 30 天</option>
+            </select>
           </div>
+          <div class="filter-group">
+            <label>级别</label>
+            <select v-model="severity" @change="loadData">
+              <option value="">全部</option>
+              <option value="1">P1-紧急</option>
+              <option value="2">P2-警告</option>
+              <option value="3">P3-提醒</option>
+            </select>
+          </div>
+          <div class="search-box">
+            <input
+              v-model="query"
+              type="text"
+              placeholder="搜索规则名称或告警对象"
+              @keyup.enter="loadData"
+            />
+            <button v-if="query" class="clear-btn" @click="clearQuery">×</button>
+          </div>
+          <button class="btn btn-sm" @click="loadData" :disabled="loading">
+            {{ loading ? '加载中...' : '刷新' }}
+          </button>
         </div>
       </div>
-    </div>
 
-    <!-- 算法选型矩阵 -->
-    <div class="card">
-      <h3 class="card-title">算法选型矩阵</h3>
-      <p class="card-sub">按检测场景划分的算法能力与运行状态</p>
       <table class="table">
         <thead>
-          <tr><th>检测场景</th><th>算法</th><th>模型类型</th><th>优势</th><th>适用数据</th><th>运行状态</th></tr>
+          <tr>
+            <th>规则名称</th>
+            <th>级别</th>
+            <th>状态</th>
+            <th>告警对象</th>
+            <th>触发时间</th>
+            <th>标签</th>
+            <th>触发值</th>
+          </tr>
         </thead>
         <tbody>
-          <tr v-for="a in anomalyAlgorithms" :key="a.scene + a.algo">
-            <td>{{ a.scene }}</td>
-            <td class="mono">{{ a.algo }}</td>
-            <td><span class="type-badge">{{ a.type }}</span></td>
-            <td class="muted">{{ a.advantage }}</td>
-            <td class="muted">{{ a.data }}</td>
+          <tr v-for="ev in events" :key="ev.id">
+            <td><b>{{ ev.rule_name }}</b></td>
             <td>
-              <LevelTag v-if="a.status === 'running'" level="running" />
-              <span v-else class="paused-tag">已暂停</span>
+              <LevelTag :level="severityMap(ev.severity)">
+                {{ severityText[ev.severity] || ev.severity }}
+              </LevelTag>
             </td>
+            <td>
+              <LevelTag :level="statusMap(ev)">
+                {{ ev.is_recovered ? '已恢复' : '告警中' }}
+              </LevelTag>
+            </td>
+            <td class="mono">{{ ev.target_ident || '-' }}</td>
+            <td class="muted">{{ fmtTime(ev.trigger_time) }}</td>
+            <td class="muted mono tags-cell" :title="ev.tags">{{ ev.tags || '-' }}</td>
+            <td class="mono">{{ ev.trigger_value || '-' }}</td>
+          </tr>
+          <tr v-if="!loading && events.length === 0">
+            <td colspan="7" class="empty-row">暂无告警事件数据</td>
+          </tr>
+          <tr v-if="loading">
+            <td colspan="7" class="empty-row">加载中...</td>
           </tr>
         </tbody>
       </table>
+
+      <div class="pagination" v-if="total > 0">
+        <span class="muted">共 {{ total }} 条</span>
+        <div class="page-ops">
+          <button class="btn btn-sm" :disabled="page === 1 || loading" @click="changePage(page - 1)">上一页</button>
+          <span class="page-info">第 {{ page }} 页</span>
+          <button class="btn btn-sm" :disabled="page * limit >= total || loading" @click="changePage(page + 1)">下一页</button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import PageHeader from '../components/PageHeader.vue'
 import StatCard from '../components/StatCard.vue'
-import ChartBox from '../components/ChartBox.vue'
 import LevelTag from '../components/LevelTag.vue'
-import { anomalyAlgorithms, anomalyResults, metricSeries, fmtTime } from '../mock/data'
+import { alertEventApi } from '../api/alertEvent.js'
 
-const runningModels = anomalyAlgorithms.filter((a) => a.status === 'running').length
-const avgConfidence = Math.round(
-  (anomalyResults.reduce((s, r) => s + r.confidence, 0) / anomalyResults.length) * 100
-)
+const tabs = [
+  { label: '活跃告警', value: 'active' },
+  { label: '历史告警', value: 'history' }
+]
 
-const fmtNum = (v) => (Math.abs(v) >= 1000 ? v.toLocaleString('en-US') : v)
+const scope = ref('active')
+const hours = ref(24)
+const query = ref('')
+const severity = ref('')
+const page = ref(1)
+const limit = ref(20)
 
-// 预测区间带：期望值 ± 8
-const bandLow = metricSeries.expected.map((v) => Math.round((v - 8) * 10) / 10)
-const bandRange = metricSeries.expected.map((v) => 16)
+const events = ref([])
+const total = ref(0)
+const loading = ref(false)
 
-const anomalyPoints = metricSeries.anomalyIndex.map((i) => ({
-  coord: [metricSeries.labels[i], Math.round(metricSeries.actual[i] * 10) / 10],
-  value: Math.round(metricSeries.actual[i] * 10) / 10
-}))
+const severityText = { 1: 'P1-紧急', 2: 'P2-警告', 3: 'P3-提醒' }
 
-const seriesOption = computed(() => ({
-  tooltip: { trigger: 'axis' },
-  legend: { data: ['实际值', '期望值', '预测区间'], top: 0, textStyle: { color: '#5c6b68' } },
-  grid: { left: 48, right: 16, top: 36, bottom: 28 },
-  xAxis: { type: 'category', data: metricSeries.labels, axisLine: { lineStyle: { color: '#e4e9e7' } }, axisLabel: { color: '#93a19d', interval: 5 } },
-  yAxis: { type: 'value', splitLine: { lineStyle: { color: '#eef2f0' } }, axisLabel: { color: '#93a19d' } },
-  series: [
-    {
-      name: 'band-low', type: 'line', data: bandLow, stack: 'band', showSymbol: false,
-      lineStyle: { opacity: 0 }, itemStyle: { color: 'transparent' }, silent: true, legendHoverLink: false
-    },
-    {
-      name: '预测区间', type: 'line', data: bandRange, stack: 'band', showSymbol: false,
-      lineStyle: { opacity: 0 }, areaStyle: { color: 'rgba(14,124,114,0.10)' }, silent: true,
-      itemStyle: { color: 'rgba(14,124,114,0.25)' }
-    },
-    {
-      name: '期望值', type: 'line', smooth: true, data: metricSeries.expected, showSymbol: false,
-      lineStyle: { color: '#8a9693', width: 1.8, type: 'dashed' }, itemStyle: { color: '#8a9693' }
-    },
-    {
-      name: '实际值', type: 'line', smooth: true, data: metricSeries.actual.map((v) => Math.round(v * 10) / 10), showSymbol: false,
-      lineStyle: { color: '#0e7c72', width: 2.5 }, itemStyle: { color: '#0e7c72' },
-      markPoint: {
-        symbol: 'circle', symbolSize: 11,
-        itemStyle: { color: '#c93b3b', borderColor: '#fff', borderWidth: 2 },
-        label: { show: true, formatter: '异常', color: '#c93b3b', fontSize: 11, offset: [0, -14] },
-        data: anomalyPoints
-      }
-    }
-  ]
-}))
+const severityMap = (s) => {
+  if (s === 1) return 'critical'
+  if (s === 2) return 'warning'
+  return 'info'
+}
+
+const statusMap = (ev) => ev.is_recovered ? 'resolved' : 'active'
+
+const fmtTime = (ts) => ts ? new Date(ts * 1000).toLocaleString() : '-'
+
+const activeCount = computed(() => scope.value === 'active' ? events.value.length : 0)
+const historyCount = computed(() => scope.value === 'history' ? events.value.length : 0)
+const p1Count = computed(() => events.value.filter(e => e.severity === 1).length)
+const p2Count = computed(() => events.value.filter(e => e.severity === 2).length)
+
+function switchScope(next) {
+  if (scope.value === next) return
+  scope.value = next
+  page.value = 1
+  loadData()
+}
+
+function clearQuery() {
+  query.value = ''
+  loadData()
+}
+
+function changePage(next) {
+  page.value = next
+  loadData()
+}
+
+async function loadData() {
+  loading.value = true
+  try {
+    const result = await alertEventApi.list({
+      scope: scope.value,
+      hours: hours.value,
+      page: page.value,
+      limit: limit.value,
+      query: query.value.trim(),
+      severity: severity.value === '' ? '' : String(severity.value)
+    })
+    events.value = result?.list || []
+    total.value = result?.total || 0
+  } catch (err) {
+    alert('加载告警事件失败：' + err.message)
+    events.value = []
+    total.value = 0
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  loadData()
+})
 </script>
 
 <style scoped>
-.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
-.row-main { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 16px; }
-.card:last-child { margin-bottom: 0; }
-
-.result-card { display: flex; flex-direction: column; }
-.result-list { display: flex; flex-direction: column; gap: 14px; overflow: auto; max-height: 470px; padding-right: 4px; }
-.result-item { border: 1px solid var(--c-border); border-radius: var(--radius-card); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
-.result-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
-.result-metric { font-weight: 600; color: var(--c-text); }
-
-.score-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.score-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--c-text-2); margin-bottom: 4px; }
-.score-label b { color: var(--c-text); }
-
-.value-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-.value-item { display: flex; flex-direction: column; gap: 1px; font-size: 12px; }
-.value-item b { font-size: 15px; }
-.value-item .actual { color: var(--c-p0); }
-.dev-up { color: var(--c-p0); }
-.dev-down { color: var(--c-p1); }
-
-.explain { background: var(--c-primary-soft); border-radius: var(--radius-tag); padding: 8px 12px; display: flex; flex-direction: column; gap: 3px; }
-.explain-row { display: flex; gap: 10px; font-size: 12px; line-height: 1.55; }
-.explain-key { flex: none; width: 56px; color: var(--c-text-3); }
-
-.type-badge {
-  display: inline-block; padding: 1px 8px; border-radius: var(--radius-tag);
-  background: var(--c-p4-bg); color: var(--c-text-2); font-size: 12px;
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 18px;
 }
-.paused-tag {
-  display: inline-block; padding: 1px 8px; border-radius: var(--radius-tag);
-  background: var(--c-p4-bg); color: var(--c-p4); font-size: 12px; font-weight: 600;
+
+.card-head-flex {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tab-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text-2);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tab-btn:hover {
+  border-color: var(--c-primary);
+  color: var(--c-primary);
+}
+
+.tab-btn.active {
+  background: var(--c-primary);
+  border-color: var(--c-primary);
+  color: #fff;
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-group label {
+  font-size: 12px;
+  color: var(--c-text-2);
+  white-space: nowrap;
+}
+
+.filter-group select {
+  padding: 6px 8px;
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: 13px;
+  outline: none;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  color: var(--c-text-3);
+  width: 220px;
+  position: relative;
+}
+
+.search-box input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  width: 100%;
+  color: var(--c-text);
+}
+
+.search-box .clear-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  color: var(--c-text-3);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.search-box .clear-btn:hover {
+  color: var(--c-text);
+}
+
+.empty-row {
+  text-align: center;
+  color: var(--c-text-3);
+  padding: 40px 0 !important;
+}
+
+.tags-cell {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--c-border);
+}
+
+.page-ops {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-info {
+  font-size: 13px;
+  color: var(--c-text-2);
 }
 
 @media (max-width: 1200px) {
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-  .row-main { grid-template-columns: 1fr; }
-  .result-list { max-height: none; }
+  .card-head-flex { flex-direction: column; align-items: flex-start; }
 }
 </style>
