@@ -65,6 +65,7 @@
             <th>触发时间</th>
             <th>标签</th>
             <th>触发值</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
@@ -84,12 +85,15 @@
             <td class="muted">{{ fmtTime(ev.trigger_time) }}</td>
             <td class="muted mono tags-cell" :title="ev.tags">{{ ev.tags || '-' }}</td>
             <td class="mono">{{ ev.trigger_value || '-' }}</td>
+            <td>
+              <button class="btn btn-sm" @click="goToRca(ev)">根因分析</button>
+            </td>
           </tr>
           <tr v-if="!loading && events.length === 0">
-            <td colspan="7" class="empty-row">暂无告警事件数据</td>
+            <td colspan="8" class="empty-row">暂无告警事件数据</td>
           </tr>
           <tr v-if="loading">
-            <td colspan="7" class="empty-row">加载中...</td>
+            <td colspan="8" class="empty-row">加载中...</td>
           </tr>
         </tbody>
       </table>
@@ -108,10 +112,13 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import StatCard from '../components/StatCard.vue'
 import LevelTag from '../components/LevelTag.vue'
 import { alertEventApi } from '../api/alertEvent.js'
+
+const router = useRouter()
 
 const tabs = [
   { label: '活跃告警', value: 'active' },
@@ -140,6 +147,26 @@ const severityMap = (s) => {
 const statusMap = (ev) => ev.is_recovered ? 'resolved' : 'active'
 
 const fmtTime = (ts) => ts ? new Date(ts * 1000).toLocaleString() : '-'
+
+function encodeEvent(event) {
+  const payload = {
+    rule_name: event.rule_name,
+    target_ident: event.target_ident,
+    tags: event.tags,
+    trigger_time: event.trigger_time,
+    trigger_value: event.trigger_value,
+    severity: event.severity,
+    is_recovered: event.is_recovered
+  }
+  return btoa(encodeURIComponent(JSON.stringify(payload)))
+}
+
+function goToRca(event) {
+  router.push({
+    path: '/chat',
+    query: { rca: '1', event: encodeEvent(event) }
+  })
+}
 
 const activeCount = computed(() => scope.value === 'active' ? events.value.length : 0)
 const historyCount = computed(() => scope.value === 'history' ? events.value.length : 0)
