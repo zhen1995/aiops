@@ -231,7 +231,7 @@ onMounted(() => {
 .tab-btn.active {
   background: var(--c-primary);
   border-color: var(--c-primary);
-  color: #fff;
+  color: var(--c-surface);
 }
 
 .filters {
