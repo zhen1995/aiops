@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"path/filepath"
 	"runtime"
 
@@ -120,7 +121,12 @@ func main() {
 		&models.SysUserRoleRelation{},
 		&models.ChatSession{},
 		&models.ChatMessage{},
+		&models.AlertEngineConfig{},
 	)
+
+	if err := models.SeedSysAuth(db); err != nil {
+		fmt.Println("初始化权限失败:", err)
+	}
 
 	// 启动服务器
 	router.Run(cfg.Server.Port)
