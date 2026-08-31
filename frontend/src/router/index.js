@@ -11,6 +11,8 @@ const routes = [
   { path: '/alerts/console', name: 'alerts-console', component: () => import('../views/AlertsView.vue'), meta: { title: '告警控制台', auth: '告警控制台' } },
   { path: '/alerts/denoise', name: 'alerts-denoise', component: () => import('../views/DenoiseView.vue'), meta: { title: '告警降噪', auth: '告警降噪' } },
   { path: '/anomaly', name: 'anomaly', component: () => import('../views/AnomalyView.vue'), meta: { title: '异常检测', auth: '异常检测' } },
+  { path: '/alert-engine', name: 'alert-engine', component: () => import('../views/AlertEngineView.vue'), meta: { title: '告警引擎', auth: '告警引擎' } },
+  { path: '/alert-rules', name: 'alert-rules', component: () => import('../views/AlertRuleView.vue'), meta: { title: '告警规则', auth: '告警规则' } },
   { path: '/rca', name: 'rca', component: () => import('../views/RcaView.vue'), meta: { title: '根因分析', auth: '根因分析' } },
   { path: '/logs', name: 'logs', component: () => import('../views/LogAnalysisView.vue'), meta: { title: '日志分析', auth: '日志分析' } },
   { path: '/ai-config', redirect: '/ai-config/llm' },
