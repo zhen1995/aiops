@@ -7,6 +7,7 @@ import (
 
 	"aiops/configs"
 	"aiops/controllers"
+	"aiops/internal/alerting"
 	"aiops/internal/inspection"
 	"aiops/middleware"
 	"aiops/models"
@@ -52,13 +53,24 @@ func main() {
 		&models.InspectionReport{},
 		&models.NotifyMedia{},
 		&models.AlertRule{},
+		&models.AlertEvent{},
+		&models.RootCauseAnalysis{},
 	)
+
+	// 历史告警规则补齐执行频率默认值（GORM 自动加列后为 0）
+	db.Model(&models.AlertRule{}).Where("eval_interval = 0 OR eval_interval IS NULL").Update("eval_interval", 30)
 
 	if err := models.SeedSysAuth(db); err != nil {
 		fmt.Println("初始化权限失败:", err)
 	}
 	if err := models.SeedAdminRoleAuth(db); err != nil {
 		fmt.Println("为 admin 角色分配权限失败:", err)
+	}
+
+	// 启动告警规则评估引擎
+	alertEngine := alerting.NewEngine(db)
+	if err := alertEngine.Start(); err != nil {
+		fmt.Println("启动告警引擎失败:", err)
 	}
 
 	// 启动巡检调度器
@@ -131,7 +143,7 @@ func main() {
 	}
 
 	// 告警规则相关路由（系统自建）
-	ruleCtrl := controllers.NewAlertRuleController(db)
+	ruleCtrl := controllers.NewAlertRuleController(db, alertEngine)
 	ruleGroup := api.Group("/alert-rules")
 	{
 		ruleGroup.GET("", ruleCtrl.List)
@@ -145,6 +157,12 @@ func main() {
 	// 告警事件代理路由
 	eventCtrl := controllers.NewAlertEventController(db)
 	api.GET("/alert-events", eventCtrl.List)
+
+	// 根因分析相关路由（针对告警事件触发 AI 根因分析）
+	rootCauseCtrl := controllers.NewRootCauseController(db)
+	api.POST("/alert-events/:id/root-cause", rootCauseCtrl.Trigger)
+	api.GET("/root-cause-analyses", rootCauseCtrl.List)
+	api.GET("/root-cause-analyses/:id", rootCauseCtrl.Detail)
 
 	// 巡检任务 & 巡检报告相关路由
 	insCtrl := controllers.NewInspectionController(db)

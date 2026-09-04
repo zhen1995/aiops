@@ -1,6 +1,6 @@
 <template>
   <div>
-    <PageHeader title="告警事件" desc="接入 Nightingale 的活跃与历史告警事件查询" />
+    <PageHeader title="告警事件" desc="由系统按告警规则自动探测生成的活跃与历史告警事件" />
 
     <div class="kpi-grid">
       <StatCard label="活跃告警数" :value="activeCount" deltaType="flat" hint="当前列表" />
@@ -78,7 +78,7 @@
             </td>
             <td>
               <LevelTag :level="statusMap(ev)">
-                {{ ev.is_recovered ? '已恢复' : '告警中' }}
+                {{ statusText(ev) }}
               </LevelTag>
             </td>
             <td class="mono">{{ ev.target_ident || '-' }}</td>
@@ -117,6 +117,7 @@ import PageHeader from '../components/PageHeader.vue'
 import StatCard from '../components/StatCard.vue'
 import LevelTag from '../components/LevelTag.vue'
 import { alertEventApi } from '../api/alertEvent.js'
+import { rcaApi } from '../api/rca.js'
 
 const router = useRouter()
 
@@ -144,28 +145,29 @@ const severityMap = (s) => {
   return 'info'
 }
 
-const statusMap = (ev) => ev.is_recovered ? 'resolved' : 'active'
+const statusMap = (ev) => ev.status === 'firing' ? 'active' : 'resolved'
 
-const fmtTime = (ts) => ts ? new Date(ts * 1000).toLocaleString() : '-'
-
-function encodeEvent(event) {
-  const payload = {
-    rule_name: event.rule_name,
-    target_ident: event.target_ident,
-    tags: event.tags,
-    trigger_time: event.trigger_time,
-    trigger_value: event.trigger_value,
-    severity: event.severity,
-    is_recovered: event.is_recovered
-  }
-  return btoa(encodeURIComponent(JSON.stringify(payload)))
+// 状态文案：告警中 / 已恢复（恢复事件单独标注）
+const statusText = (ev) => {
+  if (ev.status === 'firing') return '告警中'
+  return ev.type === 'recovery' ? '已恢复(恢复事件)' : '已恢复'
 }
 
-function goToRca(event) {
-  router.push({
-    path: '/chat',
-    query: { rca: '1', event: encodeEvent(event) }
-  })
+// 兼容数字（旧 unix 秒时间戳）与字符串两种时间格式
+const fmtTime = (ts) => {
+  if (!ts) return '-'
+  if (typeof ts === 'number') return new Date(ts * 1000).toLocaleString()
+  const d = new Date(ts)
+  return isNaN(d.getTime()) ? '-' : d.toLocaleString('zh-CN')
+}
+
+async function goToRca(event) {
+  try {
+    await rcaApi.trigger(event.id)
+    router.push({ path: '/rca', query: { event: event.id } })
+  } catch (err) {
+    alert('触发根因分析失败：' + err.message)
+  }
 }
 
 const activeCount = computed(() => scope.value === 'active' ? events.value.length : 0)

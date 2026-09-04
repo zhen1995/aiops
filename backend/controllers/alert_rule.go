@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"aiops/internal/alerting"
 	"aiops/models"
 
 	"github.com/gin-gonic/gin"
@@ -12,12 +13,13 @@ import (
 
 // AlertRuleController 告警规则控制器（系统自建，不再代理 Nightingale）
 type AlertRuleController struct {
-	DB *gorm.DB
+	DB     *gorm.DB
+	engine *alerting.Engine
 }
 
 // NewAlertRuleController 创建控制器
-func NewAlertRuleController(db *gorm.DB) *AlertRuleController {
-	return &AlertRuleController{DB: db}
+func NewAlertRuleController(db *gorm.DB, engine *alerting.Engine) *AlertRuleController {
+	return &AlertRuleController{DB: db, engine: engine}
 }
 
 // List 获取所有告警规则列表
@@ -74,6 +76,9 @@ func validateRule(rule *models.AlertRule) error {
 	if rule.Duration < 0 {
 		return errors.New("持续时间不能为负数")
 	}
+	if rule.EvalInterval <= 0 {
+		return errors.New("执行频率必须是正整数（秒）")
+	}
 	return nil
 }
 
@@ -105,6 +110,9 @@ func (c *AlertRuleController) Create(ctx *gin.Context) {
 		})
 		return
 	}
+
+	// 启用状态的规则立即纳入评估引擎
+	c.engine.Add(rule)
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"code": 0,
@@ -151,11 +159,12 @@ func (c *AlertRuleController) Update(ctx *gin.Context) {
 	}
 
 	updates := map[string]interface{}{
-		"name":       updateData.Name,
-		"prom_ql":    updateData.PromQL,
-		"duration":   updateData.Duration,
-		"severity":   updateData.Severity,
-		"is_enabled": updateData.IsEnabled,
+		"name":         updateData.Name,
+		"prom_ql":      updateData.PromQL,
+		"eval_interval": updateData.EvalInterval,
+		"duration":     updateData.Duration,
+		"severity":     updateData.Severity,
+		"is_enabled":   updateData.IsEnabled,
 	}
 
 	if err := c.DB.Model(&rule).Updates(updates).Error; err != nil {
@@ -175,6 +184,9 @@ func (c *AlertRuleController) Update(ctx *gin.Context) {
 		})
 		return
 	}
+
+	// 重启该规则的评估循环
+	c.engine.Update(rule)
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"code": 0,
@@ -210,6 +222,9 @@ func (c *AlertRuleController) Delete(ctx *gin.Context) {
 		})
 		return
 	}
+
+	// 停止该规则的评估，并将其未恢复事件置为已恢复
+	c.engine.Remove(id)
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"code":    0,
@@ -258,6 +273,9 @@ func (c *AlertRuleController) ToggleEnabled(ctx *gin.Context) {
 		})
 		return
 	}
+
+	// 启停该规则的评估循环
+	c.engine.Update(rule)
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"code": 0,

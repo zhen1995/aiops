@@ -151,6 +151,62 @@ func (c *PrometheusClient) QueryRange(ctx context.Context, query, start, end, st
 	return result, nil
 }
 
+// QueryInstant 执行 PromQL 即时查询（/api/v1/query），用于告警规则评估。
+// 返回的 InstantQueryResult 中 Hit=查询结果非空（存在满足条件的样本）。
+func (c *PrometheusClient) QueryInstant(ctx context.Context, query string) (*InstantQueryResult, error) {
+	if query == "" {
+		return nil, fmt.Errorf("promql 不能为空")
+	}
+
+	base, err := url.Parse(c.ds.URL)
+	if err != nil {
+		return nil, fmt.Errorf("解析数据源 URL 失败: %w", err)
+	}
+	base.Path = path.Join(strings.TrimRight(base.Path, "/"), "api/v1/query")
+
+	q := base.Query()
+	q.Set("query", query)
+	base.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	if c.ds.Username != "" {
+		req.SetBasicAuth(c.ds.Username, c.ds.Password)
+	}
+
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("请求 Prometheus 失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var payload promResponse
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, fmt.Errorf("解析 Prometheus 响应失败: %w", err)
+	}
+	if payload.Status != "success" {
+		return nil, fmt.Errorf("Prometheus 查询失败: %s", payload.Error)
+	}
+
+	result := &InstantQueryResult{DataSource: c.ds.Name}
+	for _, r := range payload.Data.Result {
+		ts, ok1 := parseTimestamp(r.Value[0])
+		v, ok2 := parseFloat(r.Value[1])
+		if !ok1 || !ok2 {
+			continue
+		}
+		result.Samples = append(result.Samples, InstantSample{
+			Labels:    r.Metric,
+			Timestamp: ts,
+			Value:     v,
+		})
+	}
+	result.Hit = len(result.Samples) > 0
+	return result, nil
+}
+
 // 内部响应结构
 type promResponse struct {
 	Status    string `json:"status"`

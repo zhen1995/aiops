@@ -24,6 +24,20 @@ type PrometheusSeries struct {
 	Values  [][2]interface{}  `json:"values,omitempty"`
 }
 
+// InstantSample 即时查询返回的单个样本
+type InstantSample struct {
+	Labels    map[string]string `json:"labels"`
+	Timestamp int64             `json:"timestamp"`
+	Value     float64           `json:"value"`
+}
+
+// InstantQueryResult PromQL 即时查询结果（告警规则评估用）
+type InstantQueryResult struct {
+	DataSource string          `json:"data_source"`
+	Hit        bool            `json:"hit"` // 查询结果是否非空
+	Samples    []InstantSample `json:"samples"`
+}
+
 // PrometheusQueryResult Prometheus 查询返回给 LLM 的结构
 type PrometheusQueryResult struct {
 	Query      string              `json:"query"`

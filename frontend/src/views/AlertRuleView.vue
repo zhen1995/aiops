@@ -20,6 +20,7 @@
             <th>规则名称</th>
             <th>告警级别</th>
             <th>PromQL</th>
+            <th>执行频率</th>
             <th>持续时间（秒）</th>
             <th>启用状态</th>
             <th>创建时间</th>
@@ -35,7 +36,8 @@
               </LevelTag>
             </td>
             <td class="mono" :title="rule.prom_ql">{{ rule.prom_ql || '-' }}</td>
-            <td>{{ rule.duration }}</td>
+            <td>每 {{ rule.eval_interval }} 秒</td>
+            <td>{{ rule.duration === 0 ? '0（立即）' : rule.duration }}</td>
             <td>
               <LevelTag :level="rule.is_enabled === 1 ? 'running' : 'info'">
                 {{ rule.is_enabled === 1 ? '已启用' : '已停用' }}
@@ -53,10 +55,10 @@
             </td>
           </tr>
           <tr v-if="!loading && rules.length === 0">
-            <td colspan="7" class="empty-row">暂无告警规则，请点击"新增规则"创建</td>
+            <td colspan="8" class="empty-row">暂无告警规则，请点击"新增规则"创建</td>
           </tr>
           <tr v-if="loading">
-            <td colspan="7" class="empty-row">加载中...</td>
+            <td colspan="8" class="empty-row">加载中...</td>
           </tr>
         </tbody>
       </table>
@@ -89,18 +91,33 @@
 
           <div class="form-row">
             <div class="form-item form-item-half">
-              <label class="form-label required">持续时间（秒）</label>
-              <input v-model.number="form.duration" type="number" min="0" class="form-input" placeholder="例如：300" />
-              <span v-if="errors.duration" class="form-error">{{ errors.duration }}</span>
+              <label class="form-label required">执行频率</label>
+              <select v-model.number="form.eval_interval" class="form-input">
+                <option :value="15">每 15 秒</option>
+                <option :value="30">每 30 秒</option>
+                <option :value="45">每 45 秒</option>
+                <option :value="60">每 60 秒</option>
+                <option :value="120">每 120 秒</option>
+                <option :value="180">每 180 秒</option>
+                <option :value="300">每 300 秒</option>
+              </select>
+              <span v-if="errors.eval_interval" class="form-error">{{ errors.eval_interval }}</span>
             </div>
             <div class="form-item form-item-half">
-              <label class="form-label required">告警级别</label>
-              <select v-model.number="form.severity" class="form-input">
-                <option :value="1">P1-紧急</option>
-                <option :value="2">P2-警告</option>
-                <option :value="3">P3-提醒</option>
-              </select>
+              <label class="form-label required">持续时间（秒）</label>
+              <input v-model.number="form.duration" type="number" min="0" class="form-input" placeholder="例如：300" />
+              <span class="form-hint">0 表示只要有一次查询满足告警条件即触发</span>
+              <span v-if="errors.duration" class="form-error">{{ errors.duration }}</span>
             </div>
+          </div>
+
+          <div class="form-item">
+            <label class="form-label required">告警级别</label>
+            <select v-model.number="form.severity" class="form-input">
+              <option :value="1">P1-紧急</option>
+              <option :value="2">P2-警告</option>
+              <option :value="3">P3-提醒</option>
+            </select>
           </div>
 
           <div class="form-item form-item-toggle">
@@ -156,6 +173,7 @@ const errors = reactive({})
 const form = reactive({
   name: '',
   prom_ql: '',
+  eval_interval: 60,
   duration: 300,
   severity: 2,
   is_enabled: 1
@@ -177,6 +195,7 @@ async function loadData() {
 function resetForm() {
   form.name = ''
   form.prom_ql = ''
+  form.eval_interval = 60
   form.duration = 300
   form.severity = 2
   form.is_enabled = 1
@@ -196,6 +215,7 @@ function openEditModal(rule) {
   resetForm()
   form.name = rule.name
   form.prom_ql = rule.prom_ql
+  form.eval_interval = rule.eval_interval || 60
   form.duration = rule.duration
   form.severity = rule.severity
   form.is_enabled = rule.is_enabled
@@ -219,6 +239,10 @@ function validateForm() {
     errors.prom_ql = '请输入 PromQL 表达式'
     valid = false
   }
+  if (form.eval_interval === null || form.eval_interval === undefined || form.eval_interval <= 0) {
+    errors.eval_interval = '请选择执行频率'
+    valid = false
+  }
   if (form.duration === null || form.duration === undefined || form.duration < 0) {
     errors.duration = '持续时间不能为负数'
     valid = false
@@ -235,6 +259,7 @@ async function saveRule() {
     const payload = {
       name: form.name,
       prom_ql: form.prom_ql,
+      eval_interval: form.eval_interval,
       duration: form.duration,
       severity: form.severity,
       is_enabled: form.is_enabled
@@ -417,6 +442,13 @@ onMounted(() => {
 .form-error {
   display: block;
   color: var(--c-danger);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.form-hint {
+  display: block;
+  color: var(--c-text-3);
   font-size: 12px;
   margin-top: 4px;
 }
