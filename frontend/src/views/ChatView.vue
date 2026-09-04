@@ -81,8 +81,18 @@
             placeholder="输入问题，例如：今天系统状态如何？"
             @keydown.enter.prevent="send"
           />
-          <button class="btn btn-primary send-btn" :disabled="!input.trim() || isStreaming" @click="send">
-            发送
+          <button
+            v-if="!isStreaming"
+            class="btn btn-primary send-btn"
+            :disabled="!input.trim()"
+            @click="send"
+          >发送</button>
+          <button
+            v-else
+            class="btn btn-danger send-btn"
+            @click="abortStreaming"
+          >
+            <span class="stop-icon"></span>中止
           </button>
         </div>
       </div>
@@ -109,6 +119,8 @@ const isStreaming = ref(false)
 const isThinking = ref(false)
 const messagesRef = ref(null)
 const defaultModelName = ref('默认模型')
+const currentAssistantIndex = ref(-1)
+const manuallyAborting = ref(false)
 
 function isThinkingMessage(msg) {
   return msg.role === 'assistant' && msg.content === '' && isThinking.value
@@ -300,7 +312,8 @@ async function send() {
 
   isStreaming.value = true
   isThinking.value = true
-  const assistantIndex = messages.value.length
+  manuallyAborting.value = false
+  currentAssistantIndex.value = messages.value.length
   messages.value.push({
     role: 'assistant',
     content: '',
@@ -310,21 +323,52 @@ async function send() {
   currentEventSource = streamChat(sessionId, text, {
     onChunk: (chunk) => {
       isThinking.value = false
-      messages.value[assistantIndex].content += chunk
+      messages.value[currentAssistantIndex.value].content += chunk
       scrollToBottom()
     },
     onDone: () => {
+      if (manuallyAborting.value) return
       isStreaming.value = false
       isThinking.value = false
+      currentEventSource = null
       loadSessions()
     },
     onError: (err) => {
+      if (manuallyAborting.value) {
+        // 用户主动中止，不显示错误
+        manuallyAborting.value = false
+        isStreaming.value = false
+        isThinking.value = false
+        currentEventSource = null
+        return
+      }
       isStreaming.value = false
       isThinking.value = false
-      messages.value[assistantIndex].content += '\n[错误：' + err + ']'
+      currentEventSource = null
+      messages.value[currentAssistantIndex.value].content += '\n[错误：' + err + ']'
       scrollToBottom()
     }
   })
+}
+
+function abortStreaming() {
+  manuallyAborting.value = true
+  if (currentEventSource) {
+    currentEventSource.close()
+    currentEventSource = null
+  }
+  isStreaming.value = false
+  isThinking.value = false
+
+  // 在当前助手消息末尾追加中止标记
+  if (currentAssistantIndex.value >= 0 && messages.value[currentAssistantIndex.value]) {
+    const msg = messages.value[currentAssistantIndex.value]
+    msg.content += (msg.content ? '\n\n' : '') + '_[已中止]_'
+    scrollToBottom()
+  }
+
+  // 保存当前已生成内容到数据库（异步，不阻塞 UI）
+  loadSessions()
 }
 </script>
 
@@ -589,4 +633,27 @@ async function send() {
 }
 
 .send-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btn-danger {
+  background: var(--c-danger, #e04040);
+  color: #fff;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-danger:hover { background: #c93535; }
+
+.stop-icon {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-radius: 2px;
+}
 </style>

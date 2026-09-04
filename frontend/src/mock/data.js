@@ -348,22 +348,6 @@ export const inspectionReportDetails = {
   }
 }
 
-// ---------------- 通知管理 / 通知媒介 ----------------
-export const notificationMedia = [
-  { id: 'med-001', name: 'SRE 值班钉钉群', type: 'dingtalk', status: 'active', config: { webhook: 'https://oapi.dingtalk.com/robot/send?access_token=***a1b2', secret: '已配置' } },
-  { id: 'med-002', name: 'P0 告警电话通道', type: 'webhook', status: 'active', config: { webhook: 'https://voice.example.com/api/call', method: 'POST', sign: '签名验证' } },
-  { id: 'med-003', name: '运维邮件列表', type: 'webhook', status: 'active', config: { webhook: 'https://mail.example.com/api/send', method: 'POST' } },
-  { id: 'med-004', name: '测试钉钉机器人', type: 'dingtalk', status: 'paused', config: { webhook: 'https://oapi.dingtalk.com/robot/send?access_token=***c3d4', secret: '未配置' } }
-]
-
-// ---------------- 通知管理 / 通知策略 ----------------
-export const notificationPolicies = [
-  { id: 'pol-001', name: 'P0 告警立即通知', status: 'active', level: ['p0'], channels: ['med-001', 'med-002'], conditions: '级别 = P0，任意服务', delayMinutes: 0 },
-  { id: 'pol-002', name: 'P1 告警钉钉通知', status: 'active', level: ['p1'], channels: ['med-001'], conditions: '级别 = P1，工作时间 09:00-22:00', delayMinutes: 1 },
-  { id: 'pol-003', name: '数据库类告警升级', status: 'active', level: ['p0', 'p1'], channels: ['med-001', 'med-003'], conditions: '服务名匹配 *-db-*', delayMinutes: 2 },
-  { id: 'pol-004', name: '低优先级告警邮件汇总', status: 'paused', level: ['p3', 'p4'], channels: ['med-003'], conditions: '级别 = P3/P4，每 30 分钟汇总', delayMinutes: 30 }
-]
-
 // ---------------- 人员组织 / 用户管理 ----------------
 export const users = [
   { id: 'u-001', username: 'admin', realName: '运维管理员', email: 'admin@aiops.local', phone: '138****0001', department: 'SRE 团队', roles: ['系统管理员', '值班经理'], status: 'active' },

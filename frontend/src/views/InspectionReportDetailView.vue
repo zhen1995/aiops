@@ -1,11 +1,10 @@
 <template>
   <div>
-    <PageHeader :title="report.title" :desc="`巡检日期：${report.date} · 综合评分：${report.score} 分`">
-      <RouterLink to="/inspection" class="btn">返回列表</RouterLink>
-      <button class="btn btn-primary">推送报告</button>
+    <PageHeader :title="report.title || '加载中...'" :desc="reportDesc">
+      <RouterLink to="/inspection/reports" class="btn">返回列表</RouterLink>
     </PageHeader>
 
-    <div class="score-banner" :class="scoreClass(report.score)">
+    <div v-if="report.id" class="score-banner" :class="scoreClass(report.score)">
       <div>
         <b>综合评分</b>
         <span class="score-value">{{ report.score }}</span>
@@ -13,31 +12,41 @@
       <p>{{ report.summary }}</p>
     </div>
 
-    <div class="report-sections">
-      <div v-for="(section, idx) in report.sections" :key="idx" class="card report-section">
-        <h3 class="card-title">{{ section.title }}</h3>
-        <ul>
-          <li v-for="(item, i) in section.content" :key="i">{{ item }}</li>
-        </ul>
-      </div>
+    <div v-if="report.id" class="card report-body">
+      <MarkdownContent :content="report.content" />
+    </div>
+
+    <div v-if="report.error" class="card error-box">
+      <b style="color: var(--c-danger);">生成失败</b>
+      <p>{{ report.error }}</p>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
-import { inspectionReports, inspectionReportDetails } from '../mock/data'
+import MarkdownContent from '../components/MarkdownContent.vue'
+import { getReport } from '../api/inspection.js'
 
 const route = useRoute()
-const reportId = route.params.id
+const report = ref({})
 
-const report = computed(() => {
-  const detail = inspectionReportDetails[reportId]
-  if (detail) return detail
-  const summary = inspectionReports.find((r) => r.id === reportId)
-  return summary || { title: '报告不存在', date: '-', score: 0, summary: '', sections: [] }
+onMounted(async () => {
+  try {
+    report.value = await getReport(route.params.id)
+  } catch (e) {
+    alert('加载报告失败: ' + e.message)
+  }
+})
+
+const reportDesc = computed(() => {
+  if (!report.value.id) return ''
+  const date = report.value.created_at
+    ? new Date(report.value.created_at).toLocaleString('zh-CN')
+    : '-'
+  return `来源：${report.value.task_name || '-'} · 生成时间：${date} · 综合评分：${report.value.score} 分`
 })
 
 const scoreClass = (score) => {
@@ -57,22 +66,20 @@ const scoreClass = (score) => {
   margin-bottom: 20px;
   border: 1px solid var(--c-border);
 }
-
 .score-banner.good { background: var(--c-success-bg); border-color: #cee6d8; }
 .score-banner.warning { background: var(--c-p2-bg); border-color: #ece4c8; }
 .score-banner.danger { background: var(--c-p0-bg); border-color: #f0d0d0; }
-
 .score-banner b { display: block; font-size: 13px; margin-bottom: 4px; }
 .score-value { font-size: 32px; font-weight: 700; line-height: 1; }
 .score-banner p { margin: 0; font-size: 14px; flex: 1; }
 
-.report-sections { display: flex; flex-direction: column; gap: 16px; }
+.report-body {
+  padding: 24px 28px;
+  line-height: 1.8;
+}
 
-.report-section ul {
-  margin: 10px 0 0;
-  padding-left: 18px;
-  color: var(--c-text-2);
-  font-size: 13.5px;
-  line-height: 1.9;
+.error-box {
+  padding: 18px 22px;
+  background: var(--c-p0-bg);
 }
 </style>

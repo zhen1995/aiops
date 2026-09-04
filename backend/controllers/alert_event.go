@@ -1,14 +1,28 @@
 package controllers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"aiops/internal/nightingale"
+	"aiops/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+// loadEnabledConfig 查询当前启用的告警引擎配置（告警事件查询依赖）
+func loadEnabledConfig(db *gorm.DB) (*models.AlertEngineConfig, error) {
+	var cfg models.AlertEngineConfig
+	if err := db.Where("is_enabled = ?", 1).Order("is_default DESC, created_at ASC").First(&cfg).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("未找到启用的告警引擎配置，请先配置")
+		}
+		return nil, err
+	}
+	return &cfg, nil
+}
 
 type AlertEventController struct {
 	DB *gorm.DB

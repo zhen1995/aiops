@@ -7,6 +7,7 @@ import (
 
 	"aiops/configs"
 	"aiops/controllers"
+	"aiops/internal/inspection"
 	"aiops/middleware"
 	"aiops/models"
 
@@ -37,6 +38,35 @@ func main() {
 	if err != nil {
 		panic("连接数据库失败")
 	}
+
+	// 自动迁移（如表不存在则创建）
+	db.AutoMigrate(
+		&models.SysRole{},
+		&models.SysAuth{},
+		&models.SysRoleAuthRelation{},
+		&models.SysUserRoleRelation{},
+		&models.ChatSession{},
+		&models.ChatMessage{},
+		&models.AlertEngineConfig{},
+		&models.InspectionTask{},
+		&models.InspectionReport{},
+		&models.NotifyMedia{},
+		&models.AlertRule{},
+	)
+
+	if err := models.SeedSysAuth(db); err != nil {
+		fmt.Println("初始化权限失败:", err)
+	}
+	if err := models.SeedAdminRoleAuth(db); err != nil {
+		fmt.Println("为 admin 角色分配权限失败:", err)
+	}
+
+	// 启动巡检调度器
+	sched := inspection.NewScheduler(db, cfg.App.FrontendBaseURL)
+	if err := sched.Start(); err != nil {
+		fmt.Println("启动巡检调度器失败:", err)
+	}
+	controllers.SetInspectionScheduler(sched)
 
 	router := gin.Default()
 
@@ -100,13 +130,55 @@ func main() {
 		engineGroup.GET("/:id/test", engineCtrl.Test)
 	}
 
-	// 告警规则代理路由
+	// 告警规则相关路由（系统自建）
 	ruleCtrl := controllers.NewAlertRuleController(db)
-	api.GET("/alert-rules", ruleCtrl.List)
+	ruleGroup := api.Group("/alert-rules")
+	{
+		ruleGroup.GET("", ruleCtrl.List)
+		ruleGroup.GET("/:id", ruleCtrl.Get)
+		ruleGroup.POST("", ruleCtrl.Create)
+		ruleGroup.PUT("/:id", ruleCtrl.Update)
+		ruleGroup.DELETE("/:id", ruleCtrl.Delete)
+		ruleGroup.PATCH("/:id/toggle", ruleCtrl.ToggleEnabled)
+	}
 
 	// 告警事件代理路由
 	eventCtrl := controllers.NewAlertEventController(db)
 	api.GET("/alert-events", eventCtrl.List)
+
+	// 巡检任务 & 巡检报告相关路由
+	insCtrl := controllers.NewInspectionController(db)
+	insGroup := api.Group("/inspection")
+	{
+		// 任务 CRUD
+		insGroup.GET("/tasks", insCtrl.ListTasks)
+		insGroup.GET("/tasks/:id", insCtrl.GetTask)
+		insGroup.POST("/tasks", insCtrl.CreateTask)
+		insGroup.PUT("/tasks/:id", insCtrl.UpdateTask)
+		insGroup.DELETE("/tasks/:id", insCtrl.DeleteTask)
+		insGroup.PATCH("/tasks/:id/toggle", insCtrl.ToggleTask)
+		insGroup.POST("/tasks/:id/trigger", insCtrl.TriggerTask)
+		// cron 表达式预览
+		insGroup.POST("/cron-preview", insCtrl.PreviewCron)
+		// 报告查询
+		insGroup.GET("/reports", insCtrl.ListReports)
+		insGroup.GET("/reports/:id", insCtrl.GetReport)
+		insGroup.DELETE("/reports/:id", insCtrl.DeleteReport)
+	}
+
+	// 通知媒介相关路由
+	mediaCtrl := controllers.NewNotifyMediaController(db)
+	mediaGroup := api.Group("/notify-media")
+	{
+		mediaGroup.GET("", mediaCtrl.List)
+		mediaGroup.GET("/types", mediaCtrl.TypeList)
+		mediaGroup.GET("/:id", mediaCtrl.Get)
+		mediaGroup.POST("", mediaCtrl.Create)
+		mediaGroup.PUT("/:id", mediaCtrl.Update)
+		mediaGroup.DELETE("/:id", mediaCtrl.Delete)
+		mediaGroup.PATCH("/:id/toggle", mediaCtrl.ToggleEnabled)
+		mediaGroup.POST("/:id/test", mediaCtrl.Test)
+	}
 
 	// 用户管理相关路由
 	userCtrl := controllers.NewUserController(db)
@@ -132,21 +204,6 @@ func main() {
 		roleGroup.PUT("/:id", roleCtrl.Update)
 		roleGroup.DELETE("/:id", roleCtrl.Delete)
 		roleGroup.PUT("/:id/auths", roleCtrl.SetAuths)
-	}
-
-	// 自动迁移（如表不存在则创建）
-	db.AutoMigrate(
-		&models.SysRole{},
-		&models.SysAuth{},
-		&models.SysRoleAuthRelation{},
-		&models.SysUserRoleRelation{},
-		&models.ChatSession{},
-		&models.ChatMessage{},
-		&models.AlertEngineConfig{},
-	)
-
-	if err := models.SeedSysAuth(db); err != nil {
-		fmt.Println("初始化权限失败:", err)
 	}
 
 	// 启动服务器

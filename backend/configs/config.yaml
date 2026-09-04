@@ -2,3 +2,6 @@ database:
   dsn: "root:a.123456R+=@tcp(10.2.216.92:3306)/aiops?charset=utf8mb4&parseTime=True&loc=Local"
 server:
   port: ":8080"
+app:
+  # 前端访问地址，用于巡检报告通知中的"完整报告"链接
+  frontend_base_url: "http://localhost:5173"

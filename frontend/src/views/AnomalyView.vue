@@ -1,6 +1,6 @@
 <template>
   <div>
-    <PageHeader title="异常检测" desc="接入 Nightingale 的活跃与历史告警事件查询" />
+    <PageHeader title="告警事件" desc="接入 Nightingale 的活跃与历史告警事件查询" />
 
     <div class="kpi-grid">
       <StatCard label="活跃告警数" :value="activeCount" deltaType="flat" hint="当前列表" />

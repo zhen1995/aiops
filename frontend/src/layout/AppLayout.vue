@@ -55,14 +55,7 @@
       </nav>
 
       <div class="sidebar-foot">
-        <div class="sys-status">
-          <span class="dot" style="background: var(--c-success)"></span>
-          <div>
-            <b>系统运行正常</b>
-            <span>算法引擎 · 6/6 服务在线</span>
-          </div>
-        </div>
-        <div class="ver muted">v1.0 · 原型演示环境</div>
+        <div class="ver muted">智能运维平台</div>
       </div>
     </aside>
 
@@ -76,13 +69,6 @@
             </svg>
             <input placeholder="搜索服务 / 告警 / 事件…" />
           </div>
-          <span class="env-tag">production</span>
-          <button class="icon-btn" title="通知">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" />
-            </svg>
-            <i class="bell-dot"></i>
-          </button>
           <div class="user" @click="toggleUserMenu">
             <span class="avatar">{{ avatarText }}</span>
             <div class="user-info">
@@ -180,11 +166,10 @@ const allMenus = [
     children: [
       { path: '/alerts/console', title: '告警控制台', auth: '告警控制台', badge: '12' },
       { path: '/alerts/denoise', title: '告警降噪', auth: '告警降噪' },
-      { path: '/alert-engine', title: '告警引擎', auth: '告警引擎' },
+      { path: '/alerts/events', title: '告警事件', auth: '告警事件' },
       { path: '/alert-rules', title: '告警规则', auth: '告警规则' }
     ]
   },
-  { path: '/anomaly', title: '异常检测', auth: '异常检测', icon: ic('<path d="M3 12h4l3-8 4 16 3-8h4"/>') },
   { path: '/rca', title: '根因分析', auth: '根因分析', icon: ic('<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>') },
   { path: '/logs', title: '日志分析', auth: '日志分析', icon: ic('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>') },
   {
@@ -196,12 +181,18 @@ const allMenus = [
     ]
   },
   { path: '/knowledge-base', title: '运维知识库', auth: '运维知识库', icon: ic('<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>') },
-  { path: '/inspection', title: '巡检报告管理', auth: '巡检报告管理', icon: ic('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>') },
+  {
+    title: '巡检管理',
+    icon: ic('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>'),
+    children: [
+      { path: '/inspection/tasks', title: '巡检任务', auth: '巡检任务' },
+      { path: '/inspection/reports', title: '巡检报告', auth: '巡检报告' }
+    ]
+  },
   {
     title: '通知管理',
     icon: ic('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M2 8c0-2.2 1.8-4 4-4h12a4 4 0 0 1 4 4"/>'),
     children: [
-      { path: '/notification/policy', title: '通知策略', auth: '通知策略' },
       { path: '/notification/medium', title: '通知媒介', auth: '通知媒介' }
     ]
   },
