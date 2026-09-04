@@ -1,6 +1,6 @@
 // Package alerting 告警规则评估引擎：按每条规则的执行频率探测 PromQL，
-// 持续命中达到持续时间后自动生成告警事件，持续未命中后自动生成告警恢复事件。
-// 规则持续时间为 0 时表示命中/未命中一次即触发告警/恢复。
+// 每条满足条件的时序序列独立计数：持续命中达到持续时间后自动生成告警事件，
+// 持续未命中达到持续时间后自动生成告警恢复事件；持续时间为 0 时表示命中/未命中一次即触发。
 package alerting
 
 import (
@@ -20,11 +20,16 @@ import (
 // defaultEvalInterval 规则未配置执行频率时的默认值
 const defaultEvalInterval = 30
 
-// ruleState 每条规则的内存评估状态
-type ruleState struct {
+// seriesState 单个时序序列（标签组合）的评估状态
+type seriesState struct {
 	alertingSince    time.Time // 本次持续命中的起始时间
 	notAlertingSince time.Time // 本次持续未命用的起始时间（用于恢复判断）
 	eventID          string    // 当前未恢复的告警事件 ID，空表示当前无未恢复事件
+}
+
+// ruleState 每条规则的内存评估状态（key 为序列标签指纹）
+type ruleState struct {
+	series map[string]*seriesState
 }
 
 // Engine 告警规则评估引擎
@@ -101,6 +106,16 @@ func (e *Engine) Remove(ruleID string) {
 	}
 }
 
+// ClearSeries 清理某条序列的评估状态（如对应告警事件被人工删除后调用），
+// 之后若条件仍满足，引擎会按持续时间重新触发告警
+func (e *Engine) ClearSeries(ruleID, tags string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if state, ok := e.states[ruleID]; ok {
+		delete(state.series, tags)
+	}
+}
+
 // startRule 为单条规则启动评估循环
 func (e *Engine) startRule(rule models.AlertRule) {
 	e.mu.Lock()
@@ -166,89 +181,116 @@ func (e *Engine) eval(rule models.AlertRule) {
 
 	state := e.states[rule.ID]
 	if state == nil {
-		state = &ruleState{}
+		state = &ruleState{series: make(map[string]*seriesState)}
 		e.states[rule.ID] = state
 	}
 
-	if res.Hit {
-		// 命中：若有未恢复事件，重置恢复计时；否则累计触发计时
-		state.notAlertingSince = time.Time{}
-		if state.eventID != "" {
-			return
+	// 本次探测命中的序列：标签指纹 → 样本
+	hits := make(map[string]datasource.InstantSample, len(res.Samples))
+	for _, s := range res.Samples {
+		hits[serializeTags(s.Labels)] = s
+	}
+
+	// 命中序列：若有未恢复事件，重置恢复计时；否则累计触发计时
+	for key, sample := range hits {
+		st := state.series[key]
+		if st == nil {
+			st = &seriesState{}
+			state.series[key] = st
+		}
+		st.notAlertingSince = time.Time{}
+		if st.eventID != "" {
+			continue
 		}
 		if rule.Duration > 0 {
 			// 持续时间 > 0：需持续命中达到持续时间后才触发
-			if state.alertingSince.IsZero() {
-				state.alertingSince = now
-				return
+			if st.alertingSince.IsZero() {
+				st.alertingSince = now
+				continue
 			}
-			if now.Sub(state.alertingSince) < time.Duration(rule.Duration)*time.Second {
-				return
+			if now.Sub(st.alertingSince) < time.Duration(rule.Duration)*time.Second {
+				continue
 			}
 		}
-		// 持续时间 = 0：命中一次即触发
-		eventID, err := e.fireLocked(rule, res, now)
-		if err != nil {
-			fmt.Printf("[告警引擎] 创建告警事件失败(规则 %s): %v\n", rule.Name, err)
-			return
+		// 优先复用同规则同标签仍未恢复的事件（如引擎重启后内存状态丢失），避免重复告警
+		eventID := e.findFiringEventLocked(rule.ID, key)
+		if eventID == "" {
+			var err error
+			eventID, err = e.fireLocked(rule, sample, now)
+			if err != nil {
+				fmt.Printf("[告警引擎] 创建告警事件失败(规则 %s): %v\n", rule.Name, err)
+				continue
+			}
 		}
-		state.eventID = eventID
-		state.alertingSince = time.Time{}
-		return
+		st.eventID = eventID
+		st.alertingSince = time.Time{}
 	}
 
-	// 未命中：重置触发计时；若有未恢复事件，累计恢复计时
-	state.alertingSince = time.Time{}
-	if state.eventID == "" {
-		return
-	}
-	if rule.Duration > 0 {
-		// 持续时间 > 0：需持续未命中达到持续时间后才恢复
-		if state.notAlertingSince.IsZero() {
-			state.notAlertingSince = now
-			return
+	// 已知但未命中的序列：重置触发计时；若有未恢复事件，累计恢复计时
+	for key, st := range state.series {
+		if _, ok := hits[key]; ok {
+			continue
 		}
-		if now.Sub(state.notAlertingSince) < time.Duration(rule.Duration)*time.Second {
-			return
+		st.alertingSince = time.Time{}
+		if st.eventID == "" {
+			continue
 		}
+		if rule.Duration > 0 {
+			// 持续时间 > 0：需持续未命中达到持续时间后才恢复
+			if st.notAlertingSince.IsZero() {
+				st.notAlertingSince = now
+				continue
+			}
+			if now.Sub(st.notAlertingSince) < time.Duration(rule.Duration)*time.Second {
+				continue
+			}
+		}
+		// 持续时间 = 0：未命中一次即恢复
+		if err := e.recoverLocked(rule, st.eventID, now); err != nil {
+			fmt.Printf("[告警引擎] 创建恢复事件失败(规则 %s): %v\n", rule.Name, err)
+			continue
+		}
+		st.eventID = ""
+		st.notAlertingSince = time.Time{}
 	}
-	// 持续时间 = 0：未命中一次即恢复
-	if err := e.recoverLocked(rule, now); err != nil {
-		fmt.Printf("[告警引擎] 创建恢复事件失败(规则 %s): %v\n", rule.Name, err)
-		return
+}
+
+// findFiringEventLocked 查找同规则同标签仍未恢复的告警事件 ID，无则返回空串（调用方需已持有 e.mu）
+func (e *Engine) findFiringEventLocked(ruleID, tags string) string {
+	var ev models.AlertEvent
+	err := e.db.Where("rule_id = ? AND type = ? AND status = ? AND tags = ?", ruleID, models.AlertEventTypeAlert, models.AlertEventStatusFiring, tags).
+		Order("trigger_time DESC").First(&ev).Error
+	if err != nil {
+		return ""
 	}
-	state.eventID = ""
-	state.notAlertingSince = time.Time{}
+	return ev.ID
 }
 
 // fireLocked 创建告警事件，返回事件 ID（调用方需已持有 e.mu）
-func (e *Engine) fireLocked(rule models.AlertRule, res *datasource.InstantQueryResult, now time.Time) (string, error) {
+func (e *Engine) fireLocked(rule models.AlertRule, sample datasource.InstantSample, now time.Time) (string, error) {
 	event := models.AlertEvent{
 		RuleID:      rule.ID,
 		RuleName:    rule.Name,
 		Severity:    rule.Severity,
 		Type:        models.AlertEventTypeAlert,
 		Status:      models.AlertEventStatusFiring,
+		TargetIdent: targetIdent(sample.Labels),
+		Tags:        serializeTags(sample.Labels),
+		TriggerValue: fmt.Sprintf("%g", sample.Value),
 		TriggerTime: now,
-	}
-	if len(res.Samples) > 0 {
-		s := res.Samples[0]
-		event.TargetIdent = targetIdent(s.Labels)
-		event.Tags = serializeTags(s.Labels)
-		event.TriggerValue = fmt.Sprintf("%g", s.Value)
 	}
 	if err := e.db.Create(&event).Error; err != nil {
 		return "", err
 	}
-	fmt.Printf("[告警引擎] 规则 %s 触发告警事件: %s\n", rule.Name, event.ID)
+	fmt.Printf("[告警引擎] 规则 %s 触发告警事件: %s (%s)\n", rule.Name, event.ID, event.TargetIdent)
 	return event.ID, nil
 }
 
-// recoverLocked 把未恢复事件置为已恢复，并创建告警恢复事件（调用方需已持有 e.mu）
-func (e *Engine) recoverLocked(rule models.AlertRule, now time.Time) error {
+// recoverLocked 把指定未恢复事件置为已恢复，并创建告警恢复事件（调用方需已持有 e.mu）
+func (e *Engine) recoverLocked(rule models.AlertRule, eventID string, now time.Time) error {
 	var firing models.AlertEvent
-	err := e.db.Where("rule_id = ? AND type = ? AND status = ?", rule.ID, models.AlertEventTypeAlert, models.AlertEventStatusFiring).
-		Order("trigger_time DESC").First(&firing).Error
+	err := e.db.Where("id = ? AND type = ? AND status = ?", eventID, models.AlertEventTypeAlert, models.AlertEventStatusFiring).
+		First(&firing).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil
@@ -275,7 +317,7 @@ func (e *Engine) recoverLocked(rule models.AlertRule, now time.Time) error {
 	if err := e.db.Create(&recovery).Error; err != nil {
 		return err
 	}
-	fmt.Printf("[告警引擎] 规则 %s 触发恢复事件: %s\n", rule.Name, recovery.ID)
+	fmt.Printf("[告警引擎] 规则 %s 触发恢复事件: %s (%s)\n", rule.Name, recovery.ID, recovery.TargetIdent)
 	return nil
 }
 

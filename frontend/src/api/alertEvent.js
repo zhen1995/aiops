@@ -8,5 +8,8 @@ export const alertEventApi = {
     if (query) params.set('query', query)
     if (severity) params.set('severity', String(severity))
     return request(`?${params.toString()}`)
+  },
+  remove(id) {
+    return request(`/${id}`, { method: 'DELETE' })
   }
 }

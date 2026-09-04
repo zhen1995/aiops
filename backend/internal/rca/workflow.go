@@ -29,7 +29,8 @@ func buildGraph(cm model.ChatModel, db *gorm.DB, eventCtx string, evidenceOut *s
 	// collect 节点：构建证据收集 Agent，调用只读数据源工具后返回证据汇总文本
 	collect := compose.InvokableLambda(func(ctx context.Context, input string) (string, error) {
 		ag := agent.New(cm, agent.NewRegistry(db), agent.Options{
-			Instructions: collectPrompt,
+			Instructions:  collectPrompt,
+			MaxIterations: 15, // 证据收集涉及多轮工具调用，放宽迭代上限
 		})
 		resp, err := ag.Run(ctx, []*schema.Message{schema.UserMessage(input)}, nil)
 		if err != nil {

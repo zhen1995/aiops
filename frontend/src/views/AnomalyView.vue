@@ -45,10 +45,11 @@
               v-model="query"
               type="text"
               placeholder="搜索规则名称或告警对象"
-              @keyup.enter="loadData"
+              @keyup.enter="search"
             />
             <button v-if="query" class="clear-btn" @click="clearQuery">×</button>
           </div>
+          <button class="btn btn-sm btn-primary" @click="search" :disabled="loading">查询</button>
           <button class="btn btn-sm" @click="loadData" :disabled="loading">
             {{ loading ? '加载中...' : '刷新' }}
           </button>
@@ -86,7 +87,10 @@
             <td class="muted mono tags-cell" :title="ev.tags">{{ ev.tags || '-' }}</td>
             <td class="mono">{{ ev.trigger_value || '-' }}</td>
             <td>
-              <button class="btn btn-sm" @click="goToRca(ev)">根因分析</button>
+              <div class="ops">
+                <button class="btn btn-sm" @click="goToRca(ev)">根因分析</button>
+                <button class="btn btn-sm btn-danger" @click="removeEvent(ev)">删除</button>
+              </div>
             </td>
           </tr>
           <tr v-if="!loading && events.length === 0">
@@ -184,6 +188,7 @@ function switchScope(next) {
 
 function clearQuery() {
   query.value = ''
+  page.value = 1
   loadData()
 }
 
@@ -217,6 +222,24 @@ async function loadData() {
 onMounted(() => {
   loadData()
 })
+
+// 查询：先回到第一页再加载
+function search() {
+  page.value = 1
+  loadData()
+}
+
+// 删除告警事件（删除未恢复事件后，若条件仍满足引擎会重新触发）
+async function removeEvent(ev) {
+  const label = `${ev.rule_name}${ev.target_ident ? '（' + ev.target_ident + '）' : ''}`
+  if (!window.confirm(`确认删除告警事件「${label}」？`)) return
+  try {
+    await alertEventApi.remove(ev.id)
+    loadData()
+  } catch (err) {
+    alert('删除告警事件失败：' + err.message)
+  }
+}
 </script>
 
 <style scoped>
@@ -343,6 +366,20 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.ops {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-danger {
+  color: var(--c-danger);
+}
+
+.btn-danger:hover {
+  border-color: var(--c-danger);
+  color: var(--c-danger);
 }
 
 .pagination {

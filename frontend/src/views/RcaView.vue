@@ -1,12 +1,13 @@
 <template>
   <div>
     <PageHeader title="根因分析" desc="基于告警事件的自动根因推理 · 附证据链、影响范围与修复建议">
+      <button class="btn" @click="openHistory">历史根因分析</button>
       <button class="btn btn-primary" :disabled="!selected || reanalyzing" @click="reanalyze">
         {{ reanalyzing ? '触发中...' : '重新分析' }}
       </button>
     </PageHeader>
 
-    <!-- 分析历史 -->
+    <!-- 分析历史（默认展示最新 10 条） -->
     <div class="case-grid" v-if="list.length">
       <div
         v-for="item in list"
@@ -107,6 +108,50 @@
         <p class="muted" v-else>分析已完成，但未生成结果内容</p>
       </div>
     </template>
+
+    <!-- 历史根因分析弹窗 -->
+    <div v-if="historyVisible" class="modal-mask" @click.self="historyVisible = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>历史根因分析</h3>
+          <span class="modal-close" @click="historyVisible = false">×</span>
+        </div>
+        <div class="modal-body">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>标题</th>
+                <th>告警对象</th>
+                <th>触发时间</th>
+                <th>状态</th>
+                <th>候选根因</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="h in historyList" :key="h.id">
+                <td><b>{{ h.rule_name || '-' }}</b></td>
+                <td class="mono">{{ h.target_ident || '-' }}</td>
+                <td class="muted">{{ fmtTime(h.trigger_time) }}</td>
+                <td>
+                  <LevelTag :level="statusLevel(h.status)">{{ statusText(h.status) }}</LevelTag>
+                </td>
+                <td>{{ candidateCount(h) }}</td>
+                <td>
+                  <button class="btn btn-sm btn-primary" @click="viewHistory(h)">查看</button>
+                </td>
+              </tr>
+              <tr v-if="!historyLoading && !historyList.length">
+                <td colspan="6" class="empty-row">暂无历史根因分析记录</td>
+              </tr>
+              <tr v-if="historyLoading">
+                <td colspan="6" class="empty-row">加载中...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -213,10 +258,10 @@ async function selectAnalysis(item) {
   }
 }
 
-async function loadList(alertEventId = '') {
+async function loadList(alertEventId = '', limit = 10) {
   loading.value = true
   try {
-    const result = await rcaApi.list({ alert_event_id: alertEventId, page: 1, limit: 50 })
+    const result = await rcaApi.list({ alert_event_id: alertEventId, page: 1, limit })
     list.value = result?.list || []
   } catch (err) {
     alert('加载根因分析历史失败：' + err.message)
@@ -226,6 +271,30 @@ async function loadList(alertEventId = '') {
   }
 }
 
+// ---- 历史根因分析弹窗 ----
+const historyVisible = ref(false)
+const historyList = ref([])
+const historyLoading = ref(false)
+
+async function openHistory() {
+  historyVisible.value = true
+  historyLoading.value = true
+  try {
+    const result = await rcaApi.list({ page: 1, limit: 200 })
+    historyList.value = result?.list || []
+  } catch (err) {
+    alert('加载历史根因分析失败：' + err.message)
+    historyList.value = []
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+function viewHistory(item) {
+  historyVisible.value = false
+  selectAnalysis(item)
+}
+
 async function reanalyze() {
   if (!selected.value || reanalyzing.value) return
   reanalyzing.value = true
@@ -233,7 +302,7 @@ async function reanalyze() {
   try {
     const ret = await rcaApi.trigger(selected.value.alert_event_id)
     // 重新拉取该事件的分析列表并选中新触发的分析
-    await loadList(selected.value.alert_event_id)
+    await loadList(selected.value.alert_event_id, 50)
     const target = list.value.find((x) => x.id === ret?.id)
       || list.value.find((x) => x.alert_event_id === selected.value.alert_event_id)
     if (target) selectAnalysis(target)
@@ -251,7 +320,7 @@ onMounted(async () => {
     // 从告警事件页带参进入：优先在现有列表中定位，否则按事件过滤拉取
     let target = list.value.find((x) => String(x.alert_event_id) === String(eventId))
     if (!target) {
-      await loadList(eventId)
+      await loadList(eventId, 50)
       target = list.value.find((x) => String(x.alert_event_id) === String(eventId))
     }
     if (target) selectAnalysis(target)
@@ -334,5 +403,58 @@ onUnmounted(stopPolling)
 
 @media (max-width: 1200px) {
   .case-grid, .rc-body { grid-template-columns: 1fr; }
+}
+
+/* 历史根因分析弹窗 */
+.modal-mask {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--c-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--c-surface);
+  border-radius: var(--radius-card);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  width: 720px;
+  max-width: 92vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.modal-header h3 { margin: 0; font-size: 16px; }
+
+.modal-close {
+  cursor: pointer;
+  font-size: 24px;
+  color: var(--c-text-3);
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.modal-close:hover { color: var(--c-text); }
+
+.modal-body {
+  padding: 16px 24px 20px;
+  overflow-y: auto;
+}
+
+.empty-row {
+  text-align: center;
+  color: var(--c-text-3);
+  padding: 32px 0 !important;
 }
 </style>

@@ -133,8 +133,8 @@ go run ./cmd/center
 ## 核心机制
 
 - **对话 Agent**：`GET /api/chat/sessions/:id/stream`（SSE）→ `controllers/chat.go` 组装 `internal/agent.Agent`，通过 Function Calling 循环调用只读数据源工具回答，命中运维数据关键词时强制先查数据源（防幻觉）。
-- **告警评估引擎**：`internal/alerting.Engine` 为每条启用规则按「执行频率」起 Ticker，用 PromQL 即时查询探测；持续命中达到「持续时间」创建 `alert` 事件（firing），持续未命中达到「持续时间」将事件置 `resolved` 并创建 `recovery` 事件；「持续时间」为 0 时表示命中/未命中一次即触发告警/恢复。规则 CRUD/启停/删除实时联动引擎。
-- **告警事件查询**：`GET /api/alert-events?scope=active|history` 查询本地 `alert_events` 表；active = 未恢复，history = 已恢复（含恢复事件）。不再查询 Nightingale。
+- **告警评估引擎**：`internal/alerting.Engine` 为每条启用规则按「执行频率」起 Ticker，用 PromQL 即时查询探测；**每条满足条件的时序序列（标签组合）独立计数**：持续命中达到「持续时间」为该序列创建 `alert` 事件（firing，复用同标签未恢复事件防止重启重复告警），持续未命中达到「持续时间」将该序列事件置 `resolved` 并创建 `recovery` 事件；「持续时间」为 0 时表示命中/未命中一次即触发告警/恢复。规则 CRUD/启停/删除实时联动引擎。
+- **告警事件查询**：`GET /api/alert-events?scope=active|history` 查询本地 `alert_events` 表；active = 未恢复，history = 已恢复（含恢复事件）；`DELETE /api/alert-events/:id` 删除单条事件，删除未恢复的告警事件会联动引擎清理对应序列状态（条件仍满足时可重新触发）。不再查询 Nightingale。
 - **巡检**：`internal/inspection.Scheduler`（robfig/cron，支持 5/6 段表达式）定时触发 `Executor`，通过公共 Agent 生成 Markdown 报告并落库，按任务配置的通知媒介推送（钉钉/Webhook）。
 - **根因分析**：`POST /api/alert-events/:id/root-cause` 触发后由 `internal/rca.StartAnalysis` 起后台 goroutine 异步执行（10 分钟超时，状态 running/completed/failed 落库 `root_cause_analyses` 表）；Eino compose Graph 工作流先经 collect 证据收集节点（公共 Agent 调用 Prometheus/ElasticSearch/Pyroscope 只读工具），再经 synthesize 综合分析节点由大模型输出严格 JSON（含修复重试）；`GET /api/root-cause-analyses(:id)` 查询列表/详情，前端 `/rca` 页面对 running 状态轮询展示结构化结果（证据链/可信度/影响范围/修复建议）。
 

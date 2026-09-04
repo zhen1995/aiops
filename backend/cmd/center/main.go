@@ -72,6 +72,7 @@ func main() {
 	if err := alertEngine.Start(); err != nil {
 		fmt.Println("启动告警引擎失败:", err)
 	}
+	controllers.SetAlertingEngine(alertEngine)
 
 	// 启动巡检调度器
 	sched := inspection.NewScheduler(db, cfg.App.FrontendBaseURL)
@@ -157,6 +158,7 @@ func main() {
 	// 告警事件代理路由
 	eventCtrl := controllers.NewAlertEventController(db)
 	api.GET("/alert-events", eventCtrl.List)
+	api.DELETE("/alert-events/:id", eventCtrl.Delete)
 
 	// 根因分析相关路由（针对告警事件触发 AI 根因分析）
 	rootCauseCtrl := controllers.NewRootCauseController(db)

@@ -5,11 +5,20 @@ import (
 	"strconv"
 	"time"
 
+	"aiops/internal/alerting"
 	"aiops/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+// alertEngine 告警评估引擎实例（由 main.go 注入，用于事件删除后联动清理序列状态）
+var alertEngine *alerting.Engine
+
+// SetAlertingEngine 注入告警评估引擎实例
+func SetAlertingEngine(e *alerting.Engine) {
+	alertEngine = e
+}
 
 // AlertEventController 告警事件控制器（查询系统按告警规则自动生成的本地事件）
 type AlertEventController struct {
@@ -81,6 +90,33 @@ func (c *AlertEventController) List(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{"list": list, "total": total}})
+}
+
+// Delete 删除单条告警事件；若删除的是未恢复的告警事件，同步清理引擎中对应序列状态
+func (c *AlertEventController) Delete(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+	var ev models.AlertEvent
+	if err := c.DB.First(&ev, "id = ?", id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			ctx.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "告警事件不存在"})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询告警事件失败", "error": err.Error()})
+		return
+	}
+
+	if err := c.DB.Delete(&models.AlertEvent{}, "id = ?", id).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除告警事件失败", "error": err.Error()})
+		return
+	}
+
+	// 删除未恢复事件后通知引擎清理序列状态，条件仍满足时可按持续时间重新触发
+	if ev.Type == models.AlertEventTypeAlert && ev.Status == models.AlertEventStatusFiring && alertEngine != nil {
+		alertEngine.ClearSeries(ev.RuleID, ev.Tags)
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{"id": id}})
 }
 
 func parseInt64(s string) (int64, error) {
