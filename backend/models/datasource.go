@@ -9,7 +9,7 @@ import (
 
 // Datasource 数据源
 type Datasource struct {
-	ID        string         `gorm:"primaryKey;size:32;comment:id" json:"id"`
+	ID        string         `gorm:"primaryKey;size:40;comment:id" json:"id"`
 	Name      string         `gorm:"size:30;comment:名称" json:"name"`
 	Type      string         `gorm:"size:20;comment:类型 Prometheus/ElasticSearch/Pyroscope" json:"type"`
 	URL       string         `gorm:"size:100;not null;comment:http地址" json:"url"`

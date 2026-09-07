@@ -9,7 +9,7 @@ import (
 
 // LLMConfig 大模型配置
 type LLMConfig struct {
-	ID               string         `gorm:"primaryKey;size:32;comment:id" json:"id"`
+	ID               string         `gorm:"primaryKey;size:40;comment:id" json:"id"`
 	Name             string         `gorm:"size:30;comment:LLM 名称" json:"name"`
 	Description      string         `gorm:"size:100;comment:描述" json:"description"`
 	SupplierCategory string         `gorm:"size:10;comment:供应商类型 openai/claude/gemini等" json:"supplier_category"`
