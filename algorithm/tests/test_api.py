@@ -37,3 +37,16 @@ def test_delete_document(client):
         "query": "内容", "top_k": 5,
         "embedding": {"base_url": "u", "api_key": "k", "model": "m"}})
     assert all(r["document_id"] != "doc-3" for r in resp.json()["results"])
+
+
+def test_check_size_limit():
+    from app.routers.knowledge import MAX_FILE_SIZE, _check_size
+
+    _check_size(MAX_FILE_SIZE)  # 边界值不报错
+    from fastapi import HTTPException
+    import pytest
+
+    with pytest.raises(HTTPException) as exc_info:
+        _check_size(MAX_FILE_SIZE + 1)
+    assert exc_info.value.status_code == 413
+    assert "50MB" in exc_info.value.detail

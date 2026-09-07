@@ -164,8 +164,12 @@ const handleFiles = async (e) => {
   const selected = e.target.files
   if (!selected || selected.length === 0) return
   try {
-    await knowledgeApi.upload(selected)
+    const result = await knowledgeApi.upload(selected)
     await loadFiles()
+    const failed = result?.failed || []
+    if (failed.length > 0) {
+      alert('部分文件上传失败：\n' + failed.map((f) => `${f.name}：${f.error}`).join('\n'))
+    }
   } catch (err) {
     alert(err.message || '上传失败')
   }

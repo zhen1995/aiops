@@ -10,7 +10,16 @@ from ..store import VectorStore
 
 router = APIRouter(prefix="/api/v1/knowledge", tags=["knowledge"])
 
+# 单个上传文件的大小上限（50MB）
+MAX_FILE_SIZE = 50 * 1024 * 1024
+
 _store: VectorStore | None = None
+
+
+def _check_size(n: int) -> None:
+    """校验上传文件大小，超限抛 413（抽成独立函数便于单测）"""
+    if n > MAX_FILE_SIZE:
+        raise HTTPException(status_code=413, detail="文件超过 50MB 限制")
 
 
 def get_store() -> VectorStore:
@@ -32,6 +41,7 @@ async def index_document(
     model: str = Form(...),
 ):
     data = await file.read()
+    _check_size(len(data))
     try:
         text = parse_document(file.filename or "", data)
     except ValueError as e:
