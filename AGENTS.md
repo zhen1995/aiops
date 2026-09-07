@@ -6,11 +6,12 @@
 
 当前仓库包含：
 
-- **frontend/**：Vue 3 + Vite 前端，已通过 `src/api/` 接口层对接真实后端（开发环境由 Vite proxy 转发 `/api`）；总览大盘、告警控制台、告警降噪、日志分析、知识库等演示页面仍使用 `src/mock/data.js` 的 Mock 数据。
-- **backend/**：Go 后端服务，基于 Gin + GORM + MySQL + Viper + CloudWeGo Eino，已实现认证、对话 Agent、LLM 配置、数据源管理、告警规则评估引擎、告警事件、定时巡检、通知媒介、用户与角色权限等完整接口。
+- **frontend/**：Vue 3 + Vite 前端，已通过 `src/api/` 接口层对接真实后端（开发环境由 Vite proxy 转发 `/api`）；总览大盘、告警控制台、告警降噪、日志分析等演示页面仍使用 `src/mock/data.js` 的 Mock 数据，知识库页面已接入真实接口。
+- **backend/**：Go 后端服务，基于 Gin + GORM + MySQL + Viper + CloudWeGo Eino，已实现认证、对话 Agent、LLM 配置、数据源管理、告警规则评估引擎、告警事件、根因分析、定时巡检、运维知识库、通知媒介、用户与角色权限等完整接口。
+- **algorithm/**：Python 算法服务（FastAPI，入口 `app.main:app`），目前承载运维知识库的文档解析、切块、向量化与向量检索，依赖 Qdrant 向量库（仓库根 `docker-compose.yml` 编排）。设计文档中的异常检测、日志聚类等其他算法能力尚未实现。
 - **docs/**：系统设计文档（`AIOPS系统设计文档.md`）与前端原型 SPEC（`SPEC.md`）。
 
-> 注意：设计文档中描述的 Python 算法引擎层（FastAPI / Celery / 异常检测 / 日志聚类等）目前**尚未在仓库中实现**。告警事件已不再依赖 Nightingale，由系统内置评估引擎（`backend/internal/alerting`）根据告警规则自动生成；Nightingale 客户端仅保留在「告警引擎配置」的连通性测试中。
+> 注意：告警事件不再依赖 Nightingale，由系统内置评估引擎（`backend/internal/alerting`）根据告警规则自动生成；Nightingale 客户端仅保留在「告警引擎配置」的连通性测试中。
 
 项目采用 **Apache License 2.0**。
 
@@ -41,6 +42,15 @@
 | eino-ext openai | v0.1.13 | OpenAI 兼容协议的 ChatModel 客户端 |
 | robfig/cron | v3.0.1 | 巡检任务 Cron 调度 |
 | google/uuid | v1.6.0 | 业务主键 UUID |
+
+### Python 算法服务（可选，运维知识库）
+
+| 技术 | 说明 |
+|------|------|
+| Python + FastAPI | 知识库文档解析/切块/向量化/检索服务（`algorithm/`，uvicorn 启动，端口 9000） |
+| pypdf 等 | 文档解析（扫描版 PDF 解析为空时返回 422，Go 侧置 failed） |
+| Qdrant | 向量库（v1.11.0，仓库根 docker-compose 编排，端口 6333/6334） |
+| pytest | Python 测试（`algorithm/tests/`） |
 
 ---
 
@@ -74,6 +84,17 @@ E:/aiops
 │   │                               #   告警规则/告警事件/根因分析/巡检任务/巡检报告/通知媒介/会话消息
 │   ├── go.mod / go.sum             # Go 依赖
 │   └── LeanGo.md                   # Go 依赖管理备忘
+├── algorithm/                      # Python 算法服务（FastAPI，运维知识库解析/向量化/检索）
+│   ├── app/
+│   │   ├── main.py                 # FastAPI 入口（uvicorn app.main:app）
+│   │   ├── routers/knowledge.py    # /api/v1/knowledge：index / retrieve / documents
+│   │   ├── parser.py / chunker.py  # 文档解析（pypdf 等）与文本切块
+│   │   ├── embedder.py / store.py  # embedding 调用与 Qdrant 向量存储
+│   │   └── config.py / schemas.py
+│   ├── tests/                      # pytest 测试
+│   ├── pytest.ini
+│   └── requirements.txt
+├── docker-compose.yml              # Qdrant 向量库编排（v1.11.0，端口 6333/6334）
 ├── frontend/
 │   ├── src/
 │   │   ├── App.vue / main.js       # 应用入口
@@ -82,7 +103,7 @@ E:/aiops
 │   │   ├── api/                    # 接口层（request.js 封装 fetch + JWT，按模块分文件）
 │   │   ├── components/             # 共享组件（StatCard/LevelTag/ChartBox/PageHeader 等）
 │   │   ├── views/                  # 页面视图（含 ai-config/、notification/、org/ 子目录）
-│   │   ├── mock/data.js            # 演示页面 Mock 数据（大盘/告警控制台/降噪/日志/知识库）
+│   │   ├── mock/data.js            # 演示页面 Mock 数据（大盘/告警控制台/降噪/日志）
 │   │   ├── utils/auth.js           # token 存取与请求头
 │   │   └── styles/theme.css        # 主题变量与通用样式
 │   ├── index.html
@@ -128,6 +149,18 @@ go run ./cmd/center
 
 启动时会自动执行 GORM AutoMigrate 建表/加列，并回填告警规则的默认执行频率（30 秒）。
 
+### Python 算法服务与 Qdrant（运维知识库，可选）
+
+```bash
+docker compose up -d qdrant        # 启动 Qdrant 向量库（本机需安装 Docker）
+cd algorithm
+pip install -r requirements.txt
+uvicorn app.main:app --port 9000   # Python 解析/向量化/检索服务
+pytest                             # 运行 Python 测试（venv 见 algorithm/.venv）
+```
+
+知识库为可选组件，还需在「LLM 管理」配置 model_type=向量化模型 的配置并设为默认；Go 后端默认连接 `http://localhost:9000`（`configs/config.yaml` 的 `knowledge.python_base_url`）。
+
 ---
 
 ## 核心机制
@@ -137,6 +170,7 @@ go run ./cmd/center
 - **告警事件查询**：`GET /api/alert-events?scope=active|history` 查询本地 `alert_events` 表；active = 未恢复，history = 已恢复（含恢复事件）；`DELETE /api/alert-events/:id` 删除单条事件，删除未恢复的告警事件会联动引擎清理对应序列状态（条件仍满足时可重新触发）。不再查询 Nightingale。
 - **巡检**：`internal/inspection.Scheduler`（robfig/cron，支持 5/6 段表达式）定时触发 `Executor`，通过公共 Agent 生成 Markdown 报告并落库，按任务配置的通知媒介推送（钉钉/Webhook）。
 - **根因分析**：`POST /api/alert-events/:id/root-cause` 触发后由 `internal/rca.StartAnalysis` 起后台 goroutine 异步执行（10 分钟超时，状态 running/completed/failed 落库 `root_cause_analyses` 表）；Eino compose Graph 工作流先经 collect 证据收集节点（公共 Agent 调用 Prometheus/ElasticSearch/Pyroscope 只读工具），再经 synthesize 综合分析节点由大模型输出严格 JSON（含修复重试）；`GET /api/root-cause-analyses(:id)` 查询列表/详情，前端 `/rca` 页面对 running 状态轮询展示结构化结果（证据链/可信度/影响范围/修复建议）。
+- **运维知识库**：Go 侧 `controllers/knowledge_base.go` + `internal/knowledge`（编排、文件落盘 `knowledge.upload_dir`、Qdrant/文档元数据维护，REST 前缀 `/api/knowledge-base`）调用 Python 服务（`algorithm/`，FastAPI，`/api/v1/knowledge` 的 index/retrieve/documents）完成文档解析、切块、向量化（embedding 密钥由 Go 从默认的向量化 LLM 配置读取后随请求透传）与向量检索，向量库存 Qdrant（chunk 全文存 Qdrant payload，`kb_chunk` 表只存元数据）；对话 Agent 通过 `search_knowledge_base` 工具（`internal/agent/tools.go`）检索知识库问答，命中结果含 chunk_id/title/score 供引用标注。不同 embedding 模型维度不同，换模型需重建 Qdrant collection。
 
 ---
 
@@ -163,7 +197,7 @@ go run ./cmd/center
 
 ## 测试
 
-当前仓库**没有自动化测试**（未找到 `*_test.go`、Jest、Vitest 或 Playwright 等测试配置）。
+当前仓库 Go/前端**没有自动化测试**（未找到 `*_test.go`、Jest、Vitest 或 Playwright 等测试配置）；Python 算法服务有 pytest 测试（`algorithm/tests/`，运行 `cd algorithm && pytest`）。
 
 建议后续补充：
 
@@ -183,20 +217,21 @@ go run ./cmd/center
 
 ## 部署
 
-当前没有 Dockerfile、docker-compose、CI/CD 工作流或 Kubernetes 清单文件。部署为手动阶段：
+当前没有 Dockerfile、CI/CD 工作流或 Kubernetes 清单文件（仓库根 `docker-compose.yml` 仅编排 Qdrant 向量库）。部署为手动阶段：
 
 1. 前端：`npm run build` 后托管 `frontend/dist/`。
 2. 后端：`go build ./cmd/center` 得到二进制，配合环境变量运行。
-3. 部署后通过 `AIOPS_APP_FRONTEND_BASE_URL` 配置真实前端地址，保证巡检报告通知中的链接可访问。
+3. 知识库（可选）：部署 Qdrant（`docker compose up -d qdrant`）与 Python 服务（`uvicorn app.main:app --port 9000`），并配置默认向量化模型。
+4. 部署后通过 `AIOPS_APP_FRONTEND_BASE_URL` 配置真实前端地址，保证巡检报告通知中的链接可访问。
 
 ---
 
 ## 开发注意事项
 
-1. **前后端已联调**：登录、对话、LLM 配置、数据源、告警规则、告警事件、根因分析、巡检、通知媒介、用户/角色均已接真实 API；总览大盘、告警控制台、告警降噪、日志分析、知识库仍为 Mock 演示页。
+1. **前后端已联调**：登录、对话、LLM 配置、数据源、告警规则、告警事件、根因分析、巡检、运维知识库、通知媒介、用户/角色均已接真实 API；总览大盘、告警控制台、告警降噪、日志分析仍为 Mock 演示页。
 2. **修改告警规则字段时需同步**：模型（`models/alert_rule.go`）、校验（`controllers/alert_rule.go validateRule`）、评估引擎（`internal/alerting/engine.go`）、前端表单（`AlertRuleView.vue`）四处。
 3. **新增数据源工具**：在 `internal/agent/tools.go` 的 `ToolMap` 注册，Agent system prompt 会自动带上工具说明。
-4. **算法引擎未实现**：异常检测、日志聚类、知识库向量化等 Python 服务目前只存在于设计文档。
+4. **知识库接口契约需双端同步**：新增/变更知识库接口时，需同时更新 Python 服务端点（`algorithm/app/routers/knowledge.py`）与 Go 客户端（`backend/internal/knowledge/client.go`）的 payload 键名、multipart 字段名及返回结构；Python 侧改动后运行 `cd algorithm && pytest` 验证。
 5. **中文优先**：项目文档、注释、界面文本均使用中文。代码标识符保持英文，用户可见文本使用中文。
 6. **构建检查**：提交前请确保 `npm run build` 与 `go build ./cmd/center` 均通过。
 
@@ -214,6 +249,10 @@ go run ./cmd/center
 | `backend/internal/inspection/scheduler.go` | 巡检 Cron 调度器 |
 | `backend/internal/inspection/executor.go` | 巡检报告生成与通知 |
 | `backend/internal/rca/runner.go` | 根因分析异步执行器（后台 goroutine、超时控制、状态落库） |
+| `backend/internal/knowledge/` | 知识库编排服务（Go↔Python 客户端、文档/块元数据、Qdrant 交互） |
+| `backend/controllers/knowledge_base.go` | 知识库 REST 接口（`/api/knowledge-base`） |
+| `algorithm/app/routers/knowledge.py` | Python 知识库服务（解析/向量化/检索，`/api/v1/knowledge`） |
+| `docker-compose.yml` | Qdrant 向量库编排 |
 | `frontend/src/router/index.js` | 前端路由 |
 | `frontend/src/layout/AppLayout.vue` | 整体布局 |
 | `frontend/src/api/request.js` | 接口层封装（JWT、401 跳登录） |
@@ -227,4 +266,4 @@ go run ./cmd/center
 
 ---
 
-*最后更新：2026-09-04 — 基于仓库当前实际内容整理（告警事件自生成改造、公共 Agent 抽取、巡检通知模板等；本次补充根因分析功能：后端 `models/root_cause_analysis.go` + `internal/rca` Eino Graph 工作流与异步 runner、`controllers/root_cause.go` 三个接口，前端 `src/api/rca.js` 与 RcaView 去 mock 化、AnomalyView 接入触发入口）。*
+*最后更新：2026-09-04 — 补充运维知识库功能：`algorithm/` Python 服务（FastAPI，解析/切块/向量化/检索）、根 `docker-compose.yml` Qdrant 编排、Go 侧 `internal/knowledge` + `controllers/knowledge_base.go`（`/api/knowledge-base`）、对话 Agent `search_knowledge_base` 工具、前端知识库页面接入真实接口；README 增加知识库（可选组件）启动说明。*
