@@ -120,7 +120,15 @@ func (s *Service) Retrieve(ctx context.Context, query string, topK int) ([]Chunk
 	if err != nil {
 		return nil, err
 	}
-	return s.Client.Retrieve(ctx, query, topK, emb)
+	hits, err := s.Client.Retrieve(ctx, query, topK, emb)
+	if err != nil {
+		return nil, err
+	}
+	// 空命中时保证返回非 nil 切片，避免 JSON 序列化为 null
+	if hits == nil {
+		hits = make([]ChunkHit, 0)
+	}
+	return hits, nil
 }
 
 func (s *Service) saveFile(path string, data io.Reader) error {

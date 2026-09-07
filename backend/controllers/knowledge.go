@@ -22,7 +22,7 @@ func NewKnowledgeController(db *gorm.DB, svc *knowledge.Service) *KnowledgeContr
 
 // List 文档列表（软删过滤、按创建时间倒序）
 func (c *KnowledgeController) List(ctx *gin.Context) {
-	var docs []models.KBDocument
+	docs := make([]models.KBDocument, 0)
 	if err := c.DB.Order("created_at DESC").Find(&docs).Error; err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询失败"})
 		return
