@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"errors"
 	"net/http"
 
 	"aiops/internal/knowledge"
@@ -8,6 +9,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+)
+
+// 上传限制：整个 multipart 请求 100MB，单个文件 50MB
+const (
+	maxUploadTotal = 100 << 20
+	maxFileSize    = 50 << 20
 )
 
 // KnowledgeController 运维知识库控制器
@@ -30,10 +37,17 @@ func (c *KnowledgeController) List(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"code": 0, "data": docs})
 }
 
-// Upload 多文件上传，逐个落库并异步索引
+// Upload 多文件上传，逐个落库并异步索引；逐文件收集成功/失败结果
 func (c *KnowledgeController) Upload(ctx *gin.Context) {
+	// 限制整个 multipart 请求体大小，超限由 MaxBytesReader 截断并报错
+	ctx.Request.Body = http.MaxBytesReader(ctx.Writer, ctx.Request.Body, maxUploadTotal)
 	form, err := ctx.MultipartForm()
 	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			ctx.JSON(http.StatusRequestEntityTooLarge, gin.H{"code": 413, "message": "上传内容超过 100MB 限制"})
+			return
+		}
 		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请使用 multipart/form-data 上传"})
 		return
 	}
@@ -48,22 +62,32 @@ func (c *KnowledgeController) Upload(ctx *gin.Context) {
 			uploader = name
 		}
 	}
-	created := make([]*models.KBDocument, 0, len(files))
+	type failedItem struct {
+		Name  string `json:"name"`
+		Error string `json:"error"`
+	}
+	succeeded := make([]*models.KBDocument, 0, len(files))
+	failed := make([]failedItem, 0)
 	for _, fh := range files {
+		if fh.Size > maxFileSize {
+			failed = append(failed, failedItem{Name: fh.Filename, Error: "文件超过 50MB 限制"})
+			continue
+		}
 		src, err := fh.Open()
 		if err != nil {
+			failed = append(failed, failedItem{Name: fh.Filename, Error: "打开文件失败: " + err.Error()})
 			continue
 		}
 		doc, err := c.Service.SaveUpload(ctx, fh.Filename, fh.Size, src, uploader)
 		src.Close()
 		if err != nil {
-			ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
-			return
+			failed = append(failed, failedItem{Name: fh.Filename, Error: err.Error()})
+			continue
 		}
 		c.Service.IndexDocument(doc.ID)
-		created = append(created, doc)
+		succeeded = append(succeeded, doc)
 	}
-	ctx.JSON(http.StatusOK, gin.H{"code": 0, "data": created})
+	ctx.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{"succeeded": succeeded, "failed": failed}})
 }
 
 // Delete 删除文档
