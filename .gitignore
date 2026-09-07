@@ -1,3 +1,9 @@
 /.idea/
 /backend/center.exe
 /.superpowers/
+
+# Python 知识库服务
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
