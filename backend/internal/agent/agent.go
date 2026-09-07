@@ -29,7 +29,7 @@ type Options struct {
 	// Instructions 该 Agent 的角色/任务描述，会作为 system prompt 的开头
 	Instructions string
 	// EnforceDataSource 是否启用防幻觉强校验：
-	// 用户问题命中数据源关键词时，必须调用 query_* 工具，否则拒绝回答。
+	// 用户问题命中数据源关键词时，必须调用 query_*/search_* 工具，否则拒绝回答。
 	// 对话等开放式问答场景建议开启；巡检等任务式场景由模型自行决策，一般不开启。
 	EnforceDataSource bool
 	// MaxIterations 最大迭代次数，默认 5
@@ -88,7 +88,7 @@ func (a *Agent) Run(ctx context.Context, messages []*schema.Message, cb *Callbac
 				if !reminderSent && i < a.opts.MaxIterations-1 {
 					// 先追加一条强提醒，让模型重新决策
 					messages = append(messages, schema.SystemMessage(
-						"注意：该问题涉及具体运维数据，你必须先调用 query_prometheus / query_elasticsearch / query_pyroscope 获取真实数据，禁止凭先验知识或编造数据回答。如果工具调用失败，请向用户说明无法获取数据。",
+						"注意：该问题涉及具体运维数据，你必须先调用 query_prometheus / query_elasticsearch / query_pyroscope 获取真实数据，禁止凭先验知识或编造数据回答。如果问题属于运维知识、故障处理经验、手册类，可调用 search_knowledge_base 检索知识库。如果工具调用失败，请向用户说明无法获取数据。",
 					))
 					reminderSent = true
 					continue
@@ -106,7 +106,7 @@ func (a *Agent) Run(ctx context.Context, messages []*schema.Message, cb *Callbac
 
 		// 记录本次 tool_calls 中是否有真正的查询工具
 		for _, tc := range resp.ToolCalls {
-			if strings.HasPrefix(tc.Function.Name, "query_") {
+			if strings.HasPrefix(tc.Function.Name, "query_") || strings.HasPrefix(tc.Function.Name, "search_") {
 				invokedQueryTools = append(invokedQueryTools, tc.Function.Name)
 			}
 		}

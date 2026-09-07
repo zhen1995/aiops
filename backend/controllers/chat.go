@@ -15,12 +15,13 @@ import (
 
 // ChatController 对话控制器
 type ChatController struct {
-	DB *gorm.DB
+	DB       *gorm.DB
+	registry *agent.Registry
 }
 
 // NewChatController 创建控制器
-func NewChatController(db *gorm.DB) *ChatController {
-	return &ChatController{DB: db}
+func NewChatController(db *gorm.DB, registry *agent.Registry) *ChatController {
+	return &ChatController{DB: db, registry: registry}
 }
 
 // currentUserID 从 gin context 取当前用户 ID（由 JWT/Session middleware 注入）
@@ -258,7 +259,7 @@ func (c *ChatController) StreamChat(ctx *gin.Context) {
 	}
 
 	// ---------- 6. 使用 Function Calling Agent 执行对话 ----------
-	ag := agent.New(cm, agent.NewRegistry(c.DB), agent.Options{
+	ag := agent.New(cm, c.registry, agent.Options{
 		Instructions:      chat.SystemPrompt,
 		EnforceDataSource: true,
 	})

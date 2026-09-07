@@ -7,6 +7,7 @@ import (
 
 	"aiops/configs"
 	"aiops/controllers"
+	"aiops/internal/agent"
 	"aiops/internal/alerting"
 	"aiops/internal/inspection"
 	"aiops/internal/knowledge"
@@ -107,8 +108,16 @@ func main() {
 	api := router.Group("/api")
 	api.Use(middleware.AuthRequired())
 
+	// 知识库服务（对话 Agent 工具与知识库路由共用）
+	kbClient := knowledge.NewClient(cfg.Knowledge.PythonBaseURL)
+	kbSvc := knowledge.NewService(db, kbClient, cfg.Knowledge.UploadDir)
+
+	// Agent 工具注册表：注入知识库服务后再用于对话控制器
+	agentRegistry := agent.NewRegistry(db)
+	agentRegistry.SetKnowledge(kbSvc)
+
 	// Chat 对话相关路由
-	chatCtrl := controllers.NewChatController(db)
+	chatCtrl := controllers.NewChatController(db, agentRegistry)
 	chatGroup := api.Group("/chat")
 	{
 		chatGroup.GET("/sessions", chatCtrl.ListSessions)
@@ -216,8 +225,6 @@ func main() {
 	}
 
 	// 运维知识库
-	kbClient := knowledge.NewClient(cfg.Knowledge.PythonBaseURL)
-	kbSvc := knowledge.NewService(db, kbClient, cfg.Knowledge.UploadDir)
 	kbCtrl := controllers.NewKnowledgeController(db, kbSvc)
 	kbGroup := api.Group("/knowledge-base")
 	{

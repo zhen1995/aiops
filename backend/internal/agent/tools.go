@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"aiops/internal/datasource"
+	"aiops/internal/knowledge"
 
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
@@ -16,11 +17,17 @@ import (
 // Registry 维护一组可调用工具，内部依赖 datasource.Manager 获取配置
 type Registry struct {
 	manager *datasource.Manager
+	kb      *knowledge.Service
 }
 
 // NewRegistry 创建工具注册表
 func NewRegistry(db *gorm.DB) *Registry {
 	return &Registry{manager: datasource.NewManager(db)}
+}
+
+// SetKnowledge 注入知识库编排服务（须在首次构建 Agent 前调用）
+func (r *Registry) SetKnowledge(svc *knowledge.Service) {
+	r.kb = svc
 }
 
 // Tools 返回所有工具实例及其 ToolInfo，用于绑定到 ChatModel
@@ -43,6 +50,7 @@ func (r *Registry) ToolMap(ctx context.Context) (map[string]tool.InvokableTool, 
 		r.queryPrometheusTool,
 		r.queryElasticsearchTool,
 		r.queryPyroscopeTool,
+		r.searchKnowledgeBaseTool,
 	}
 
 	tm := make(map[string]tool.InvokableTool, len(builders))
@@ -219,6 +227,51 @@ func (r *Registry) queryPyroscopeTool() (tool.InvokableTool, error) {
 				return datasource.PyroscopeQueryResult{}, err
 			}
 			return *res, nil
+		},
+	)
+}
+
+// ---------- search_knowledge_base ----------
+
+// SearchKnowledgeBaseInput search_knowledge_base 工具入参
+type SearchKnowledgeBaseInput struct {
+	Query string `json:"query" jsonschema:"required,description=检索问题或关键词，例如：MySQL 连接超时如何处理"`
+	TopK  int    `json:"top_k" jsonschema:"description=返回的片段数量，默认 5，最大 10"`
+}
+
+// SearchKnowledgeBaseOutput 单个命中片段
+type SearchKnowledgeBaseOutput struct {
+	ChunkID    string  `json:"chunk_id"`
+	DocumentID string  `json:"document_id"`
+	Title      string  `json:"title"`
+	Content    string  `json:"content"`
+	Score      float64 `json:"score"`
+}
+
+func (r *Registry) searchKnowledgeBaseTool() (tool.InvokableTool, error) {
+	return utils.InferTool[SearchKnowledgeBaseInput, []*SearchKnowledgeBaseOutput](
+		"search_knowledge_base",
+		"在运维知识库中做语义检索，返回与问题最相关的文档片段（含来源文档与相似度）。当用户询问运维经验、故障处理手册、排查步骤、平台使用说明等知识性问题时调用。",
+		func(ctx context.Context, in SearchKnowledgeBaseInput) ([]*SearchKnowledgeBaseOutput, error) {
+			if r.kb == nil {
+				return nil, fmt.Errorf("知识库服务未初始化")
+			}
+			topK := in.TopK
+			if topK <= 0 || topK > 10 {
+				topK = 5
+			}
+			hits, err := r.kb.Retrieve(ctx, in.Query, topK)
+			if err != nil {
+				return nil, err
+			}
+			out := make([]*SearchKnowledgeBaseOutput, 0, len(hits))
+			for _, h := range hits {
+				out = append(out, &SearchKnowledgeBaseOutput{
+					ChunkID: h.ChunkID, DocumentID: h.DocumentID, Title: h.Title,
+					Content: h.Content, Score: h.Score,
+				})
+			}
+			return out, nil
 		},
 	)
 }
