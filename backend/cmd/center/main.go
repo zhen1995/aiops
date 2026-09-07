@@ -37,25 +37,35 @@ func main() {
 	}
 	db, err := gorm.Open(mysql.Open(cfg.Database.DSN), &gorm.Config{})
 	if err != nil {
-		panic("连接数据库失败")
+		panic("连接数据库失败" + err.Error())
 	}
 
-	// 自动迁移（如表不存在则创建）
-	db.AutoMigrate(
+	// 自动迁移（如表不存在则创建，字段变更自动加列）
+	if err := db.AutoMigrate(
+		// 用户与权限
+		&models.SysUser{},
 		&models.SysRole{},
 		&models.SysAuth{},
 		&models.SysRoleAuthRelation{},
 		&models.SysUserRoleRelation{},
+		// 对话
 		&models.ChatSession{},
 		&models.ChatMessage{},
+		// AI 配置与数据源
+		&models.LLMConfig{},
+		&models.Datasource{},
 		&models.AlertEngineConfig{},
-		&models.InspectionTask{},
-		&models.InspectionReport{},
-		&models.NotifyMedia{},
+		// 告警
 		&models.AlertRule{},
 		&models.AlertEvent{},
 		&models.RootCauseAnalysis{},
-	)
+		// 巡检与通知
+		&models.InspectionTask{},
+		&models.InspectionReport{},
+		&models.NotifyMedia{},
+	); err != nil {
+		panic("数据库自动迁移失败: " + err.Error())
+	}
 
 	// 历史告警规则补齐执行频率默认值（GORM 自动加列后为 0）
 	db.Model(&models.AlertRule{}).Where("eval_interval = 0 OR eval_interval IS NULL").Update("eval_interval", 30)
@@ -110,6 +120,7 @@ func main() {
 	{
 		llmGroup.GET("", llmCtrl.List)
 		llmGroup.GET("/suppliers", llmCtrl.SupplierCategoryList)
+		llmGroup.GET("/model-types", llmCtrl.ModelTypeList)
 		llmGroup.GET("/:id", llmCtrl.Get)
 		llmGroup.POST("", llmCtrl.Create)
 		llmGroup.PUT("/:id", llmCtrl.Update)
@@ -227,5 +238,6 @@ func main() {
 	}
 
 	// 启动服务器
+	router.SetTrustedProxies(nil)
 	router.Run(cfg.Server.Port)
 }

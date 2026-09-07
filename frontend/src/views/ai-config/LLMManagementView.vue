@@ -18,6 +18,7 @@
         <thead>
           <tr>
             <th>名称</th>
+            <th>模型类型</th>
             <th>提供商类型</th>
             <th>模型</th>
             <th>接入端点</th>
@@ -32,6 +33,7 @@
               <b>{{ m.name }}</b>
               <span v-if="m.is_default === 1" class="default-tag">默认</span>
             </td>
+            <td>{{ modelTypeLabel(m.model_type) }}</td>
             <td>{{ supplierLabel(m.supplier_category) }}</td>
             <td class="mono">{{ m.model }}</td>
             <td class="muted mono" style="max-width: 220px; overflow: hidden; text-overflow: ellipsis">{{ m.base_url }}</td>
@@ -52,10 +54,10 @@
             </td>
           </tr>
           <tr v-if="!loading && llmConfigs.length === 0">
-            <td colspan="7" class="empty-row">暂无数据，请点击"新增模型"添加配置</td>
+            <td colspan="8" class="empty-row">暂无数据，请点击"新增模型"添加配置</td>
           </tr>
           <tr v-if="loading">
-            <td colspan="7" class="empty-row">加载中...</td>
+            <td colspan="8" class="empty-row">加载中...</td>
           </tr>
         </tbody>
       </table>
@@ -100,6 +102,14 @@
 
           <div class="form-row">
             <div class="form-item form-item-half">
+              <label class="form-label required">模型类型</label>
+              <select v-model="form.model_type" class="form-input">
+                <option value="chat">对话模型</option>
+                <option value="embedding">向量化模型</option>
+              </select>
+              <span v-if="errors.model_type" class="form-error">{{ errors.model_type }}</span>
+            </div>
+            <div class="form-item form-item-half">
               <label class="form-label required">提供商类型</label>
               <select v-model="form.supplier_category" class="form-input">
                 <option value="">请选择提供商类型</option>
@@ -107,11 +117,12 @@
               </select>
               <span v-if="errors.supplier_category" class="form-error">{{ errors.supplier_category }}</span>
             </div>
-            <div class="form-item form-item-half">
-              <label class="form-label required">模型</label>
-              <input v-model="form.model" class="form-input" placeholder="请输入模型名称，例如：gpt-4o" />
-              <span v-if="errors.model" class="form-error">{{ errors.model }}</span>
-            </div>
+          </div>
+
+          <div class="form-item">
+            <label class="form-label required">模型</label>
+            <input v-model="form.model" class="form-input" placeholder="请输入模型名称，例如：gpt-4o" />
+            <span v-if="errors.model" class="form-error">{{ errors.model }}</span>
           </div>
 
           <div class="form-item">
@@ -168,6 +179,14 @@ const supplierOptions = ref(Object.keys(supplierMap))
 
 const supplierLabel = (key) => supplierMap[key] || key
 
+// 模型类型映射（key -> 中文标签）
+const modelTypeMap = {
+  chat: '对话模型',
+  embedding: '向量化模型'
+}
+
+const modelTypeLabel = (key) => modelTypeMap[key] || key
+
 // 数据状态
 const llmConfigs = ref([])
 const loading = ref(false)
@@ -183,6 +202,7 @@ const errors = reactive({})
 const form = reactive({
   name: '',
   description: '',
+  model_type: 'chat',
   supplier_category: '',
   model: '',
   base_url: '',
@@ -234,6 +254,7 @@ function maskApiKey(key) {
 function resetForm() {
   form.name = ''
   form.description = ''
+  form.model_type = 'chat'
   form.supplier_category = ''
   form.model = ''
   form.base_url = ''
@@ -257,6 +278,7 @@ function openEditModal(m) {
   resetForm()
   form.name = m.name
   form.description = m.description || ''
+  form.model_type = m.model_type || 'chat'
   form.supplier_category = m.supplier_category
   form.model = m.model
   form.base_url = m.base_url
@@ -278,6 +300,10 @@ function validateForm() {
 
   if (!form.name.trim()) {
     errors.name = '请输入名称'
+    valid = false
+  }
+  if (!form.model_type) {
+    errors.model_type = '请选择模型类型'
     valid = false
   }
   if (!form.supplier_category) {
@@ -308,6 +334,7 @@ async function saveConfig() {
     const payload = {
       name: form.name,
       description: form.description,
+      model_type: form.model_type,
       supplier_category: form.supplier_category,
       model: form.model,
       base_url: form.base_url,

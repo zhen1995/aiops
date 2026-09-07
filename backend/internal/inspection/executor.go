@@ -28,7 +28,7 @@ func Executor(ctx context.Context, db *gorm.DB, task models.InspectionTask, fron
 	}
 
 	// 1. 加载默认 LLM 配置
-	cfg, err := chat.DefaultConfig(db)
+	cfg, err := chat.DefaultConfig(db, models.LLMModelTypeChat)
 	if err != nil {
 		report.Status = "failed"
 		report.Error = "加载 LLM 配置失败: " + err.Error()

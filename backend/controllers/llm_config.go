@@ -72,12 +72,24 @@ func (c *LLMConfigController) Create(ctx *gin.Context) {
 		return
 	}
 
+	// 模型类型缺省为 chat，且必须合法
+	if config.ModelType == "" {
+		config.ModelType = models.LLMModelTypeChat
+	}
+	if !models.IsValidLLMModelType(config.ModelType) {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "模型类型不合法，仅支持 chat/embedding",
+		})
+		return
+	}
+
 	// 开启事务
 	tx := c.DB.Begin()
 
-	// 如果设置为默认，需要先取消其他默认项
+	// 如果设置为默认，需要先取消同类型的其他默认项
 	if config.IsDefault == 1 {
-		if err := tx.Model(&models.LLMConfig{}).Where("is_default = ?", 1).Update("is_default", 0).Error; err != nil {
+		if err := tx.Model(&models.LLMConfig{}).Where("model_type = ? AND is_default = ?", config.ModelType, 1).Update("is_default", 0).Error; err != nil {
 			tx.Rollback()
 			ctx.JSON(http.StatusInternalServerError, gin.H{
 				"code": 500,
@@ -141,12 +153,24 @@ func (c *LLMConfigController) Update(ctx *gin.Context) {
 		return
 	}
 
+	// 模型类型缺省为 chat，且必须合法
+	if updateData.ModelType == "" {
+		updateData.ModelType = models.LLMModelTypeChat
+	}
+	if !models.IsValidLLMModelType(updateData.ModelType) {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "模型类型不合法，仅支持 chat/embedding",
+		})
+		return
+	}
+
 	// 开启事务
 	tx := c.DB.Begin()
 
-	// 如果设置为默认，需要先取消其他默认项
+	// 如果设置为默认，需要先取消同类型的其他默认项
 	if updateData.IsDefault == 1 {
-		if err := tx.Model(&models.LLMConfig{}).Where("id != ? AND is_default = ?", id, 1).Update("is_default", 0).Error; err != nil {
+		if err := tx.Model(&models.LLMConfig{}).Where("model_type = ? AND id != ? AND is_default = ?", updateData.ModelType, id, 1).Update("is_default", 0).Error; err != nil {
 			tx.Rollback()
 			ctx.JSON(http.StatusInternalServerError, gin.H{
 				"code": 500,
@@ -161,6 +185,7 @@ func (c *LLMConfigController) Update(ctx *gin.Context) {
 		"name":              updateData.Name,
 		"description":       updateData.Description,
 		"supplier_category": updateData.SupplierCategory,
+		"model_type":        updateData.ModelType,
 		"model":             updateData.Model,
 		"base_url":          updateData.BaseURL,
 		"api_key":           updateData.APIKey,
@@ -291,5 +316,13 @@ func (c *LLMConfigController) SupplierCategoryList(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{
 		"code": 0,
 		"data": models.SupplierCategoryOptions,
+	})
+}
+
+// ModelTypeList 获取模型类型列表
+func (c *LLMConfigController) ModelTypeList(ctx *gin.Context) {
+	ctx.JSON(http.StatusOK, gin.H{
+		"code": 0,
+		"data": models.LLMModelTypeOptions,
 	})
 }

@@ -13,6 +13,7 @@ type LLMConfig struct {
 	Name             string         `gorm:"size:30;comment:LLM 名称" json:"name"`
 	Description      string         `gorm:"size:100;comment:描述" json:"description"`
 	SupplierCategory string         `gorm:"size:10;comment:供应商类型 openai/claude/gemini等" json:"supplier_category"`
+	ModelType        string         `gorm:"size:10;not null;default:chat;comment:模型类型 chat-对话 embedding-向量化" json:"model_type"`
 	Model            string         `gorm:"size:20;comment:模型名称" json:"model"`
 	BaseURL          string         `gorm:"size:50;comment:api url" json:"base_url"`
 	APIKey           string         `gorm:"size:100;comment:密钥" json:"api_key"`
@@ -33,6 +34,25 @@ func (l *LLMConfig) BeforeCreate(tx *gorm.DB) error {
 		l.ID = uuid.New().String()
 	}
 	return nil
+}
+
+// 模型类型常量
+const (
+	LLMModelTypeChat      = "chat"
+	LLMModelTypeEmbedding = "embedding"
+)
+
+// LLMModelTypeOptions 模型类型选项
+var LLMModelTypeOptions = []string{LLMModelTypeChat, LLMModelTypeEmbedding}
+
+// IsValidLLMModelType 校验模型类型是否合法
+func IsValidLLMModelType(t string) bool {
+	for _, o := range LLMModelTypeOptions {
+		if o == t {
+			return true
+		}
+	}
+	return false
 }
 
 // SupplierCategoryOptions 供应商类型选项

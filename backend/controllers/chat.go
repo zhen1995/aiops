@@ -143,7 +143,7 @@ func (c *ChatController) StreamChat(ctx *gin.Context) {
 	}
 
 	// 2. 加载默认 LLM 配置
-	cfg, err := chat.DefaultConfig(c.DB)
+	cfg, err := chat.DefaultConfig(c.DB, models.LLMModelTypeChat)
 	if err != nil {
 		c.writeSSEError(ctx, 500, "未配置默认大模型")
 		return

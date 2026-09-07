@@ -1,4 +1,5 @@
 database:
+  #dsn: "root:Zhen1995@tcp(localhost:3306)/aiops?charset=utf8mb4&parseTime=True&loc=Local"
   dsn: "root:a.123456R+=@tcp(10.2.216.92:3306)/aiops?charset=utf8mb4&parseTime=True&loc=Local"
 server:
   port: ":8080"

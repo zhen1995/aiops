@@ -76,7 +76,7 @@ func runAnalysis(db *gorm.DB, analysisID string, event models.AlertEvent) {
 	defer cancel()
 
 	// 1. 加载默认 LLM 配置
-	cfg, err := chat.DefaultConfig(db)
+	cfg, err := chat.DefaultConfig(db, models.LLMModelTypeChat)
 	if err != nil {
 		failAnalysis(db, analysisID, "加载 LLM 配置失败: "+err.Error())
 		return
