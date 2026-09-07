@@ -63,6 +63,9 @@ func main() {
 		&models.InspectionTask{},
 		&models.InspectionReport{},
 		&models.NotifyMedia{},
+		// 知识库
+		&models.KBDocument{},
+		&models.KBChunk{},
 	); err != nil {
 		panic("数据库自动迁移失败: " + err.Error())
 	}
