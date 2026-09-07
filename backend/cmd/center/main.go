@@ -9,6 +9,7 @@ import (
 	"aiops/controllers"
 	"aiops/internal/alerting"
 	"aiops/internal/inspection"
+	"aiops/internal/knowledge"
 	"aiops/middleware"
 	"aiops/models"
 
@@ -212,6 +213,19 @@ func main() {
 		mediaGroup.DELETE("/:id", mediaCtrl.Delete)
 		mediaGroup.PATCH("/:id/toggle", mediaCtrl.ToggleEnabled)
 		mediaGroup.POST("/:id/test", mediaCtrl.Test)
+	}
+
+	// 运维知识库
+	kbClient := knowledge.NewClient(cfg.Knowledge.PythonBaseURL)
+	kbSvc := knowledge.NewService(db, kbClient, cfg.Knowledge.UploadDir)
+	kbCtrl := controllers.NewKnowledgeController(db, kbSvc)
+	kbGroup := api.Group("/knowledge-base")
+	{
+		kbGroup.GET("", kbCtrl.List)
+		kbGroup.POST("", kbCtrl.Upload)
+		kbGroup.POST("/retrieve", kbCtrl.Retrieve)
+		kbGroup.DELETE("/:id", kbCtrl.Delete)
+		kbGroup.POST("/:id/reindex", kbCtrl.Reindex)
 	}
 
 	// 用户管理相关路由

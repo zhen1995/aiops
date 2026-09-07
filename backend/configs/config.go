@@ -12,6 +12,11 @@ type Config struct {
 	Database DatabaseConfig `mapstructure:"database" yaml:"database"`
 	Server   ServerConfig   `mapstructure:"server" yaml:"server"`
 	App      AppConfig      `mapstructure:"app" yaml:"app"`
+	// Knowledge 知识库配置
+	Knowledge struct {
+		PythonBaseURL string `mapstructure:"python_base_url" yaml:"python_base_url"`
+		UploadDir     string `mapstructure:"upload_dir" yaml:"upload_dir"`
+	} `mapstructure:"knowledge" yaml:"knowledge"`
 }
 
 type DatabaseConfig struct {

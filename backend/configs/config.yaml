@@ -6,3 +6,8 @@ server:
 app:
   # 前端访问地址，用于巡检报告通知中的"完整报告"链接
   frontend_base_url: "http://localhost:5173"
+knowledge:
+  # Python 算法服务地址（知识库解析/向量化/检索）
+  python_base_url: "http://localhost:9000"
+  # 知识库上传文件的本地存储目录
+  upload_dir: "./uploads/knowledge"
