@@ -170,7 +170,7 @@ pytest                             # 运行 Python 测试（venv 见 algorithm/.
 - **告警事件查询**：`GET /api/alert-events?scope=active|history` 查询本地 `alert_events` 表；active = 未恢复，history = 已恢复（含恢复事件）；`DELETE /api/alert-events/:id` 删除单条事件，删除未恢复的告警事件会联动引擎清理对应序列状态（条件仍满足时可重新触发）。不再查询 Nightingale。
 - **巡检**：`internal/inspection.Scheduler`（robfig/cron，支持 5/6 段表达式）定时触发 `Executor`，通过公共 Agent 生成 Markdown 报告并落库，按任务配置的通知媒介推送（钉钉/Webhook）。
 - **根因分析**：`POST /api/alert-events/:id/root-cause` 触发后由 `internal/rca.StartAnalysis` 起后台 goroutine 异步执行（10 分钟超时，状态 running/completed/failed 落库 `root_cause_analyses` 表）；Eino compose Graph 工作流先经 collect 证据收集节点（公共 Agent 调用 Prometheus/ElasticSearch/Pyroscope 只读工具），再经 synthesize 综合分析节点由大模型输出严格 JSON（含修复重试）；`GET /api/root-cause-analyses(:id)` 查询列表/详情，前端 `/rca` 页面对 running 状态轮询展示结构化结果（证据链/可信度/影响范围/修复建议）。
-- **运维知识库**：Go 侧 `controllers/knowledge_base.go` + `internal/knowledge`（编排、文件落盘 `knowledge.upload_dir`、Qdrant/文档元数据维护，REST 前缀 `/api/knowledge-base`）调用 Python 服务（`algorithm/`，FastAPI，`/api/v1/knowledge` 的 index/retrieve/documents）完成文档解析、切块、向量化（embedding 密钥由 Go 从默认的向量化 LLM 配置读取后随请求透传）与向量检索，向量库存 Qdrant（chunk 全文存 Qdrant payload，`kb_chunk` 表只存元数据）；对话 Agent 通过 `search_knowledge_base` 工具（`internal/agent/tools.go`）检索知识库问答，命中结果含 chunk_id/title/score 供引用标注。不同 embedding 模型维度不同，换模型需重建 Qdrant collection。
+- **运维知识库**：Go 侧 `controllers/knowledge.go` + `internal/knowledge`（编排、文件落盘 `knowledge.upload_dir`、Qdrant/文档元数据维护，REST 前缀 `/api/knowledge-base`）调用 Python 服务（`algorithm/`，FastAPI，`/api/v1/knowledge` 的 index/retrieve/documents）完成文档解析、切块、向量化（embedding 密钥由 Go 从默认的向量化 LLM 配置读取后随请求透传）与向量检索，向量库存 Qdrant（chunk 全文存 Qdrant payload，`kb_chunk` 表只存元数据）；对话 Agent 通过 `search_knowledge_base` 工具（`internal/agent/tools.go`）检索知识库问答，命中结果含 chunk_id/title/score 供引用标注。不同 embedding 模型维度不同，换模型需重建 Qdrant collection。
 
 ---
 
@@ -250,7 +250,7 @@ pytest                             # 运行 Python 测试（venv 见 algorithm/.
 | `backend/internal/inspection/executor.go` | 巡检报告生成与通知 |
 | `backend/internal/rca/runner.go` | 根因分析异步执行器（后台 goroutine、超时控制、状态落库） |
 | `backend/internal/knowledge/` | 知识库编排服务（Go↔Python 客户端、文档/块元数据、Qdrant 交互） |
-| `backend/controllers/knowledge_base.go` | 知识库 REST 接口（`/api/knowledge-base`） |
+| `backend/controllers/knowledge.go` | 知识库 REST 接口（`/api/knowledge-base`） |
 | `algorithm/app/routers/knowledge.py` | Python 知识库服务（解析/向量化/检索，`/api/v1/knowledge`） |
 | `docker-compose.yml` | Qdrant 向量库编排 |
 | `frontend/src/router/index.js` | 前端路由 |
