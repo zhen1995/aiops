@@ -70,18 +70,18 @@
                 <b>{{ f.name }}</b>
               </div>
             </td>
-            <td><span class="type-tag">{{ f.type.toUpperCase() }}</span></td>
-            <td>{{ f.size }}</td>
+            <td><span class="type-tag">{{ (f.type || '').toUpperCase() }}</span></td>
+            <td>{{ formatSize(f.size) }}</td>
             <td>
               <span class="status-dot" :class="f.status"></span>
               {{ statusText(f.status) }}
             </td>
-            <td>{{ f.uploader }}</td>
-            <td class="muted">{{ f.uploadTime }}</td>
+            <td>{{ f.uploader || '-' }}</td>
+            <td class="muted">{{ formatTime(f.created_at) }}</td>
             <td>
               <div class="ops">
-                <button class="btn btn-sm" @click="reindex(f)" v-if="f.status !== 'pending'">重新索引</button>
-                <button class="btn btn-sm" @click="remove(f.id)">删除</button>
+                <button class="btn btn-sm" @click="reindex(f)" v-if="f.status === 'indexed' || f.status === 'failed'">重新索引</button>
+                <button class="btn btn-sm" @click="removeFile(f.id)">删除</button>
               </div>
             </td>
           </tr>
@@ -95,55 +95,100 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import PageHeader from '../components/PageHeader.vue'
 import StatCard from '../components/StatCard.vue'
-import { knowledgeBaseFiles as rawFiles } from '../mock/data'
+import { knowledgeApi } from '../api/knowledge.js'
 
-const files = ref(rawFiles)
+const files = ref([])
 const fileInput = ref(null)
+let pollTimer = null
 
 const indexedCount = computed(() => files.value.filter((f) => f.status === 'indexed').length)
-const pendingCount = computed(() => files.value.filter((f) => f.status === 'pending').length)
+const pendingCount = computed(() =>
+  files.value.filter((f) => f.status === 'pending' || f.status === 'indexing').length
+)
+
+// 列表中存在待处理/索引中的文件时轮询刷新
+const hasProcessing = computed(() =>
+  files.value.some((f) => f.status === 'indexing' || f.status === 'pending')
+)
+
+watch(hasProcessing, (processing) => {
+  if (processing && !pollTimer) {
+    pollTimer = setInterval(loadFiles, 2000)
+  } else if (!processing && pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+})
 
 const statusText = (status) => {
   const map = { indexed: '已索引', pending: '待索引', indexing: '索引中', failed: '索引失败' }
   return map[status] || status
 }
 
+const formatSize = (bytes) => {
+  const n = Number(bytes) || 0
+  return n < 1024 * 1024
+    ? `${Math.max(1, Math.ceil(n / 1024))} KB`
+    : `${(n / 1024 / 1024).toFixed(1)} MB`
+}
+
+const formatTime = (t) => {
+  if (!t) return '-'
+  return new Date(t).toLocaleString('zh-CN', { hour12: false })
+}
+
+async function loadFiles() {
+  try {
+    files.value = await knowledgeApi.list()
+  } catch (e) {
+    console.error('加载知识库列表失败', e)
+  }
+}
+
+onMounted(loadFiles)
+onUnmounted(() => {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+})
+
 const triggerUpload = () => {
   fileInput.value?.click()
 }
 
-const handleFiles = (e) => {
-  const selected = Array.from(e.target.files || [])
-  selected.forEach((file) => {
-    const ext = file.name.split('.').pop().toLowerCase()
-    const sizeText = file.size > 1024 * 1024
-      ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
-      : `${Math.ceil(file.size / 1024)} KB`
-    files.value.unshift({
-      id: `kb-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      name: file.name,
-      type: ext,
-      size: sizeText,
-      status: 'pending',
-      uploadTime: new Date().toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(/\//g, '-'),
-      uploader: '运维管理员'
-    })
-  })
+const handleFiles = async (e) => {
+  const selected = e.target.files
+  if (!selected || selected.length === 0) return
+  try {
+    await knowledgeApi.upload(selected)
+    await loadFiles()
+  } catch (err) {
+    alert(err.message || '上传失败')
+  }
   e.target.value = ''
 }
 
-const reindex = (f) => {
-  f.status = 'indexing'
-  setTimeout(() => {
-    f.status = 'indexed'
-  }, 1200)
+const reindex = async (f) => {
+  try {
+    await knowledgeApi.reindex(f.id)
+    await loadFiles()
+  } catch (err) {
+    alert(err.message || '重新索引失败')
+  }
 }
 
-const remove = (id) => {
-  files.value = files.value.filter((f) => f.id !== id)
+const removeFile = async (id) => {
+  if (!confirm('确定删除该文档吗？删除后不可恢复。')) return
+  try {
+    await knowledgeApi.remove(id)
+    await loadFiles()
+  } catch (err) {
+    alert(err.message || '删除失败')
+  }
 }
 </script>
 
