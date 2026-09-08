@@ -25,6 +25,16 @@ uvicorn app.main:app --port 9000
 #    上传文档时 Go 后端会把密钥随请求透传给 Python 服务完成 embedding
 ```
 
+向量化模型需选择**提供 Embeddings API** 的服务商（OpenAI 兼容协议均可）。推荐：
+
+| 服务商 | Base URL | 模型 | 说明 |
+|--------|----------|------|------|
+| 阿里云百炼 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `text-embedding-v3` | 国内直连，中文效果好，按量计费 |
+| SiliconFlow | `https://api.siliconflow.cn/v1` | `BAAI/bge-m3` | 个人开发者有免费额度 |
+| OpenAI | `https://api.openai.com/v1` | `text-embedding-3-small` | 需可访问 OpenAI 的网络与密钥 |
+
+> 注意：**DeepSeek 官方 API 不提供 Embeddings 端点**（仅 deepseek-v4-flash / deepseek-v4-pro 等对话模型），配置为向量化模型会导致索引报 404；Kimi 编程订阅（`api.kimi.com/coding/v1`）的密钥同样不能用于向量化。配置错误时文档会索引失败，错误原因记录在 `kb_document.error_msg`。
+
 启用后：知识库页面可上传文档（自动解析、切块、向量化入 Qdrant），对话 Agent 自动获得 `search_knowledge_base` 工具进行检索问答。
 
 > 注意：不同向量化模型的向量维度不同（768/1024/1536），首次入库时按所用模型的实际维度自动建 collection；更换模型需重建 collection（`docker compose down -v` 清除 `qdrant_data` 后重新上传）。
