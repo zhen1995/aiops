@@ -16,13 +16,14 @@ import (
 
 // Registry 维护一组可调用工具，内部依赖 datasource.Manager 获取配置
 type Registry struct {
+	db      *gorm.DB
 	manager *datasource.Manager
 	kb      *knowledge.Service
 }
 
 // NewRegistry 创建工具注册表
 func NewRegistry(db *gorm.DB) *Registry {
-	return &Registry{manager: datasource.NewManager(db)}
+	return &Registry{db: db, manager: datasource.NewManager(db)}
 }
 
 // SetKnowledge 注入知识库编排服务（须在首次构建 Agent 前调用）
@@ -52,6 +53,7 @@ func (r *Registry) ToolMap(ctx context.Context) (map[string]tool.InvokableTool, 
 		r.queryPyroscopeTool,
 		r.searchKnowledgeBaseTool,
 	}
+	builders = append(builders, r.n9eTools()...)
 
 	tm := make(map[string]tool.InvokableTool, len(builders))
 	infos := make([]*schema.ToolInfo, 0, len(builders))

@@ -68,6 +68,8 @@ func main() {
 		// 知识库
 		&models.KBDocument{},
 		&models.KBChunk{},
+		// 夜莺告警引擎
+		&models.N9eConfig{},
 	); err != nil {
 		panic("数据库自动迁移失败: " + err.Error())
 	}
@@ -183,6 +185,22 @@ func main() {
 	eventCtrl := controllers.NewAlertEventController(db)
 	api.GET("/alert-events", eventCtrl.List)
 	api.DELETE("/alert-events/:id", eventCtrl.Delete)
+
+	// 夜莺（Nightingale）引擎配置与告警代理
+	n9eCtrl := controllers.NewN9eController(db)
+	n9eGroup := api.Group("/n9e")
+	{
+		// 引擎配置 CRUD
+		n9eGroup.GET("/configs", n9eCtrl.ListConfig)
+		n9eGroup.POST("/configs", n9eCtrl.SaveConfig)
+		n9eGroup.DELETE("/configs/:id", n9eCtrl.DeleteConfig)
+		n9eGroup.POST("/configs/test", n9eCtrl.TestConfig)
+		// 代理到夜莺的告警接口
+		n9eGroup.GET("/alert-rules", n9eCtrl.GetAlertRules)
+		n9eGroup.GET("/busi-groups", n9eCtrl.GetBusiGroups)
+		n9eGroup.GET("/alert-cur-events", n9eCtrl.GetCurEvents)
+		n9eGroup.GET("/alert-his-events", n9eCtrl.GetHisEvents)
+	}
 
 	// 根因分析相关路由（针对告警事件触发 AI 根因分析）
 	rootCauseCtrl := controllers.NewRootCauseController(db)

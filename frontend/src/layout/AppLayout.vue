@@ -144,9 +144,11 @@ const isGroupActive = (m) => m.children?.some((c) => isActive(c.path))
 
 const expanded = reactive({
   '告警管理': true,
+  '夜莺': false,
   'AI 配置': false,
   '通知管理': false,
-  '人员组织': false
+  '人员组织': false,
+  '巡检管理': false
 })
 
 const toggle = (title) => {
@@ -168,6 +170,15 @@ const allMenus = [
       { path: '/alerts/denoise', title: '告警降噪', auth: '告警降噪' },
       { path: '/alerts/events', title: '告警事件', auth: '告警事件' },
       { path: '/alert-rules', title: '告警规则', auth: '告警规则' }
+    ]
+  },
+  {
+    title: '夜莺',
+    icon: ic('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>'),
+    children: [
+      { path: '/n9e/config', title: '引擎配置', auth: '夜莺引擎配置' },
+      { path: '/n9e/alert-rules', title: '告警规则', auth: '夜莺告警规则' },
+      { path: '/n9e/alert-events', title: '告警事件', auth: '夜莺告警事件' }
     ]
   },
   { path: '/rca', title: '根因分析', auth: '根因分析', icon: ic('<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>') },

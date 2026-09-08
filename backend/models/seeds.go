@@ -8,6 +8,7 @@ func SeedSysAuth(db *gorm.DB) error {
 		"告警引擎", "告警规则", "告警事件",
 		"巡检任务", "巡检报告",
 		"通知媒介",
+		"夜莺引擎配置", "夜莺告警规则", "夜莺告警事件",
 	}
 	for _, name := range names {
 		var count int64

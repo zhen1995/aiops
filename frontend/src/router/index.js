@@ -12,6 +12,11 @@ const routes = [
   { path: '/alerts/denoise', name: 'alerts-denoise', component: () => import('../views/DenoiseView.vue'), meta: { title: '告警降噪', auth: '告警降噪' } },
   { path: '/alerts/events', name: 'alert-events', component: () => import('../views/AnomalyView.vue'), meta: { title: '告警事件', auth: '告警事件' } },
   { path: '/alert-rules', name: 'alert-rules', component: () => import('../views/AlertRuleView.vue'), meta: { title: '告警规则', auth: '告警规则' } },
+  // 夜莺
+  { path: '/n9e/config', name: 'n9e-config', component: () => import('../views/n9e/EngineConfigView.vue'), meta: { title: '夜莺引擎配置', auth: '夜莺引擎配置' } },
+  { path: '/n9e/alert-rules', name: 'n9e-alert-rules', component: () => import('../views/n9e/AlertRulesView.vue'), meta: { title: '夜莺告警规则', auth: '夜莺告警规则' } },
+  { path: '/n9e/alert-events', name: 'n9e-alert-events', component: () => import('../views/n9e/AlertEventsView.vue'), meta: { title: '夜莺告警事件', auth: '夜莺告警事件' } },
+  { path: '/n9e', redirect: '/n9e/config' },
   { path: '/rca', name: 'rca', component: () => import('../views/RcaView.vue'), meta: { title: '根因分析', auth: '根因分析' } },
   { path: '/logs', name: 'logs', component: () => import('../views/LogAnalysisView.vue'), meta: { title: '日志分析', auth: '日志分析' } },
   { path: '/ai-config', redirect: '/ai-config/llm' },
