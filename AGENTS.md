@@ -6,7 +6,7 @@
 
 当前仓库包含：
 
-- **frontend/**：Vue 3 + Vite 前端，已通过 `src/api/` 接口层对接真实后端（开发环境由 Vite proxy 转发 `/api`）；总览大盘、告警控制台、告警降噪、日志分析等演示页面仍使用 `src/mock/data.js` 的 Mock 数据，知识库页面已接入真实接口。
+- **frontend/**：Vue 3 + Vite 前端，已通过 `src/api/` 接口层对接真实后端（开发环境由 Vite proxy 转发 `/api`）；总览大盘、告警降噪、日志分析等演示页面仍使用 `src/mock/data.js` 的 Mock 数据，知识库页面已接入真实接口。
 - **backend/**：Go 后端服务，基于 Gin + GORM + MySQL + Viper + CloudWeGo Eino，已实现认证、对话 Agent、LLM 配置、数据源管理、告警规则评估引擎、告警事件、根因分析、定时巡检、运维知识库、通知媒介、用户与角色权限等完整接口。
 - **algorithm/**：Python 算法服务（FastAPI，入口 `app.main:app`），目前承载运维知识库的文档解析、切块、向量化与向量检索，依赖 Qdrant 向量库（仓库根 `docker-compose.yml` 编排）。设计文档中的异常检测、日志聚类等其他算法能力尚未实现。
 - **docs/**：系统设计文档（`AIOPS系统设计文档.md`）与前端原型 SPEC（`SPEC.md`）。
@@ -103,7 +103,7 @@ E:/aiops
 │   │   ├── api/                    # 接口层（request.js 封装 fetch + JWT，按模块分文件）
 │   │   ├── components/             # 共享组件（StatCard/LevelTag/ChartBox/PageHeader 等）
 │   │   ├── views/                  # 页面视图（含 ai-config/、notification/、org/ 子目录）
-│   │   ├── mock/data.js            # 演示页面 Mock 数据（大盘/告警控制台/降噪/日志）
+│   │   ├── mock/data.js            # 演示页面 Mock 数据（大盘/降噪/日志）
 │   │   ├── utils/auth.js           # token 存取与请求头
 │   │   └── styles/theme.css        # 主题变量与通用样式
 │   ├── index.html
@@ -228,7 +228,7 @@ pytest                             # 运行 Python 测试（venv 见 algorithm/.
 
 ## 开发注意事项
 
-1. **前后端已联调**：登录、对话、LLM 配置、数据源、告警规则、告警事件、根因分析、巡检、运维知识库、通知媒介、用户/角色均已接真实 API；总览大盘、告警控制台、告警降噪、日志分析仍为 Mock 演示页。
+1. **前后端已联调**：登录、对话、LLM 配置、数据源、告警规则、告警事件、根因分析、巡检、运维知识库、通知媒介、用户/角色均已接真实 API；总览大盘、告警降噪、日志分析仍为 Mock 演示页。
 2. **修改告警规则字段时需同步**：模型（`models/alert_rule.go`）、校验（`controllers/alert_rule.go validateRule`）、评估引擎（`internal/alerting/engine.go`）、前端表单（`AlertRuleView.vue`）四处。
 3. **新增数据源工具**：在 `internal/agent/tools.go` 的 `ToolMap` 注册，Agent system prompt 会自动带上工具说明。
 4. **知识库接口契约需双端同步**：新增/变更知识库接口时，需同时更新 Python 服务端点（`algorithm/app/routers/knowledge.py`）与 Go 客户端（`backend/internal/knowledge/client.go`）的 payload 键名、multipart 字段名及返回结构；Python 侧改动后运行 `cd algorithm && pytest` 验证。

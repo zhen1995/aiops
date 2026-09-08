@@ -78,18 +78,6 @@ export const alerts = [
   { id: 'ALT-260812-049', title: '证书剩余有效期不足 30 天：api.internal.example', service: 'gateway-service', level: 'p4', status: 'acked', source: '巡检任务', count: 1, time: '2026-08-12T09:30:00' }
 ]
 
-export const alertStats = { active: 12, todayNew: 56, acked: 18, resolved: 41, compressRate: 86.4 }
-
-export const alertLifecycle = [
-  { stage: '规则过滤', desc: '黑名单 / 白名单', reduced: 320 },
-  { stage: '时间窗口聚合', desc: '5 分钟窗口合并', reduced: 860 },
-  { stage: '相似度去重', desc: '文本向量化 + 聚类', reduced: 640 },
-  { stage: '拓扑抑制', desc: '父节点抑制级联', reduced: 210 },
-  { stage: '动态阈值', desc: '自适应阈值判断', reduced: 130 },
-  { stage: '智能分级', desc: 'P0-P4 自动定级', reduced: 0 },
-  { stage: '通知路由', desc: '按值班表分发', reduced: 0 }
-]
-
 export const alertRules = [
   { name: 'CPU 使用率动态阈值', type: '动态阈值', target: 'node_*', status: 'running' },
   { name: 'HTTP 5xx 比例 > 1%', type: '静态阈值', target: 'gateway-service', status: 'running' },

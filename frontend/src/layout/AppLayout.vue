@@ -166,7 +166,6 @@ const allMenus = [
     title: '告警管理',
     icon: ic('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>'),
     children: [
-      { path: '/alerts/console', title: '告警控制台', auth: '告警控制台', badge: '12' },
       { path: '/alerts/denoise', title: '告警降噪', auth: '告警降噪' },
       { path: '/alerts/events', title: '告警事件', auth: '告警事件' },
       { path: '/alert-rules', title: '告警规则', auth: '告警规则' },

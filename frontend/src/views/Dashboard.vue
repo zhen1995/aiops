@@ -47,7 +47,7 @@
             <h3 class="card-title">最新高危告警</h3>
             <p class="card-sub">P0 / P1 级活动告警</p>
           </div>
-          <RouterLink to="/alerts/console" class="btn btn-sm">进入告警控制台</RouterLink>
+          <RouterLink to="/alerts/events" class="btn btn-sm">查看告警事件</RouterLink>
         </div>
         <table class="table">
           <thead>

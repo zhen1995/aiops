@@ -8,7 +8,6 @@ const routes = [
   { path: '/', redirect: '/chat' },
   { path: '/chat', name: 'chat', component: () => import('../views/ChatView.vue'), meta: { title: 'AI 对话', auth: '对话' } },
   { path: '/dashboard', name: 'dashboard', component: () => import('../views/Dashboard.vue'), meta: { title: '总览大盘', auth: '总览大盘' } },
-  { path: '/alerts/console', name: 'alerts-console', component: () => import('../views/AlertsView.vue'), meta: { title: '告警控制台', auth: '告警控制台' } },
   { path: '/alerts/denoise', name: 'alerts-denoise', component: () => import('../views/DenoiseView.vue'), meta: { title: '告警降噪', auth: '告警降噪' } },
   { path: '/alerts/events', name: 'alert-events', component: () => import('../views/AnomalyView.vue'), meta: { title: '告警事件', auth: '告警事件' } },
   { path: '/alert-rules', name: 'alert-rules', component: () => import('../views/AlertRuleView.vue'), meta: { title: '告警规则', auth: '告警规则' } },
