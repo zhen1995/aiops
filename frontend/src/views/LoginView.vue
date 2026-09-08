@@ -12,44 +12,96 @@
           <span>智能运维平台</span>
         </div>
       </div>
-      <div class="slogan">
-        <h2>面向大规模分布式系统的<br/>智能运维平台</h2>
-        <p>融合多源监控数据，实现异常检测、根因分析、告警降噪与智能运维助手</p>
-      </div>
-      <div class="features">
-        <div class="feature-item">
-          <div class="feature-icon">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 12h4l3-8 4 16 3-8h4" />
-            </svg>
-          </div>
-          <div>
-            <b>异常检测</b>
-            <span>基于机器学习的智能异常检测</span>
-          </div>
-        </div>
-        <div class="feature-item">
-          <div class="feature-icon">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>
-            </svg>
-          </div>
-          <div>
-            <b>根因分析</b>
-            <span>自动化故障根因定位</span>
-          </div>
-        </div>
-        <div class="feature-item">
-          <div class="feature-icon">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>
-            </svg>
-          </div>
-          <div>
-            <b>告警降噪</b>
-            <span>智能压缩与聚合告警风暴</span>
-          </div>
-        </div>
+      <div class="hero-illustration">
+        <svg viewBox="0 0 560 420" width="100%" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <!-- 网格底纹 -->
+          <defs>
+            <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+              <path d="M28 0H0v28" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+            </pattern>
+            <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="rgba(255,255,255,0.28)"/>
+              <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+            </linearGradient>
+          </defs>
+          <rect x="0" y="0" width="560" height="420" fill="url(#grid)" rx="16"/>
+
+          <!-- 监控大屏面板 -->
+          <rect x="70" y="60" width="420" height="250" rx="14" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.22)" stroke-width="1.5"/>
+          <!-- 面板标题栏 -->
+          <rect x="70" y="60" width="420" height="36" rx="14" fill="rgba(255,255,255,0.08)"/>
+          <rect x="70" y="82" width="420" height="14" fill="rgba(255,255,255,0.08)"/>
+          <circle cx="92" cy="78" r="4" fill="rgba(255,255,255,0.55)"/>
+          <circle cx="108" cy="78" r="4" fill="rgba(255,255,255,0.35)"/>
+          <circle cx="124" cy="78" r="4" fill="rgba(255,255,255,0.2)"/>
+          <rect x="330" y="72" width="66" height="12" rx="6" fill="rgba(255,255,255,0.18)"/>
+          <circle cx="462" cy="78" r="5" fill="#5eead4"/>
+          <circle cx="462" cy="78" r="9" stroke="rgba(94,234,212,0.4)" stroke-width="1.5"/>
+
+          <!-- 折线图区域 -->
+          <rect x="90" y="110" width="250" height="140" rx="8" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.12)"/>
+          <line x1="90" y1="150" x2="340" y2="150" stroke="rgba(255,255,255,0.08)" stroke-dasharray="4 4"/>
+          <line x1="90" y1="190" x2="340" y2="190" stroke="rgba(255,255,255,0.08)" stroke-dasharray="4 4"/>
+          <line x1="90" y1="230" x2="340" y2="230" stroke="rgba(255,255,255,0.08)" stroke-dasharray="4 4"/>
+          <path d="M96 200 L130 190 L160 205 L190 175 L220 185 L250 150 L280 160 L310 120 L336 130" stroke="rgba(255,255,255,0.85)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M96 200 L130 190 L160 205 L190 175 L220 185 L250 150 L280 160 L310 120 L336 130 L336 245 L96 245 Z" fill="url(#areaFill)"/>
+          <!-- 异常尖峰 -->
+          <path d="M190 175 L220 185 L250 150 L280 160 L310 120 L336 130" stroke="#fda4af" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="1 0"/>
+          <circle cx="310" cy="120" r="5" fill="#fb7185" stroke="#fff" stroke-width="2"/>
+          <circle cx="310" cy="120" r="11" stroke="rgba(251,113,133,0.45)" stroke-width="1.5"/>
+          <!-- 数据点 -->
+          <circle cx="190" cy="175" r="3.5" fill="#fff"/>
+          <circle cx="250" cy="150" r="3.5" fill="#fff"/>
+          <circle cx="336" cy="130" r="3.5" fill="#fff"/>
+
+          <!-- 环形仪表盘 -->
+          <circle cx="420" cy="160" r="40" stroke="rgba(255,255,255,0.15)" stroke-width="9"/>
+          <path d="M420 120 A40 40 0 1 1 384 178" stroke="#5eead4" stroke-width="9" stroke-linecap="round"/>
+          <line x1="420" y1="160" x2="443" y2="138" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="420" cy="160" r="5" fill="#fff"/>
+          <text x="420" y="224" text-anchor="middle" fill="rgba(255,255,255,0.75)" font-size="12" font-family="inherit">CPU 62%</text>
+          <circle cx="380" cy="252" r="4" fill="#5eead4"/>
+          <text x="392" y="256" fill="rgba(255,255,255,0.65)" font-size="11" font-family="inherit">正常</text>
+          <circle cx="444" cy="252" r="4" fill="#fb7185"/>
+          <text x="456" y="256" fill="rgba(255,255,255,0.65)" font-size="11" font-family="inherit">告警</text>
+
+          <!-- 柱状图 -->
+          <rect x="90" y="272" width="16" height="24" rx="3" fill="rgba(255,255,255,0.25)"/>
+          <rect x="114" y="266" width="16" height="30" rx="3" fill="rgba(255,255,255,0.35)"/>
+          <rect x="138" y="276" width="16" height="20" rx="3" fill="rgba(255,255,255,0.25)"/>
+          <rect x="162" y="258" width="16" height="38" rx="3" fill="rgba(255,255,255,0.45)"/>
+          <rect x="186" y="270" width="16" height="26" rx="3" fill="rgba(255,255,255,0.3)"/>
+          <rect x="210" y="250" width="16" height="46" rx="3" fill="#5eead4" opacity="0.85"/>
+          <rect x="234" y="264" width="16" height="32" rx="3" fill="rgba(255,255,255,0.35)"/>
+          <rect x="258" y="274" width="16" height="22" rx="3" fill="rgba(255,255,255,0.25)"/>
+          <rect x="282" y="256" width="16" height="40" rx="3" fill="rgba(255,255,255,0.4)"/>
+          <rect x="306" y="268" width="16" height="28" rx="3" fill="rgba(255,255,255,0.3)"/>
+
+          <!-- 告警铃铛 -->
+          <g transform="translate(392 280)">
+            <path d="M16 2a8 8 0 0 0-8 8c0 9-4 12-4 12h24s-4-3-4-12a8 8 0 0 0-8-8" stroke="rgba(255,255,255,0.85)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M13.5 26a2.5 2.5 0 0 0 5 0" stroke="rgba(255,255,255,0.85)" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="27" cy="4" r="5" fill="#fb7185"/>
+          </g>
+
+          <!-- 服务器节点拓扑 -->
+          <g stroke="rgba(255,255,255,0.35)" stroke-width="1.5" stroke-dasharray="3 4">
+            <line x1="140" y1="340" x2="250" y2="356"/>
+            <line x1="250" y1="356" x2="360" y2="340"/>
+            <line x1="140" y1="340" x2="360" y2="340" stroke-opacity="0.4"/>
+          </g>
+          <g>
+            <rect x="118" y="326" width="44" height="28" rx="6" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
+            <circle cx="130" cy="340" r="3" fill="#5eead4"/>
+            <rect x="138" y="337" width="18" height="6" rx="3" fill="rgba(255,255,255,0.3)"/>
+            <rect x="228" y="342" width="44" height="28" rx="6" fill="rgba(255,255,255,0.14)" stroke="rgba(255,255,255,0.45)" stroke-width="1.5"/>
+            <circle cx="240" cy="356" r="3" fill="#5eead4"/>
+            <rect x="248" y="353" width="18" height="6" rx="3" fill="rgba(255,255,255,0.35)"/>
+            <rect x="338" y="326" width="44" height="28" rx="6" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
+            <circle cx="350" cy="340" r="3" fill="#fb7185"/>
+            <rect x="358" y="337" width="18" height="6" rx="3" fill="rgba(255,255,255,0.3)"/>
+          </g>
+        </svg>
       </div>
     </div>
 
@@ -233,68 +285,18 @@ async function handleLogin() {
   opacity: 0.85;
 }
 
-.slogan {
-  margin-top: 100px;
-  position: relative;
-  z-index: 1;
-}
-
-.slogan h2 {
-  font-size: 30px;
-  font-weight: 600;
-  line-height: 1.4;
-  margin: 0 0 16px;
-}
-
-.slogan p {
-  font-size: 14px;
-  opacity: 0.8;
-  line-height: 1.7;
-  max-width: 400px;
-}
-
-.features {
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  position: relative;
-  z-index: 1;
-}
-
-.feature-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  padding: 14px 18px;
-}
-
-.feature-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.15);
+.hero-illustration {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  padding: 32px 0;
 }
 
-.feature-item b {
-  display: block;
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 2px;
-}
-
-.feature-item span {
-  font-size: 12px;
-  opacity: 0.8;
+.hero-illustration svg {
+  max-width: 720px;
 }
 
 /* 右侧登录表单 */

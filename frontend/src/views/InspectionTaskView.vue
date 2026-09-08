@@ -101,7 +101,7 @@
               <span class="hint">报告生成后自动推送，可多选</span>
             </label>
             <div v-if="mediaOptions.length === 0" class="media-empty">
-              暂无启用的通知媒介，请先在「通知管理 → 通知媒介」中创建
+              暂无启用的通知媒介，请先在「通知媒介」菜单中创建
             </div>
             <div v-else class="media-options">
               <label v-for="m in mediaOptions" :key="m.id" class="media-option">

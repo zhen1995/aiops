@@ -146,7 +146,6 @@ const expanded = reactive({
   '告警管理': true,
   '夜莺': false,
   'AI 配置': false,
-  '通知管理': false,
   '人员组织': false,
   '巡检管理': false
 })
@@ -201,13 +200,7 @@ const allMenus = [
       { path: '/inspection/reports', title: '巡检报告', auth: '巡检报告' }
     ]
   },
-  {
-    title: '通知管理',
-    icon: ic('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M2 8c0-2.2 1.8-4 4-4h12a4 4 0 0 1 4 4"/>'),
-    children: [
-      { path: '/notification/medium', title: '通知媒介', auth: '通知媒介' }
-    ]
-  },
+  { path: '/notification/medium', title: '通知媒介', auth: '通知媒介', icon: ic('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M2 8c0-2.2 1.8-4 4-4h12a4 4 0 0 1 4 4"/>') },
   {
     title: '人员组织',
     icon: ic('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
