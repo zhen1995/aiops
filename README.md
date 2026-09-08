@@ -10,6 +10,12 @@
 # 1. 启动 Qdrant 向量库（本机需安装 Docker；若无 Docker 请自行安装后重试）
 docker compose up -d qdrant
 
+## 配置文件
+https://github.com/qdrant/qdrant/blob/master/config/config.yaml
+
+
+访问 http://<ip>:6333/dashboard查看 qdrant服务
+
 # 2. 启动 Python 解析/向量化服务（端口 9000，Go 后端默认连接该地址）
 cd algorithm
 pip install -r requirements.txt
