@@ -217,7 +217,7 @@ pytest                             # 运行 Python 测试（venv 见 algorithm/.
 
 ## 部署
 
-当前没有 Dockerfile、CI/CD 工作流或 Kubernetes 清单文件（仓库根 `docker-compose.yml` 仅编排 Qdrant 向量库）。部署为手动阶段：
+当前没有 Dockerfile、CI/CD 工作流或 Kubernetes 清单文件（仓库根 `docker-compose.yml` 仅编排 Qdrant 向量库）。部署为手动阶段，**完整的生产部署步骤（目录结构、构建、systemd/Nginx 配置、启动顺序、验证清单、安全与备份）见 `docs/生产部署文档.md`**，概要如下：
 
 1. 前端：`npm run build` 后托管 `frontend/dist/`。
 2. 后端：`go build ./cmd/center` 得到二进制，配合环境变量运行。

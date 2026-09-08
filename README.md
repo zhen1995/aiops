@@ -38,3 +38,7 @@ uvicorn app.main:app --port 9000
 启用后：知识库页面可上传文档（自动解析、切块、向量化入 Qdrant），对话 Agent 自动获得 `search_knowledge_base` 工具进行检索问答。
 
 > 注意：不同向量化模型的向量维度不同（768/1024/1536），首次入库时按所用模型的实际维度自动建 collection；更换模型需重建 collection（`docker compose down -v` 清除 `qdrant_data` 后重新上传）。
+
+## 生产部署
+
+生产环境（Go 后端 + Python 算法服务 + Vue 前端 + Qdrant + MySQL + Nginx）的完整部署步骤、systemd/Nginx 配置样例、启动顺序、验证清单与安全注意事项，见 [docs/生产部署文档.md](docs/生产部署文档.md)。
