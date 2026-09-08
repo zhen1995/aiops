@@ -42,11 +42,20 @@ func ParseConfig(rawConfig string) (*MediaConfig, error) {
 	return &cfg, nil
 }
 
-// Send 按媒介类型发送文本消息
+// Send 按媒介类型发送消息。msgtype: text(默认) / markdown / html。
+// 钉钉/企微机器人支持 markdown；Webhook 默认发 text。
 func Send(mediaType, rawConfig, content string) error {
+	return SendTyped(mediaType, rawConfig, content, "text")
+}
+
+// SendTyped 带消息类型的发送
+func SendTyped(mediaType, rawConfig, content, msgType string) error {
 	cfg, err := ParseConfig(rawConfig)
 	if err != nil {
 		return err
+	}
+	if msgType == "" {
+		msgType = "text"
 	}
 
 	timeout := time.Duration(cfg.Timeout) * time.Millisecond
@@ -65,8 +74,8 @@ func Send(mediaType, rawConfig, content string) error {
 			return errors.New("webhook 回调地址不能为空")
 		}
 		body, _ := json.Marshal(map[string]interface{}{
-			"msgtype": "text",
-			"text":    map[string]string{"content": content},
+			"msgtype": msgType,
+			msgType:   map[string]string{"content": content},
 		})
 		req, err := http.NewRequest(method, cfg.URL, bytes.NewReader(body))
 		if err != nil {
@@ -83,16 +92,25 @@ func Send(mediaType, rawConfig, content string) error {
 		if cfg.Secret != "" {
 			webhook = addDingtalkSign(webhook, cfg.Secret)
 		}
-		body, _ := json.Marshal(map[string]interface{}{
-			"msgtype": "text",
-			"text":    map[string]string{"content": content},
-		})
-		req, err := http.NewRequest(http.MethodPost, webhook, bytes.NewReader(body))
+		var bodyBytes []byte
+		if msgType == "markdown" {
+			body, _ := json.Marshal(map[string]interface{}{
+				"msgtype":  "markdown",
+				"markdown": map[string]string{"title": "AIOps 告警通知", "text": content},
+			})
+			bodyBytes = body
+		} else {
+			body, _ := json.Marshal(map[string]interface{}{
+				"msgtype": "text",
+				"text":    map[string]string{"content": content},
+			})
+			bodyBytes = body
+		}
+		req, err := http.NewRequest(http.MethodPost, webhook, bytes.NewReader(bodyBytes))
 		if err != nil {
 			return err
 		}
 		req.Header.Set("Content-Type", "application/json")
-		// 钉钉机器人接口出错时仍返回 HTTP 200，需解析响应体中的 errcode
 		return doDingtalkRequest(client, req)
 	}
 	return errors.New("未知的媒介类型")

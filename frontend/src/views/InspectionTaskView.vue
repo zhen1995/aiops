@@ -107,7 +107,7 @@
               <label v-for="m in mediaOptions" :key="m.id" class="media-option">
                 <input type="checkbox" :value="m.id" v-model="form.notify_media_ids" />
                 <span>{{ m.name }}</span>
-                <em class="media-type">{{ m.type === 'dingtalk' ? '钉钉机器人' : 'Webhook' }}</em>
+                <em class="media-type">{{ m.type === 'dingtalk' ? '钉钉' : 'Webhook' }}</em>
               </label>
             </div>
           </div>

@@ -56,9 +56,25 @@
         </div>
       </div>
 
+      <!-- 批量操作条 -->
+      <div v-if="selectedIds.size > 0" class="batch-bar">
+        <label class="batch-check">
+          <input type="checkbox" :checked="isAllSelected" :indeterminate="isIndeterminate" @change="toggleSelectAll" />
+          <span>全选本页</span>
+        </label>
+        <span class="batch-info">已选 <b>{{ selectedIds.size }}</b> 条</span>
+        <button class="btn btn-sm" @click="clearSelection">取消选择</button>
+        <button class="btn btn-sm btn-danger" @click="batchRemove" :disabled="batchLoading">
+          {{ batchLoading ? '删除中...' : '批量删除' }}
+        </button>
+      </div>
+
       <table class="table">
         <thead>
           <tr>
+            <th class="col-check">
+              <input type="checkbox" :checked="isAllSelected" :indeterminate="isIndeterminate" @change="toggleSelectAll" />
+            </th>
             <th>规则名称</th>
             <th>级别</th>
             <th>状态</th>
@@ -70,7 +86,10 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="ev in events" :key="ev.id">
+          <tr v-for="ev in events" :key="ev.id" :class="{ selected: selectedIds.has(ev.id) }">
+            <td class="col-check">
+              <input type="checkbox" :checked="selectedIds.has(ev.id)" @change="toggleOne(ev.id)" />
+            </td>
             <td><b>{{ ev.rule_name }}</b></td>
             <td>
               <LevelTag :level="severityMap(ev.severity)">
@@ -94,10 +113,10 @@
             </td>
           </tr>
           <tr v-if="!loading && events.length === 0">
-            <td colspan="8" class="empty-row">暂无告警事件数据</td>
+            <td colspan="9" class="empty-row">暂无告警事件数据</td>
           </tr>
           <tr v-if="loading">
-            <td colspan="8" class="empty-row">加载中...</td>
+            <td colspan="9" class="empty-row">加载中...</td>
           </tr>
         </tbody>
       </table>
@@ -115,7 +134,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import StatCard from '../components/StatCard.vue'
@@ -140,6 +159,10 @@ const limit = ref(20)
 const events = ref([])
 const total = ref(0)
 const loading = ref(false)
+const batchLoading = ref(false)
+
+// 选中的告警事件 ID 集合
+const selectedIds = ref(new Set())
 
 const severityText = { 1: 'P1-紧急', 2: 'P2-警告', 3: 'P3-提醒' }
 
@@ -179,21 +202,54 @@ const historyCount = computed(() => scope.value === 'history' ? events.value.len
 const p1Count = computed(() => events.value.filter(e => e.severity === 1).length)
 const p2Count = computed(() => events.value.filter(e => e.severity === 2).length)
 
+// 全选状态
+const isAllSelected = computed(() => events.value.length > 0 && events.value.every(ev => selectedIds.value.has(ev.id)))
+const isIndeterminate = computed(() => {
+  const sel = events.value.filter(ev => selectedIds.value.has(ev.id)).length
+  return sel > 0 && sel < events.value.length
+})
+
+// 切换单条选中
+function toggleOne(id) {
+  const next = new Set(selectedIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  selectedIds.value = next
+}
+
+// 切换全选
+function toggleSelectAll(e) {
+  const next = new Set(selectedIds.value)
+  if (e.target.checked) {
+    events.value.forEach(ev => next.add(ev.id))
+  } else {
+    events.value.forEach(ev => next.delete(ev.id))
+  }
+  selectedIds.value = next
+}
+
+function clearSelection() {
+  selectedIds.value = new Set()
+}
+
 function switchScope(next) {
   if (scope.value === next) return
   scope.value = next
   page.value = 1
+  clearSelection()
   loadData()
 }
 
 function clearQuery() {
   query.value = ''
   page.value = 1
+  clearSelection()
   loadData()
 }
 
 function changePage(next) {
   page.value = next
+  clearSelection()
   loadData()
 }
 
@@ -226,20 +282,51 @@ onMounted(() => {
 // 查询：先回到第一页再加载
 function search() {
   page.value = 1
+  clearSelection()
   loadData()
 }
 
-// 删除告警事件（删除未恢复事件后，若条件仍满足引擎会重新触发）
+// 删除告警事件（单条）
 async function removeEvent(ev) {
   const label = `${ev.rule_name}${ev.target_ident ? '（' + ev.target_ident + '）' : ''}`
   if (!window.confirm(`确认删除告警事件「${label}」？`)) return
   try {
     await alertEventApi.remove(ev.id)
+    clearSelection()
     loadData()
   } catch (err) {
     alert('删除告警事件失败：' + err.message)
   }
 }
+
+// 批量删除
+async function batchRemove() {
+  const ids = Array.from(selectedIds.value)
+  if (ids.length === 0) return
+  if (!window.confirm(`确认删除选中的 ${ids.length} 条告警事件？`)) return
+
+  batchLoading.value = true
+  try {
+    await alertEventApi.removeBatch(ids)
+    clearSelection()
+    loadData()
+  } catch (err) {
+    alert('批量删除失败：' + err.message)
+  } finally {
+    batchLoading.value = false
+  }
+}
+
+// 当列表变化（加载完成）时，移除不存在的选中项（防止翻页后残留）
+watch(events, (list) => {
+  if (selectedIds.value.size === 0) return
+  const valid = new Set(list.map(e => e.id))
+  const next = new Set()
+  for (const id of selectedIds.value) {
+    if (valid.has(id)) next.add(id)
+  }
+  selectedIds.value = next
+})
 </script>
 
 <style scoped>
@@ -354,6 +441,31 @@ async function removeEvent(ev) {
 .search-box .clear-btn:hover {
   color: var(--c-text);
 }
+
+/* 批量操作条 */
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  background: var(--c-primary-soft, rgba(22,119,255,0.06));
+  border: 1px solid var(--c-primary, #1677ff);
+}
+.batch-check {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12.5px; color: var(--c-text-2); cursor: pointer;
+  user-select: none;
+}
+.batch-check input { width: 15px; height: 15px; cursor: pointer; }
+.batch-info { font-size: 13px; color: var(--c-text); }
+.batch-info b { color: var(--c-primary); font-size: 14px; }
+
+.col-check { width: 42px; text-align: center; }
+.col-check input { width: 15px; height: 15px; cursor: pointer; }
+
+.table tr.selected td { background: var(--c-primary-soft, rgba(22,119,255,0.05)); }
 
 .empty-row {
   text-align: center;

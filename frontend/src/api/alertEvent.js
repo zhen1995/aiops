@@ -11,5 +11,12 @@ export const alertEventApi = {
   },
   remove(id) {
     return request(`/${id}`, { method: 'DELETE' })
+  },
+  removeBatch(ids) {
+    return request('/batch', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids })
+    })
   }
 }

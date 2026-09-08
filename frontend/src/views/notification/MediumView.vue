@@ -1,6 +1,6 @@
 <template>
   <div>
-    <PageHeader title="通知媒介" desc="维护钉钉机器人、Webhook 回调等通知通道配置">
+    <PageHeader title="通知媒介" desc="维护钉钉、Webhook 回调等通知通道配置">
       <button class="btn btn-primary" @click="openCreateModal" :disabled="loading">+ 新增媒介</button>
     </PageHeader>
 
@@ -79,7 +79,7 @@
               <label class="form-label required">媒介类型</label>
               <select v-model="form.type" class="form-input" :disabled="isEdit">
                 <option value="">请选择类型</option>
-                <option value="dingtalk">钉钉机器人</option>
+                <option value="dingtalk">钉钉</option>
                 <option value="webhook">Webhook 回调</option>
               </select>
               <span v-if="errors.type" class="form-error">{{ errors.type }}</span>
@@ -108,7 +108,7 @@
             </div>
           </template>
 
-          <!-- 钉钉机器人配置 -->
+          <!-- 钉钉配置 -->
           <template v-if="form.type === 'dingtalk'">
             <div class="form-item">
               <label class="form-label required">机器人 Webhook</label>
@@ -196,7 +196,7 @@ import LevelTag from '../../components/LevelTag.vue'
 import { notifyMediaApi } from '../../api/notifyMedia.js'
 
 const typeText = (type) => {
-  const map = { dingtalk: '钉钉机器人', webhook: 'Webhook 回调' }
+  const map = { dingtalk: '钉钉', webhook: 'Webhook 回调' }
   return map[type] || type
 }
 

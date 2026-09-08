@@ -29,6 +29,8 @@ type AlertEvent struct {
 	TriggerValue string     `gorm:"size:64;comment:触发值" json:"trigger_value"`
 	TriggerTime  time.Time  `gorm:"index;comment:触发时间" json:"trigger_time"`
 	RecoveredAt  *time.Time `gorm:"comment:恢复时间" json:"recovered_at"`
+	NotifyCount  int        `gorm:"default:0;comment:已发送通知次数" json:"notify_count"`
+	LastNotifiedAt *time.Time `gorm:"comment:上次发送通知时间" json:"last_notified_at"`
 	CreatedAt    time.Time  `gorm:"comment:创建时间" json:"created_at"`
 	UpdatedAt    time.Time  `gorm:"comment:更新时间" json:"updated_at"`
 }

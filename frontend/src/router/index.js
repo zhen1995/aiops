@@ -12,6 +12,10 @@ const routes = [
   { path: '/alerts/denoise', name: 'alerts-denoise', component: () => import('../views/DenoiseView.vue'), meta: { title: '告警降噪', auth: '告警降噪' } },
   { path: '/alerts/events', name: 'alert-events', component: () => import('../views/AnomalyView.vue'), meta: { title: '告警事件', auth: '告警事件' } },
   { path: '/alert-rules', name: 'alert-rules', component: () => import('../views/AlertRuleView.vue'), meta: { title: '告警规则', auth: '告警规则' } },
+  // 通知（消息模板 / 通知规则）
+  { path: '/notify/templates', name: 'notify-templates', component: () => import('../views/notify/NotifyTemplateView.vue'), meta: { title: '消息模板', auth: '消息模板' } },
+  { path: '/notify/rules', name: 'notify-rules', component: () => import('../views/notify/NotifyRuleView.vue'), meta: { title: '通知规则', auth: '通知规则' } },
+  { path: '/notify', redirect: '/notify/templates' },
   // 夜莺
   { path: '/n9e/config', name: 'n9e-config', component: () => import('../views/n9e/EngineConfigView.vue'), meta: { title: '夜莺引擎配置', auth: '夜莺引擎配置' } },
   { path: '/n9e/alert-rules', name: 'n9e-alert-rules', component: () => import('../views/n9e/AlertRulesView.vue'), meta: { title: '夜莺告警规则', auth: '夜莺告警规则' } },

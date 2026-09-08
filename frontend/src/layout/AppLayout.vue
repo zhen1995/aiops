@@ -169,7 +169,9 @@ const allMenus = [
       { path: '/alerts/console', title: '告警控制台', auth: '告警控制台', badge: '12' },
       { path: '/alerts/denoise', title: '告警降噪', auth: '告警降噪' },
       { path: '/alerts/events', title: '告警事件', auth: '告警事件' },
-      { path: '/alert-rules', title: '告警规则', auth: '告警规则' }
+      { path: '/alert-rules', title: '告警规则', auth: '告警规则' },
+      { path: '/notify/templates', title: '消息模板', auth: '消息模板' },
+      { path: '/notify/rules', title: '通知规则', auth: '通知规则' }
     ]
   },
   {

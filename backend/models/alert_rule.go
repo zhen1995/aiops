@@ -15,6 +15,12 @@ type AlertRule struct {
 	EvalInterval int            `gorm:"comment:执行频率(秒)" json:"eval_interval"`
 	Duration     int            `gorm:"comment:持续时间(秒)" json:"duration"`
 	Severity     int            `gorm:"comment:告警级别 1-P1紧急 2-P2警告 3-P3提醒" json:"severity"`
+	// NotifyRuleID 关联的通知规则（可选）——触发告警/恢复时自动发送通知
+	NotifyRuleID string         `gorm:"size:64;comment:通知规则ID" json:"notify_rule_id"`
+	// RepeatIntervalMinutes 重复通知间隔（分钟），0 表示不重复提醒，仅首次触发时发一次
+	RepeatIntervalMinutes int   `gorm:"default:0;comment:重复通知间隔(分钟)" json:"repeat_interval_minutes"`
+	// MaxSendCount 最大发送次数，0 表示不限制
+	MaxSendCount          int   `gorm:"default:0;comment:最大发送次数 0=不限制" json:"max_send_count"`
 	IsEnabled    int            `gorm:"comment:启用状态 0-停用 1-启用" json:"is_enabled"`
 	CreatedAt    time.Time      `gorm:"comment:创建时间" json:"created_at"`
 	UpdatedAt    time.Time      `gorm:"comment:更新时间" json:"updated_at"`

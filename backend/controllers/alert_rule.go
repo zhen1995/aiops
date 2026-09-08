@@ -159,12 +159,15 @@ func (c *AlertRuleController) Update(ctx *gin.Context) {
 	}
 
 	updates := map[string]interface{}{
-		"name":         updateData.Name,
-		"prom_ql":      updateData.PromQL,
-		"eval_interval": updateData.EvalInterval,
-		"duration":     updateData.Duration,
-		"severity":     updateData.Severity,
-		"is_enabled":   updateData.IsEnabled,
+		"name":                    updateData.Name,
+		"prom_ql":                 updateData.PromQL,
+		"eval_interval":           updateData.EvalInterval,
+		"duration":                updateData.Duration,
+		"severity":                updateData.Severity,
+		"notify_rule_id":          updateData.NotifyRuleID,
+		"repeat_interval_minutes": updateData.RepeatIntervalMinutes,
+		"max_send_count":          updateData.MaxSendCount,
+		"is_enabled":              updateData.IsEnabled,
 	}
 
 	if err := c.DB.Model(&rule).Updates(updates).Error; err != nil {

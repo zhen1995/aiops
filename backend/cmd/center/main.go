@@ -65,6 +65,8 @@ func main() {
 		&models.InspectionTask{},
 		&models.InspectionReport{},
 		&models.NotifyMedia{},
+		&models.NotifyTemplate{},
+		&models.NotifyRule{},
 		// 知识库
 		&models.KBDocument{},
 		&models.KBChunk{},
@@ -83,9 +85,12 @@ func main() {
 	if err := models.SeedAdminRoleAuth(db); err != nil {
 		fmt.Println("为 admin 角色分配权限失败:", err)
 	}
+	if err := controllers.EnsureDefaultTemplate(db); err != nil {
+		fmt.Println("初始化默认通知模板失败:", err)
+	}
 
 	// 启动告警规则评估引擎
-	alertEngine := alerting.NewEngine(db)
+	alertEngine := alerting.NewEngine(db, cfg.App.FrontendBaseURL)
 	if err := alertEngine.Start(); err != nil {
 		fmt.Println("启动告警引擎失败:", err)
 	}
@@ -184,6 +189,7 @@ func main() {
 	// 告警事件代理路由
 	eventCtrl := controllers.NewAlertEventController(db)
 	api.GET("/alert-events", eventCtrl.List)
+	api.DELETE("/alert-events/batch", eventCtrl.BatchDelete)
 	api.DELETE("/alert-events/:id", eventCtrl.Delete)
 
 	// 夜莺（Nightingale）引擎配置与告警代理
@@ -240,6 +246,30 @@ func main() {
 		mediaGroup.DELETE("/:id", mediaCtrl.Delete)
 		mediaGroup.PATCH("/:id/toggle", mediaCtrl.ToggleEnabled)
 		mediaGroup.POST("/:id/test", mediaCtrl.Test)
+	}
+
+	// 消息模板相关路由
+	tplCtrl := controllers.NewNotifyTemplateController(db, cfg.App.FrontendBaseURL)
+	tplGroup := api.Group("/notify-templates")
+	{
+		tplGroup.GET("", tplCtrl.List)
+		tplGroup.GET("/sample-event", tplCtrl.SampleEvent)
+		tplGroup.POST("", tplCtrl.Create)
+		tplGroup.PUT("/:id", tplCtrl.Update)
+		tplGroup.DELETE("/:id", tplCtrl.Delete)
+		tplGroup.POST("/validate", tplCtrl.Validate)
+		tplGroup.POST("/preview", tplCtrl.Preview)
+	}
+
+	// 通知规则相关路由
+	notifyRuleCtrl := controllers.NewNotifyRuleController(db)
+	notifyRuleGroup := api.Group("/notify-rules")
+	{
+		notifyRuleGroup.GET("", notifyRuleCtrl.List)
+		notifyRuleGroup.POST("", notifyRuleCtrl.Create)
+		notifyRuleGroup.PUT("/:id", notifyRuleCtrl.Update)
+		notifyRuleGroup.DELETE("/:id", notifyRuleCtrl.Delete)
+		notifyRuleGroup.PATCH("/:id/toggle", notifyRuleCtrl.Toggle)
 	}
 
 	// 运维知识库

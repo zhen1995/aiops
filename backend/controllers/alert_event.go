@@ -119,6 +119,50 @@ func (c *AlertEventController) Delete(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{"id": id}})
 }
 
+// BatchDelete 批量删除告警事件
+// 请求体: {"ids": ["uuid1", "uuid2", ...]}
+func (c *AlertEventController) BatchDelete(ctx *gin.Context) {
+	var body struct {
+		IDs []string `json:"ids"`
+	}
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误: " + err.Error()})
+		return
+	}
+	if len(body.IDs) == 0 {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请至少选择一条告警事件"})
+		return
+	}
+	if len(body.IDs) > 500 {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "单次最多删除 500 条"})
+		return
+	}
+
+	// 查出所有待删事件，用来清理引擎序列状态
+	var evs []models.AlertEvent
+	if err := c.DB.Where("id IN ?", body.IDs).Find(&evs).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询告警事件失败", "error": err.Error()})
+		return
+	}
+
+	// 批量删除
+	if err := c.DB.Delete(&models.AlertEvent{}, "id IN ?", body.IDs).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "批量删除失败", "error": err.Error()})
+		return
+	}
+
+	// 逐条清理引擎序列状态
+	if alertEngine != nil {
+		for _, ev := range evs {
+			if ev.Type == models.AlertEventTypeAlert && ev.Status == models.AlertEventStatusFiring {
+				alertEngine.ClearSeries(ev.RuleID, ev.Tags)
+			}
+		}
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{"deleted": len(evs)}})
+}
+
 func parseInt64(s string) (int64, error) {
 	return strconv.ParseInt(s, 10, 64)
 }

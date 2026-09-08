@@ -5,13 +5,16 @@ package alerting
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"aiops/internal/datasource"
+	"aiops/internal/notify"
 	"aiops/models"
 
 	"gorm.io/gorm"
@@ -34,8 +37,9 @@ type ruleState struct {
 
 // Engine 告警规则评估引擎
 type Engine struct {
-	db   *gorm.DB
-	stop chan struct{}
+	db     *gorm.DB
+	domain string // 站点地址（用于模板 $.domain 变量）
+	stop   chan struct{}
 
 	mu       sync.Mutex
 	states   map[string]*ruleState  // ruleID → 评估状态
@@ -43,9 +47,10 @@ type Engine struct {
 }
 
 // NewEngine 创建评估引擎
-func NewEngine(db *gorm.DB) *Engine {
+func NewEngine(db *gorm.DB, domain string) *Engine {
 	return &Engine{
 		db:       db,
+		domain:   domain,
 		stop:     make(chan struct{}),
 		states:   make(map[string]*ruleState),
 		stopChan: make(map[string]chan struct{}),
@@ -226,6 +231,14 @@ func (e *Engine) eval(rule models.AlertRule) {
 		st.alertingSince = time.Time{}
 	}
 
+	// 重复通知检查：对所有 firing 中的序列，判断是否到了重复间隔、是否超最大次数
+	for _, st := range state.series {
+		if st.eventID == "" {
+			continue
+		}
+		go e.maybeResend(st.eventID, rule)
+	}
+
 	// 已知但未命中的序列：重置触发计时；若有未恢复事件，累计恢复计时
 	for key, st := range state.series {
 		if _, ok := hits[key]; ok {
@@ -283,6 +296,12 @@ func (e *Engine) fireLocked(rule models.AlertRule, sample datasource.InstantSamp
 		return "", err
 	}
 	fmt.Printf("[告警引擎] 规则 %s 触发告警事件: %s (%s)\n", rule.Name, event.ID, event.TargetIdent)
+
+	// 异步发送通知（在 goroutine 里，不持有 e.mu 锁）
+	if rule.NotifyRuleID != "" {
+		evtCopy := event
+		go e.dispatch(evtCopy, rule)
+	}
 	return event.ID, nil
 }
 
@@ -318,6 +337,12 @@ func (e *Engine) recoverLocked(rule models.AlertRule, eventID string, now time.T
 		return err
 	}
 	fmt.Printf("[告警引擎] 规则 %s 触发恢复事件: %s (%s)\n", rule.Name, recovery.ID, recovery.TargetIdent)
+
+	// 异步发送通知
+	if rule.NotifyRuleID != "" {
+		evtCopy := recovery
+		go e.dispatch(evtCopy, rule)
+	}
 	return nil
 }
 
@@ -360,4 +385,292 @@ func serializeTags(labels map[string]string) string {
 	}
 	sort.Strings(pairs)
 	return strings.Join(pairs, ",")
+}
+
+// maybeResend 判断告警事件是否需要发送重复通知，需要则调用 dispatch 发送。
+// 必须在 goroutine 中调用（不持有 e.mu 锁）
+func (e *Engine) maybeResend(eventID string, rule models.AlertRule) {
+	// 重复间隔为 0 表示不重复，仅首次 fire 时发送
+	if rule.RepeatIntervalMinutes <= 0 {
+		return
+	}
+
+	var ev models.AlertEvent
+	if err := e.db.Where("id = ?", eventID).First(&ev).Error; err != nil {
+		return
+	}
+	if ev.Status != models.AlertEventStatusFiring {
+		return // 已恢复，不重复
+	}
+
+	// 最大发送次数限制（0 = 不限制）
+	if rule.MaxSendCount > 0 && ev.NotifyCount >= rule.MaxSendCount {
+		return
+	}
+
+	// 第一次发送（首次 fire 已发过）不在这里处理，由 fireLocked 里的 dispatch 完成
+	// 这里只处理后续重复发送
+	if ev.NotifyCount == 0 {
+		return
+	}
+
+	interval := time.Duration(rule.RepeatIntervalMinutes) * time.Minute
+	if ev.LastNotifiedAt != nil && time.Since(*ev.LastNotifiedAt) < interval {
+		return // 还没到重复间隔时间
+	}
+
+	// 到了重复间隔，发送
+	fmt.Printf("[通知] 规则 %s 事件 %s 触发重复通知（已发送 %d 次）\n", rule.Name, eventID, ev.NotifyCount)
+	e.dispatch(ev, rule)
+}
+
+// dispatch 完整通知链路：NotifyRule → Media + Template → 渲染 → 发送
+// 必须在 goroutine 里调用（不持有 e.mu 锁）
+func (e *Engine) dispatch(event models.AlertEvent, rule models.AlertRule) {
+	logPrefix := fmt.Sprintf("[通知] 规则 %s 事件 %s", rule.Name, event.ID)
+
+	// 1. 加载通知规则
+	var nr models.NotifyRule
+	if err := e.db.Where("id = ? AND is_enabled = ?", rule.NotifyRuleID, 1).First(&nr).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			fmt.Printf("%s 通知规则 %s 不存在或已停用，跳过\n", logPrefix, rule.NotifyRuleID)
+			return
+		}
+		fmt.Printf("%s 加载通知规则失败: %v\n", logPrefix, err)
+		return
+	}
+
+	// 2. 检查 TriggerTypes 匹配
+	eventType := "firing"
+	if event.Type == models.AlertEventTypeRecovery {
+		eventType = "recovered"
+	}
+	if !triggerTypeMatches(nr.TriggerTypes, eventType) {
+		fmt.Printf("%s 通知规则触发类型=%s，事件类型=%s，跳过\n", logPrefix, nr.TriggerTypes, eventType)
+		return
+	}
+
+	// 3. 检查 SeverityFilter
+	if nr.SeverityFilter != "" {
+		var filter []int
+		if err := json.Unmarshal([]byte(nr.SeverityFilter), &filter); err == nil {
+			matched := false
+			for _, s := range filter {
+				if s == event.Severity {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				fmt.Printf("%s 事件级别 %d 不在过滤列表 %v 中，跳过\n", logPrefix, event.Severity, filter)
+				return
+			}
+		}
+	}
+
+	// 4. 加载通知媒介
+	var media models.NotifyMedia
+	if err := e.db.Where("id = ? AND is_enabled = ?", nr.MediaID, 1).First(&media).Error; err != nil {
+		fmt.Printf("%s 加载媒介 %s 失败: %v\n", logPrefix, nr.MediaID, err)
+		return
+	}
+
+	// 5. 加载消息模板（优先匹配事件类型，否则用通用模板）
+	var tpl models.NotifyTemplate
+	tplQuery := e.db.Where("id = ?", nr.TemplateID)
+	if err := tplQuery.First(&tpl).Error; err != nil {
+		fmt.Printf("%s 加载模板 %s 失败: %v\n", logPrefix, nr.TemplateID, err)
+		return
+	}
+	// 模板停用时也跳过
+	if tpl.IsEnabled != 1 {
+		fmt.Printf("%s 模板 %s 已停用，跳过\n", logPrefix, tpl.ID)
+		return
+	}
+	// 模板 Type 匹配检查：firing 模板只给 firing 事件，recovered 模板只给 recovered，all 通用
+	if tpl.Type != "all" && tpl.Type != eventType {
+		fmt.Printf("%s 模板类型=%s 事件类型=%s，跳过\n", logPrefix, tpl.Type, eventType)
+		return
+	}
+
+	// 6. 渲染模板
+	evt := buildAlertEvent(event, rule)
+	content, err := notify.RenderTemplate(tpl.Content, evt, e.domain)
+	if err != nil {
+		fmt.Printf("%s 模板渲染失败: %v\n", logPrefix, err)
+		return
+	}
+
+	// 7. 确定 msgtype：模板用 markdown 语法 + 钉钉媒介 → markdown；其他 → text
+	msgType := "text"
+	if media.Type == notify.TypeDingtalk {
+		msgType = "markdown"
+	}
+
+	// 8. 发送
+	if err := notify.SendTyped(media.Type, media.Config, content, msgType); err != nil {
+		fmt.Printf("%s 发送失败（媒介=%s 模板=%s 媒介名=%s）: %v\n", logPrefix, media.Type, tpl.Name, media.Name, err)
+		return
+	}
+	fmt.Printf("%s ✅ 发送成功（媒介=%s 模板=%s 媒介名=%s msgtype=%s）\n", logPrefix, media.Type, tpl.Name, media.Name, msgType)
+
+	// 9. 更新事件的通知次数和时间（频控）
+	now := time.Now()
+	if err := e.db.Model(&models.AlertEvent{}).Where("id = ?", event.ID).Updates(map[string]interface{}{
+		"notify_count":      gorm.Expr("notify_count + 1"),
+		"last_notified_at":  now,
+	}).Error; err != nil {
+		fmt.Printf("%s 更新通知频控状态失败: %v\n", logPrefix, err)
+	}
+}
+
+// triggerTypeMatches 判断通知规则的触发类型是否匹配事件类型
+// nrTrigger: "all" / "firing" / "recovered"
+// eventType: "firing" / "recovered"
+func triggerTypeMatches(nrTrigger, eventType string) bool {
+	switch nrTrigger {
+	case "", "all":
+		return true
+	case "firing":
+		return eventType == "firing"
+	case "recovered":
+		return eventType == "recovered"
+	}
+	return true
+}
+
+// parseSeverityFilter 解析 SeverityFilter JSON 数组
+func parseSeverityFilter(raw string) []int {
+	if raw == "" {
+		return nil
+	}
+	var out []int
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		return nil
+	}
+	return out
+}
+
+// buildAlertEvent 把 models.AlertEvent + AlertRule 组装成 notify.AlertEvent（模板引擎上下文）
+func buildAlertEvent(ev models.AlertEvent, rule models.AlertRule) *notify.AlertEvent {
+	tags := parseSerializedTags(ev.Tags)
+	sevLabel := "P3-提醒"
+	switch ev.Severity {
+	case 1:
+		sevLabel = "P1-紧急"
+	case 2:
+		sevLabel = "P2-警告"
+	case 3:
+		sevLabel = "P3-提醒"
+	}
+
+	isRecovered := ev.Type == models.AlertEventTypeRecovery
+	triggerTime := ev.TriggerTime
+	lastEval := ev.TriggerTime
+	firstTrigger := ev.TriggerTime
+	if ev.Type == models.AlertEventTypeAlert {
+		// firing 事件：LastEval 就是 TriggerTime；FirstTrigger 也是 TriggerTime（简化版，后续可以加 first_trigger 字段）
+		lastEval = ev.TriggerTime
+		firstTrigger = ev.TriggerTime
+	} else if ev.RecoveredAt != nil {
+		// recovery 事件：用 RecoveredAt
+		triggerTime = *ev.RecoveredAt
+		lastEval = *ev.RecoveredAt
+	}
+
+	// 计算持续时长
+	durationSec := int64(0)
+	if ev.RecoveredAt != nil {
+		durationSec = int64(ev.RecoveredAt.Sub(ev.TriggerTime).Seconds())
+	} else {
+		durationSec = int64(time.Since(ev.TriggerTime).Seconds())
+	}
+
+	id := ev.ID
+	if id == "" {
+		id = rule.ID + ":" + ev.TargetIdent
+	}
+
+	return &notify.AlertEvent{
+		Id:             id,
+		RuleID:         0,
+		RuleName:       rule.Name,
+		RuleNote:       "",
+		Cluster:        "",
+		BusiGroupID:    0,
+		BusiGroupName:  "",
+		Severity:       ev.Severity,
+		SeverityLabel:  sevLabel,
+		TriggerValue:   ev.TriggerValue,
+		TriggerTime:    triggerTime,
+		FirstTrigger:   firstTrigger,
+		LastTrigger:    lastEval,
+		LastEvalTime:   lastEval,
+		IsRecovered:    isRecovered,
+		RecoverTime:    lastEval,
+		DurationSec:    durationSec,
+		Location:       tags["location"],
+		Cate:           "prometheus",
+		TargetIdent:    ev.TargetIdent,
+		Datasource:     "",
+		Tags:           tags,
+		TagsMap:        tags,
+		TagsJSON:       formatTagsJSON(tags),
+		AnnotationsJSON: map[string]string{},
+	}
+}
+
+// parseSerializedTags 解析 "k=v,k2=v2" 格式的标签字符串
+func parseSerializedTags(s string) map[string]string {
+	out := map[string]string{}
+	if s == "" {
+		return out
+	}
+	for _, pair := range strings.Split(s, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		idx := strings.Index(pair, "=")
+		if idx < 0 {
+			out[pair] = ""
+		} else {
+			out[pair[:idx]] = pair[idx+1:]
+		}
+	}
+	return out
+}
+
+// formatTagsJSON 把 tag map 格式化成紧凑 JSON（供模板 {{$event.TagsJSON}} 使用）
+func formatTagsJSON(tags map[string]string) string {
+	if len(tags) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(tags))
+	for k := range tags {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	b.WriteByte('{')
+	for i, k := range keys {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(`"`)
+		b.WriteString(k)
+		b.WriteString(`": "`)
+		b.WriteString(strings.ReplaceAll(tags[k], `"`, `\"`))
+		b.WriteString(`"`)
+	}
+	b.WriteByte('}')
+	return b.String()
+}
+
+// parseIntSafe 辅助
+func parseIntSafe(s string) int {
+	if n, err := strconv.Atoi(s); err == nil {
+		return n
+	}
+	return 0
 }
