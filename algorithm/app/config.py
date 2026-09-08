@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     """知识库服务配置（全部可用环境变量覆盖）"""
-    model_config = SettingsConfigDict(env_prefix="KB_")
+    model_config = SettingsConfigDict(env_prefix="KB_", env_file=".env", env_file_encoding="utf-8")
 
     qdrant_url: str = "http://localhost:6333"
     collection: str = "kb_chunks"
