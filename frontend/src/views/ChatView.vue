@@ -48,6 +48,12 @@
             <div class="message-meta">
               <b>{{ msg.role === 'assistant' ? 'AIOPS 助手' : '运维管理员' }}</b>
               <span class="muted">{{ fmtTime(msg.created_at) }}</span>
+              <button
+                v-if="msg.role === 'user'"
+                class="copy-btn"
+                :class="{ copied: copyState[idx] }"
+                @click="copyMessage(msg, idx)"
+              >{{ copyState[idx] ? '已复制' : '复制' }}</button>
             </div>
             <div class="message-content">
               <template v-if="isThinkingMessage(msg)">
@@ -121,6 +127,24 @@ const messagesRef = ref(null)
 const defaultModelName = ref('默认模型')
 const currentAssistantIndex = ref(-1)
 const manuallyAborting = ref(false)
+const copyState = ref({})
+
+async function copyMessage(msg, idx) {
+  try {
+    await navigator.clipboard.writeText(msg.content)
+  } catch (e) {
+    const ta = document.createElement('textarea')
+    ta.value = msg.content
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+  }
+  copyState.value = { ...copyState.value, [idx]: true }
+  setTimeout(() => {
+    copyState.value = { ...copyState.value, [idx]: false }
+  }, 1500)
+}
 
 function isThinkingMessage(msg) {
   return msg.role === 'assistant' && msg.content === '' && isThinking.value
@@ -132,6 +156,7 @@ onMounted(() => {
   loadSessions()
   loadDefaultModelName()
   handleRcaParam()
+  handleSearchParam()
 })
 
 async function loadDefaultModelName() {
@@ -274,6 +299,16 @@ async function handleRcaParam() {
 
 function clearRcaQuery() {
   router.replace({ path: '/chat', query: {} })
+}
+
+// 全局搜索「问 AI」入口：/chat?q=关键词，代填并发送
+async function handleSearchParam() {
+  const q = route.query.q
+  if (!q || typeof q !== 'string') return
+  input.value = q
+  router.replace({ path: '/chat', query: {} })
+  await nextTick()
+  send()
 }
 
 function scrollToBottom() {
@@ -504,6 +539,16 @@ function abortStreaming() {
   margin-bottom: 18px;
 }
 
+.message.user { flex-direction: row-reverse; }
+
+.message.user .message-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.message.user .message-meta { flex-direction: row-reverse; }
+
 .message-avatar {
   width: 36px;
   height: 36px;
@@ -545,6 +590,24 @@ function abortStreaming() {
 }
 
 .message.user .message-content { background: var(--c-primary-tint); border-color: #cfe6e2; }
+
+.copy-btn {
+  border: none;
+  background: transparent;
+  color: var(--c-text-2);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.message.user:hover .copy-btn { opacity: 1; }
+
+.copy-btn:hover { color: var(--c-primary); }
+
+.copy-btn.copied { opacity: 1; color: var(--c-primary); cursor: default; }
 
 .thinking-indicator {
   display: inline-flex;

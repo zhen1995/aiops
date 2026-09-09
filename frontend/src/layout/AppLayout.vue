@@ -63,12 +63,7 @@
       <header class="topbar">
         <h1 class="page-title">{{ route.meta.title || 'AIOPS' }}</h1>
         <div class="topbar-right">
-          <div class="search">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
-            </svg>
-            <input placeholder="搜索服务 / 告警 / 事件…" />
-          </div>
+          <GlobalSearchBox class="topbar-search" />
           <div class="user" @click="toggleUserMenu">
             <span class="avatar">{{ avatarText }}</span>
             <div class="user-info">
@@ -98,6 +93,7 @@
 import { reactive, ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getUser, clearAuth, getPermissions } from '../utils/auth.js'
+import GlobalSearchBox from '../components/GlobalSearchBox.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -400,25 +396,10 @@ const menus = computed(() => {
 
 .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 14px; }
 
-.search {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  background: var(--c-bg);
-  border: 1px solid var(--c-border);
-  border-radius: 8px;
-  padding: 7px 12px;
-  color: var(--c-text-3);
-  width: 240px;
-}
+.topbar-search { width: 240px; }
 
-.search input {
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 13px;
-  width: 100%;
-  color: var(--c-text);
+@media (max-width: 768px) {
+  .topbar-search { display: none; }
 }
 
 .env-tag {

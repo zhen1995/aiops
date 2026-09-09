@@ -135,13 +135,14 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import StatCard from '../components/StatCard.vue'
 import LevelTag from '../components/LevelTag.vue'
 import { alertEventApi } from '../api/alertEvent.js'
 import { rcaApi } from '../api/rca.js'
 
+const route = useRoute()
 const router = useRouter()
 
 const tabs = [
@@ -276,6 +277,11 @@ async function loadData() {
 }
 
 onMounted(() => {
+  // 全局搜索落地：/alerts/events?q=关键字，作为列表搜索关键字
+  if (route.query.q) {
+    query.value = String(route.query.q)
+    router.replace({ path: '/alerts/events', query: {} })
+  }
   loadData()
 })
 

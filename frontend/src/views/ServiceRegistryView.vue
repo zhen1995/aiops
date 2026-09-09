@@ -27,6 +27,7 @@
           <tr>
             <th>名称</th>
             <th>编码</th>
+            <th>父服务</th>
             <th>ES 索引模式</th>
             <th>Prom 标签</th>
             <th>负责人</th>
@@ -36,9 +37,15 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="svc in services" :key="svc.id">
+          <tr
+            v-for="svc in services"
+            :key="svc.id"
+            :class="{ 'row-highlight': svc.id === highlightId }"
+            :data-svc-id="svc.id"
+          >
             <td><b>{{ svc.name }}</b></td>
             <td class="mono">{{ svc.code || '-' }}</td>
+            <td>{{ parentName(svc) }}</td>
             <td class="muted mono" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis" :title="patternsText(svc)">
               {{ patternsText(svc) }}
             </td>
@@ -66,10 +73,10 @@
             </td>
           </tr>
           <tr v-if="!loading && services.length === 0">
-            <td colspan="8" class="empty-row">暂无数据，请点击"新增服务"添加配置</td>
+            <td colspan="9" class="empty-row">暂无数据，请点击"新增服务"添加配置</td>
           </tr>
           <tr v-if="loading">
-            <td colspan="8" class="empty-row">加载中...</td>
+            <td colspan="9" class="empty-row">加载中...</td>
           </tr>
         </tbody>
       </table>
@@ -103,6 +110,14 @@
               <input v-model="form.code" class="form-input" placeholder="唯一标识，例如：order-service" />
               <span v-if="errors.code" class="form-error">{{ errors.code }}</span>
             </div>
+          </div>
+
+          <div class="form-item">
+            <label class="form-label">父服务</label>
+            <select v-model="form.parent_id" class="form-input">
+              <option value="">无（顶级服务）</option>
+              <option v-for="opt in parentOptions" :key="opt.id" :value="opt.id">{{ opt.name }}</option>
+            </select>
           </div>
 
           <div class="form-item">
@@ -233,11 +248,18 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import LevelTag from '../components/LevelTag.vue'
 import { serviceApi } from '../api/service.js'
 import { datasourceApi } from '../api/datasource.js'
+
+const route = useRoute()
+const router = useRouter()
+
+// 全局搜索落地：?highlight=<服务ID> 时按名称过滤并高亮该行
+const highlightId = ref('')
 
 // 数据状态
 const services = ref([])
@@ -254,6 +276,17 @@ const dsList = ref([])
 const esOptions = computed(() => dsList.value.filter(d => d.type === 'ElasticSearch'))
 const promOptions = computed(() => dsList.value.filter(d => d.type === 'Prometheus'))
 
+// 父服务下拉（启用服务，排除当前编辑的服务自身）
+const serviceOptions = ref([])
+const parentOptions = computed(() => serviceOptions.value.filter(o => o.id !== editingId.value))
+
+// 父服务名称展示
+function parentName(svc) {
+  if (!svc.parent_id) return '-'
+  const parent = serviceOptions.value.find(o => o.id === svc.parent_id)
+  return parent ? parent.name : '-'
+}
+
 // 弹窗状态
 const modalVisible = ref(false)
 const isEdit = ref(false)
@@ -264,6 +297,7 @@ const patternInput = ref('')
 const form = reactive({
   name: '',
   code: '',
+  parent_id: '',
   es_datasource_id: '',
   es_index_patterns: [],
   prom_datasource_id: '',
@@ -359,9 +393,20 @@ async function loadDatasources() {
   }
 }
 
+// 加载父服务下拉选项
+async function loadServiceOptions() {
+  try {
+    const data = await serviceApi.options()
+    serviceOptions.value = Array.isArray(data) ? data : (data?.list || [])
+  } catch (e) {
+    serviceOptions.value = []
+  }
+}
+
 function resetForm() {
   form.name = ''
   form.code = ''
+  form.parent_id = ''
   form.es_datasource_id = ''
   form.es_index_patterns = []
   form.prom_datasource_id = ''
@@ -403,6 +448,7 @@ async function openEditModal(svc) {
 function fillForm(detail) {
   form.name = detail.name || ''
   form.code = detail.code || ''
+  form.parent_id = detail.parent_id || ''
   form.es_datasource_id = detail.es_datasource_id || ''
   form.es_index_patterns = Array.isArray(detail.es_index_patterns) ? [...detail.es_index_patterns] : []
   form.prom_datasource_id = detail.prom_datasource_id || ''
@@ -498,6 +544,7 @@ async function saveService() {
     const payload = {
       name: form.name.trim(),
       code: form.code.trim(),
+      parent_id: form.parent_id || '',
       es_datasource_id: form.es_datasource_id || '',
       es_index_patterns: form.es_index_patterns,
       prom_datasource_id: form.prom_datasource_id || '',
@@ -519,6 +566,7 @@ async function saveService() {
     saving.value = false
     closeModal()
     await loadData()
+    loadServiceOptions()
   } catch (err) {
     alert((isEdit.value ? '更新' : '新建') + '失败：' + err.message)
     saving.value = false
@@ -544,6 +592,7 @@ async function deleteService(svc) {
   try {
     await serviceApi.remove(svc.id)
     await loadData()
+    loadServiceOptions()
   } catch (err) {
     alert('删除失败：' + err.message)
   }
@@ -573,13 +622,49 @@ async function verifyService(svc) {
 onMounted(() => {
   loadData()
   loadDatasources()
+  loadServiceOptions()
+  handleHighlightParam()
 })
+
+// 全局搜索落地：/services?highlight=<服务ID>
+// 先按 ID 取服务名称作为关键字过滤（保证目标行在当前页），再滚动并短暂高亮
+async function handleHighlightParam() {
+  const id = route.query.highlight
+  if (!id) return
+  router.replace({ path: '/services', query: {} })
+  highlightId.value = String(id)
+  try {
+    const detail = await serviceApi.get(id)
+    if (detail?.name) {
+      keyword.value = detail.name
+      page.value = 1
+    }
+  } catch {
+    // 取详情失败时退化为不过滤，直接尝试在当前页查找
+  }
+  await loadData()
+  nextTick(() => {
+    const el = document.querySelector(`tr[data-svc-id="${CSS.escape(String(id))}"]`)
+    if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  })
+  setTimeout(() => { highlightId.value = '' }, 3000)
+}
 </script>
 
 <style scoped>
 .ops { display: flex; gap: 8px; }
 .btn-danger { color: var(--c-danger); }
 .btn-danger:hover { border-color: var(--c-danger); color: var(--c-danger); }
+
+tr.row-highlight td {
+  background: var(--c-primary-tint);
+  animation: row-flash 1s ease-in-out 2;
+}
+
+@keyframes row-flash {
+  0%, 100% { background: var(--c-primary-tint); }
+  50% { background: var(--c-primary-soft); }
+}
 
 .empty-row {
   text-align: center;

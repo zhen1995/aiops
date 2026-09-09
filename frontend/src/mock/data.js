@@ -31,53 +31,7 @@ export const fmtTime = (iso) => {
   return `${d.getMonth() + 1}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-// ---------------- 总览大盘 ----------------
-export const kpiStats = [
-  { label: '活动告警', value: 12, delta: '-64%', deltaType: 'up', hint: '较昨日 33 条' },
-  { label: '今日异常检测', value: 47, delta: '+8', deltaType: 'down', hint: '命中异常点' },
-  { label: '告警压缩率', value: '86.4', unit: '%', delta: '+4.2%', deltaType: 'up', hint: '目标 ≥80%' },
-  { label: '平均 MTTR', value: '11.5', unit: 'min', delta: '-62%', deltaType: 'up', hint: '目标 <12min' }
-]
-
-export const alertTrend = {
-  labels: timeLabels(24, 60),
-  raw: seededSeries(7, 24, 210, 90, 0.3).map((v) => Math.round(v)),
-  effective: seededSeries(13, 24, 32, 14, 0.35).map((v) => Math.round(v))
-}
-
-export const severityDist = [
-  { name: 'P0', value: 2, itemStyle: { color: '#c93b3b' } },
-  { name: 'P1', value: 4, itemStyle: { color: '#d97b29' } },
-  { name: 'P2', value: 6, itemStyle: { color: '#b8961f' } },
-  { name: 'P3', value: 18, itemStyle: { color: '#0e7c72' } },
-  { name: 'P4', value: 26, itemStyle: { color: '#8a9693' } }
-]
-
-export const serviceHealth = [
-  { service: 'order-service', health: 72, status: 'warning', anomaly: 3, trend: 'down' },
-  { service: 'payment-service', health: 81, status: 'warning', anomaly: 2, trend: 'flat' },
-  { service: 'user-service', health: 96, status: 'online', anomaly: 0, trend: 'up' },
-  { service: 'inventory-service', health: 93, status: 'online', anomaly: 1, trend: 'up' },
-  { service: 'gateway-service', health: 98, status: 'online', anomaly: 0, trend: 'up' },
-  { service: 'search-service', health: 89, status: 'online', anomaly: 1, trend: 'flat' }
-]
-
-// ---------------- 告警 ----------------
-export const alerts = [
-  { id: 'ALT-260812-091', title: '数据库连接超时激增：order-db-primary 连接超时 150 条/分钟', service: 'order-service', level: 'p0', status: 'active', source: '异常检测 · Prophet', count: 156, time: '2026-08-12T13:42:00' },
-  { id: 'ALT-260812-088', title: 'order-db-primary CPU 使用率 98%，超出动态阈值上界 3σ', service: 'order-service', level: 'p0', status: 'active', source: '动态阈值', count: 42, time: '2026-08-12T13:38:00' },
-  { id: 'ALT-260812-085', title: 'payment-service P99 延迟 2.8s，超出基线 240%', service: 'payment-service', level: 'p1', status: 'active', source: '异常检测 · IsolationForest', count: 28, time: '2026-08-12T13:21:00' },
-  { id: 'ALT-260812-082', title: '慢查询数量突增：order_db 慢 SQL 较基线增长 500%', service: 'order-service', level: 'p1', status: 'acked', source: '日志异常 · Drain', count: 89, time: '2026-08-12T13:15:00' },
-  { id: 'ALT-260812-079', title: 'inventory-service 库存扣减失败率 4.2%', service: 'inventory-service', level: 'p2', status: 'acked', source: '指标异常 · GMM', count: 17, time: '2026-08-12T12:56:00' },
-  { id: 'ALT-260812-076', title: 'Kafka 消费滞后：topic logs-raw lag 超过 50k', service: 'aiops-collector', level: 'p2', status: 'active', source: '静态规则', count: 9, time: '2026-08-12T12:40:00' },
-  { id: 'ALT-260812-071', title: 'node-07 内存可用量低于 10%，预测 26 小时后耗尽', service: 'node-07', level: 'p2', status: 'active', source: '时序预测 · Prophet', count: 5, time: '2026-08-12T12:02:00' },
-  { id: 'ALT-260812-068', title: 'payment-service 调用 order-service 错误率上升至 8.6%', service: 'payment-service', level: 'p1', status: 'acked', source: '关联分析 · VAE', count: 34, time: '2026-08-12T11:47:00' },
-  { id: 'ALT-260812-063', title: 'ES 集群写入拒绝率 0.8%，bulk 队列接近饱和', service: 'elasticsearch', level: 'p3', status: 'resolved', source: '静态规则', count: 12, time: '2026-08-12T11:20:00' },
-  { id: 'ALT-260812-058', title: 'gateway-service 5xx 比例短时波动（已自动恢复）', service: 'gateway-service', level: 'p3', status: 'resolved', source: '动态阈值', count: 6, time: '2026-08-12T10:55:00' },
-  { id: 'ALT-260812-054', title: 'search-service 索引重建耗时超出预期 35%', service: 'search-service', level: 'p4', status: 'resolved', source: '时序预测', count: 3, time: '2026-08-12T10:12:00' },
-  { id: 'ALT-260812-049', title: '证书剩余有效期不足 30 天：api.internal.example', service: 'gateway-service', level: 'p4', status: 'acked', source: '巡检任务', count: 1, time: '2026-08-12T09:30:00' }
-]
-
+// ---------------- 告警规则 ----------------
 export const alertRules = [
   { name: 'CPU 使用率动态阈值', type: '动态阈值', target: 'node_*', status: 'running' },
   { name: 'HTTP 5xx 比例 > 1%', type: '静态阈值', target: 'gateway-service', status: 'running' },
@@ -184,28 +138,6 @@ export const logSeries = {
   labels: timeLabels(24, 60),
   total: seededSeries(41, 24, 8200, 2400, 0.2).map((v) => Math.round(v)),
   error: seededSeries(43, 24, 60, 25, 0.4).map((v, i) => Math.round(i >= 20 ? v * 4 : v))
-}
-
-// ---------------- 告警降噪 ----------------
-export const denoisePolicies = [
-  { name: '时间窗口聚合', desc: '5 分钟内相同告警合并为一条', effect: '减少 40% 重复告警', enabled: true, reduced: 860 },
-  { name: '相似度合并', desc: '基于文本相似度合并同类告警', effect: '减少 30% 相似告警', enabled: true, reduced: 640 },
-  { name: '拓扑抑制', desc: '父节点故障抑制子节点告警', effect: '减少 50% 级联告警', enabled: true, reduced: 210 },
-  { name: '动态阈值', desc: '基于历史数据自适应调整阈值', effect: '减少 60% 阈值误报', enabled: true, reduced: 130 },
-  { name: '智能分级', desc: '基于影响面和紧急度自动定级', effect: '提升关键告警识别率', enabled: true, reduced: 0 }
-]
-
-export const denoiseStats = {
-  rawTotal: 2316, afterFilter: 1996, afterWindow: 1136, afterSimilarity: 496, afterTopology: 286, afterThreshold: 156, final: 156,
-  funnel: [
-    { name: '原始告警', value: 2316 },
-    { name: '规则过滤后', value: 1996 },
-    { name: '窗口聚合后', value: 1136 },
-    { name: '相似度去重后', value: 496 },
-    { name: '拓扑抑制后', value: 286 },
-    { name: '动态阈值后', value: 156 },
-    { name: '有效通知', value: 156 }
-  ]
 }
 
 // ---------------- 数据源接入 ----------------

@@ -47,6 +47,7 @@ type serviceForm struct {
 	ESIndexPatterns  []string          `json:"es_index_patterns"`
 	PromDatasourceID string            `json:"prom_datasource_id"`
 	PromLabels       map[string]string `json:"prom_labels"`
+	ParentID         string            `json:"parent_id"`
 	PyroscopeApp     string            `json:"pyroscope_app"`
 	Owner            string            `json:"owner"`
 	Description      string            `json:"description"`
@@ -62,6 +63,7 @@ type serviceView struct {
 	ESIndexPatterns  []string          `json:"es_index_patterns"`
 	PromDatasourceID string            `json:"prom_datasource_id"`
 	PromLabels       map[string]string `json:"prom_labels"`
+	ParentID         *string           `json:"parent_id"`
 	PyroscopeApp     string            `json:"pyroscope_app"`
 	Owner            string            `json:"owner"`
 	Description      string            `json:"description"`
@@ -81,6 +83,7 @@ func toView(s *models.Service) serviceView {
 		Code:             s.Code,
 		ESDatasourceID:   s.ESDatasourceID,
 		PromDatasourceID: s.PromDatasourceID,
+		ParentID:         s.ParentID,
 		PyroscopeApp:     s.PyroscopeApp,
 		Owner:            s.Owner,
 		Description:      s.Description,
@@ -183,6 +186,13 @@ func applyForm(s *models.Service, form *serviceForm) {
 	s.Code = form.Code
 	s.ESDatasourceID = form.ESDatasourceID
 	s.PromDatasourceID = form.PromDatasourceID
+	// 父服务：空串置 nil，非空写入指针值
+	if strings.TrimSpace(form.ParentID) == "" {
+		s.ParentID = nil
+	} else {
+		pid := strings.TrimSpace(form.ParentID)
+		s.ParentID = &pid
+	}
 	s.PyroscopeApp = strings.TrimSpace(form.PyroscopeApp)
 	s.Owner = strings.TrimSpace(form.Owner)
 	s.Description = strings.TrimSpace(form.Description)
@@ -312,6 +322,11 @@ func (c *ServiceController) Update(ctx *gin.Context) {
 	}
 	if err := c.validateService(&form, id); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	// 防止把父服务设成自身（简单排除自身，不做深度环校验）
+	if strings.TrimSpace(form.ParentID) != "" && strings.TrimSpace(form.ParentID) == id {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "父服务不能选择服务自身"})
 		return
 	}
 

@@ -10,9 +10,15 @@
           <h3 class="card-title">规则列表</h3>
           <p class="card-sub">已配置的告警规则及启用状态</p>
         </div>
-        <button class="btn btn-sm" @click="loadData" :disabled="loading">
-          {{ loading ? '加载中...' : '刷新' }}
-        </button>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span v-if="filterKw" class="filter-tag">
+            关键字：{{ filterKw }}
+            <em @click="filterKw = ''">×</em>
+          </span>
+          <button class="btn btn-sm" @click="loadData" :disabled="loading">
+            {{ loading ? '加载中...' : '刷新' }}
+          </button>
+        </div>
       </div>
       <table class="table">
         <thead>
@@ -30,7 +36,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="rule in rules" :key="rule.id">
+          <tr v-for="rule in filteredRules" :key="rule.id">
             <td class="col-status">
               <span
                 class="status-icon"
@@ -86,8 +92,8 @@
               </div>
             </td>
           </tr>
-          <tr v-if="!loading && rules.length === 0">
-            <td colspan="10" class="empty-row">暂无告警规则，请点击"新增规则"创建</td>
+          <tr v-if="!loading && filteredRules.length === 0">
+            <td colspan="10" class="empty-row">{{ filterKw ? '没有匹配关键字的告警规则' : '暂无告警规则，请点击"新增规则"创建' }}</td>
           </tr>
           <tr v-if="loading">
             <td colspan="10" class="empty-row">加载中...</td>
@@ -233,12 +239,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import LevelTag from '../components/LevelTag.vue'
 import { alertRuleApi } from '../api/alertRule.js'
 import { notifyApi } from '../api/notify.js'
 import { alertEventApi } from '../api/alertEvent.js'
+
+const route = useRoute()
 
 const severityText = (s) => ({ 1: 'P1-紧急', 2: 'P2-警告', 3: 'P3-提醒' }[s] || `P${s}`)
 
@@ -322,6 +331,17 @@ const rules = ref([])
 const notifyRules = ref([])
 const loading = ref(false)
 const saving = ref(false)
+
+// 全局搜索落地：/alert-rules?q=关键字，客户端过滤规则名称与 PromQL
+const filterKw = ref(route.query.q ? String(route.query.q) : '')
+const filteredRules = computed(() => {
+  const kw = filterKw.value.trim().toLowerCase()
+  if (!kw) return rules.value
+  return rules.value.filter(r =>
+    (r.name || '').toLowerCase().includes(kw) ||
+    (r.prom_ql || '').toLowerCase().includes(kw)
+  )
+})
 
 // 弹窗状态
 const modalVisible = ref(false)
@@ -492,6 +512,25 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--c-primary);
+  background: var(--c-primary-tint);
+  border-radius: var(--radius-tag);
+  padding: 3px 9px;
+}
+
+.filter-tag em {
+  font-style: normal;
+  cursor: pointer;
+  color: var(--c-text-3);
+}
+
+.filter-tag em:hover { color: var(--c-danger); }
+
 /* ========== 状态图标列 ========== */
 .col-status { width: 60px; text-align: center; }
 .status-icon {

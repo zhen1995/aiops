@@ -17,6 +17,7 @@ type Service struct {
 	PromDatasourceID string         `gorm:"size:40;comment:Prometheus数据源ID" json:"prom_datasource_id"`
 	PromLabels       string         `gorm:"type:text;comment:Prometheus标签选择器 JSON对象字符串" json:"prom_labels"`
 	PyroscopeApp     string         `gorm:"size:100;comment:Pyroscope应用名" json:"pyroscope_app"`
+	ParentID         *string        `gorm:"size:40;index;comment:父服务ID（拓扑抑制用，可选）" json:"parent_id"`
 	Owner            string         `gorm:"size:50;comment:负责人" json:"owner"`
 	Description      string         `gorm:"size:200;comment:描述" json:"description"`
 	Status           int            `gorm:"comment:状态 1-启用 0-停用" json:"status"`

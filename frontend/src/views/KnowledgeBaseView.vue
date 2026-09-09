@@ -61,7 +61,12 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="f in files" :key="f.id">
+          <tr
+            v-for="f in filteredFiles"
+            :key="f.id"
+            :class="{ 'row-highlight': f.id === highlightDocId }"
+            :data-doc-id="f.id"
+          >
             <td>
               <div class="file-name">
                 <svg class="file-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -85,8 +90,8 @@
               </div>
             </td>
           </tr>
-          <tr v-if="files.length === 0">
-            <td colspan="7" class="empty">暂无文档，点击右上角“上传文档”按钮添加</td>
+          <tr v-if="filteredFiles.length === 0">
+            <td colspan="7" class="empty">{{ filterKw ? '没有匹配关键字的文档' : '暂无文档，点击右上角“上传文档”按钮添加' }}</td>
           </tr>
         </tbody>
       </table>
@@ -95,14 +100,28 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import StatCard from '../components/StatCard.vue'
 import { knowledgeApi } from '../api/knowledge.js'
 
+const route = useRoute()
+const router = useRouter()
+
 const files = ref([])
 const fileInput = ref(null)
 let pollTimer = null
+
+// 全局搜索落地：/knowledge-base?doc=<文档ID>&q=标题，按关键字过滤并高亮该行
+const highlightDocId = ref('')
+const filterKw = ref('')
+
+const filteredFiles = computed(() => {
+  const kw = filterKw.value.trim().toLowerCase()
+  if (!kw) return files.value
+  return files.value.filter(f => (f.name || '').toLowerCase().includes(kw))
+})
 
 const indexedCount = computed(() => files.value.filter((f) => f.status === 'indexed').length)
 const pendingCount = computed(() =>
@@ -148,7 +167,27 @@ async function loadFiles() {
   }
 }
 
-onMounted(loadFiles)
+onMounted(async () => {
+  await loadFiles()
+  handleSearchParam()
+})
+
+// 全局搜索落地：/knowledge-base?doc=<文档ID>&q=标题
+// 知识库页面为文件列表（无文档详情视图），退化为：按标题关键字过滤 + 滚动高亮目标行
+function handleSearchParam() {
+  const { doc, q } = route.query
+  if (!doc && !q) return
+  if (q) filterKw.value = String(q)
+  if (doc) highlightDocId.value = String(doc)
+  router.replace({ path: '/knowledge-base', query: {} })
+  if (doc) {
+    nextTick(() => {
+      const el = document.querySelector(`tr[data-doc-id="${CSS.escape(String(doc))}"]`)
+      if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+    setTimeout(() => { highlightDocId.value = '' }, 3000)
+  }
+}
 onUnmounted(() => {
   if (pollTimer) {
     clearInterval(pollTimer)
@@ -247,6 +286,16 @@ const removeFile = async (id) => {
 .status-dot.failed { background: var(--c-danger); }
 
 .ops { display: flex; gap: 8px; }
+
+tr.row-highlight td {
+  background: var(--c-primary-tint);
+  animation: row-flash 1s ease-in-out 2;
+}
+
+@keyframes row-flash {
+  0%, 100% { background: var(--c-primary-tint); }
+  50% { background: var(--c-primary-soft); }
+}
 
 .empty {
   text-align: center;

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"aiops/internal/datasource"
+	"aiops/internal/denoise"
 	"aiops/internal/notify"
 	"aiops/models"
 
@@ -37,9 +38,10 @@ type ruleState struct {
 
 // Engine 告警规则评估引擎
 type Engine struct {
-	db     *gorm.DB
-	domain string // 站点地址（用于模板 $.domain 变量）
-	stop   chan struct{}
+	db       *gorm.DB
+	domain   string // 站点地址（用于模板 $.domain 变量）
+	denoise  *denoise.DenoiseService // 可选降噪依赖（nil 时跳过降噪）
+	stop     chan struct{}
 
 	mu       sync.Mutex
 	states   map[string]*ruleState  // ruleID → 评估状态
@@ -55,6 +57,11 @@ func NewEngine(db *gorm.DB, domain string) *Engine {
 		states:   make(map[string]*ruleState),
 		stopChan: make(map[string]chan struct{}),
 	}
+}
+
+// SetDenoise 注入降噪服务（由 main.go 在引擎启动后调用；denoise 包不反向依赖本包）
+func (e *Engine) SetDenoise(svc *denoise.DenoiseService) {
+	e.denoise = svc
 }
 
 // Start 启动引擎，加载所有启用的告警规则并开始评估
@@ -281,14 +288,31 @@ func (e *Engine) findFiringEventLocked(ruleID, tags string) string {
 
 // fireLocked 创建告警事件，返回事件 ID（调用方需已持有 e.mu）
 func (e *Engine) fireLocked(rule models.AlertRule, sample datasource.InstantSample, now time.Time) (string, error) {
+	targetIdent := targetIdent(sample.Labels)
+	tags := serializeTags(sample.Labels)
+
+	// 降噪：时间窗口聚合 → 拓扑抑制（均为独立 db 查询，不会与 e.mu 死锁）
+	if e.denoise != nil {
+		if e.denoise.SuppressWindow(rule.ID, tags, now) {
+			e.denoise.Record(models.DenoiseStrategyWindowAggregation, rule.ID, rule.Name, rule.Severity, targetIdent, tags)
+			fmt.Printf("[告警降噪] 规则 %s (%s) 命中时间窗口聚合，已拦截\n", rule.Name, targetIdent)
+			return "", nil
+		}
+		if e.denoise.SuppressTopology(tags) {
+			e.denoise.Record(models.DenoiseStrategyTopologySuppression, rule.ID, rule.Name, rule.Severity, targetIdent, tags)
+			fmt.Printf("[告警降噪] 规则 %s (%s) 命中拓扑抑制，已拦截\n", rule.Name, targetIdent)
+			return "", nil
+		}
+	}
+
 	event := models.AlertEvent{
 		RuleID:      rule.ID,
 		RuleName:    rule.Name,
 		Severity:    rule.Severity,
 		Type:        models.AlertEventTypeAlert,
 		Status:      models.AlertEventStatusFiring,
-		TargetIdent: targetIdent(sample.Labels),
-		Tags:        serializeTags(sample.Labels),
+		TargetIdent: targetIdent,
+		Tags:        tags,
 		TriggerValue: fmt.Sprintf("%g", sample.Value),
 		TriggerTime: now,
 	}

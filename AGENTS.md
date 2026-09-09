@@ -6,7 +6,7 @@
 
 当前仓库包含：
 
-- **frontend/**：Vue 3 + Vite 前端，已通过 `src/api/` 接口层对接真实后端（开发环境由 Vite proxy 转发 `/api`）；总览大盘、告警降噪、日志分析等演示页面仍使用 `src/mock/data.js` 的 Mock 数据，知识库页面已接入真实接口。
+- **frontend/**：Vue 3 + Vite 前端，已通过 `src/api/` 接口层对接真实后端（开发环境由 Vite proxy 转发 `/api`）；日志分析仍为 `src/mock/data.js` 的 Mock 演示页，总览大盘、告警降噪等页面已接入真实接口。
 - **backend/**：Go 后端服务，基于 Gin + GORM + MySQL + Viper + CloudWeGo Eino，已实现认证、对话 Agent、LLM 配置、数据源管理、服务注册（服务↔ES 索引模式/Prometheus job 映射）、告警规则评估引擎、告警事件、根因分析、定时巡检、运维知识库、通知媒介、用户与角色权限等完整接口。
 - **algorithm/**：Python 算法服务（FastAPI，入口 `app.main:app`），目前承载运维知识库的文档解析、切块、向量化与向量检索，依赖 Qdrant 向量库（仓库根 `docker-compose.yml` 编排）。设计文档中的异常检测、日志聚类等其他算法能力尚未实现。
 - **docs/**：系统设计文档（`AIOPS系统设计文档.md`）与前端原型 SPEC（`SPEC.md`）。
@@ -168,6 +168,9 @@ pytest                             # 运行 Python 测试（venv 见 algorithm/.
 - **对话 Agent**：`GET /api/chat/sessions/:id/stream`（SSE）→ `controllers/chat.go` 组装 `internal/agent.Agent`，通过 Function Calling 循环调用只读数据源工具回答，命中运维数据关键词时强制先查数据源（防幻觉）。
 - **告警评估引擎**：`internal/alerting.Engine` 为每条启用规则按「执行频率」起 Ticker，用 PromQL 即时查询探测；**每条满足条件的时序序列（标签组合）独立计数**：持续命中达到「持续时间」为该序列创建 `alert` 事件（firing，复用同标签未恢复事件防止重启重复告警），持续未命中达到「持续时间」将该序列事件置 `resolved` 并创建 `recovery` 事件；「持续时间」为 0 时表示命中/未命中一次即触发告警/恢复。规则 CRUD/启停/删除实时联动引擎。
 - **告警事件查询**：`GET /api/alert-events?scope=active|history` 查询本地 `alert_events` 表；active = 未恢复，history = 已恢复（含恢复事件）；`DELETE /api/alert-events/:id` 删除单条事件，删除未恢复的告警事件会联动引擎清理对应序列状态（条件仍满足时可重新触发）。不再查询 Nightingale。
+- **告警降噪**：仅实现两种策略——**时间窗口聚合**（默认 5 分钟窗口内同 rule_id+tags 序列恢复后再次触发视为抖动，拦截不建事件）与**拓扑抑制**（告警 tags 中 `service` 匹配服务后沿 `Service.parent_id` 祖先链上溯，祖先服务存在 firing 告警则判定级联并拦截）。`internal/alerting.Engine.fireLocked` 在建事件前依次执行两策略（经 `Engine.SetDenoise` 注入的 `internal/denoise.DenoiseService`），被拦截的不落 `alert_events`、只写 `denoise_records`（含 strategy/rule/severity/tags）；策略开关与今日统计经 `GET/PUT /api/denoise/policies`、`GET /api/denoise/stats`（`controllers/denoise.go`）管理，启动时种子两条策略。降噪漏斗口径：原始 = 今日 alert_events + denoise_records，逐级扣减后得有效通知。
+- **总览大盘**：`GET /api/dashboard/overview?hours=24` 或 `?start=&end=`（`controllers/dashboard.go`）汇总 KPI（活动告警/今日异常检测/告警压缩率/平均 MTTR，含较昨日或上一时段变化）、原始 vs 降噪后分桶趋势（alert_events + denoise_records）、告警级别分布、服务健康度（score = 100 − 20×该服务 firing 数 − 未验证 10）与最新高危告警；前端 `Dashboard.vue` 支持近 24 小时/自定义范围切换。
+- **全局搜索**：`GET /api/search?q=&limit=`（`controllers/search.go`）聚合搜索 services / alert_events / alert_rules / kb_document（title 键映射自 name 字段）四类对象，参数化 LIKE + `ESCAPE '!'` 转义，单类失败返回空数组不影响整体；前端 `components/GlobalSearchBox.vue`（AppLayout 顶栏）防抖搜索 + 分组下拉（菜单/页面本地路由匹配 → 服务 → 告警事件 → 告警规则 → 知识库文档）+ 键盘导航 + 最近搜索（localStorage），落地跳转约定：`/services?highlight=<id>`（滚动高亮）、`/alerts/events?q=`（服务端过滤）、`/alert-rules?q=`（客户端过滤）、`/knowledge-base?doc=<id>&q=`（过滤+高亮）、`/chat?q=`（代填发送）。
 - **巡检**：`internal/inspection.Scheduler`（robfig/cron，支持 5/6 段表达式）定时触发 `Executor`，通过公共 Agent 生成 Markdown 报告并落库，按任务配置的通知媒介推送（钉钉/Webhook）。
 - **根因分析**：`POST /api/alert-events/:id/root-cause` 触发后由 `internal/rca.StartAnalysis` 起后台 goroutine 异步执行（10 分钟超时，状态 running/completed/failed 落库 `root_cause_analyses` 表）；Eino compose Graph 工作流先经 collect 证据收集节点（公共 Agent 调用 Prometheus/ElasticSearch/Pyroscope 只读工具），再经 synthesize 综合分析节点由大模型输出严格 JSON（含修复重试）；`GET /api/root-cause-analyses(:id)` 查询列表/详情，前端 `/rca` 页面对 running 状态轮询展示结构化结果（证据链/可信度/影响范围/修复建议）。
 - **运维知识库**：Go 侧 `controllers/knowledge.go` + `internal/knowledge`（编排、文件落盘 `knowledge.upload_dir`、Qdrant/文档元数据维护，REST 前缀 `/api/knowledge-base`）调用 Python 服务（`algorithm/`，FastAPI，`/api/v1/knowledge` 的 index/retrieve/documents）完成文档解析、切块、向量化（embedding 密钥由 Go 从默认的向量化 LLM 配置读取后随请求透传）与向量检索，向量库存 Qdrant（chunk 全文存 Qdrant payload，`kb_chunk` 表只存元数据）；对话 Agent 通过 `search_knowledge_base` 工具（`internal/agent/tools.go`）检索知识库问答，命中结果含 chunk_id/title/score 供引用标注。不同 embedding 模型维度不同，换模型需重建 Qdrant collection。
@@ -229,7 +232,7 @@ pytest                             # 运行 Python 测试（venv 见 algorithm/.
 
 ## 开发注意事项
 
-1. **前后端已联调**：登录、对话、LLM 配置、数据源、服务注册、告警规则、告警事件、根因分析、巡检、运维知识库、通知媒介、用户/角色均已接真实 API；总览大盘、告警降噪、日志分析仍为 Mock 演示页。
+1. **前后端已联调**：登录、对话、LLM 配置、数据源、服务注册、告警规则、告警事件、告警降噪、总览大盘、根因分析、巡检、运维知识库、通知媒介、用户/角色均已接真实 API；仅日志分析仍为 Mock 演示页。
 2. **修改告警规则字段时需同步**：模型（`models/alert_rule.go`）、校验（`controllers/alert_rule.go validateRule`）、评估引擎（`internal/alerting/engine.go`）、前端表单（`AlertRuleView.vue`）四处。
 3. **新增数据源工具**：在 `internal/agent/tools.go` 的 `ToolMap` 注册，Agent system prompt 会自动带上工具说明。
 4. **知识库接口契约需双端同步**：新增/变更知识库接口时，需同时更新 Python 服务端点（`algorithm/app/routers/knowledge.py`）与 Go 客户端（`backend/internal/knowledge/client.go`）的 payload 键名、multipart 字段名及返回结构；Python 侧改动后运行 `cd algorithm && pytest` 验证。
@@ -246,13 +249,17 @@ pytest                             # 运行 Python 测试（venv 见 algorithm/.
 | `backend/configs/config.yaml` | 后端默认配置 |
 | `backend/internal/agent/agent.go` | 公共 LLM Agent 执行循环 |
 | `backend/internal/agent/tools.go` | Agent 数据源工具集 |
-| `backend/internal/alerting/engine.go` | 告警规则评估引擎 |
+| `backend/internal/alerting/engine.go` | 告警规则评估引擎（`fireLocked` 建事件前经 `SetDenoise` 注入的降噪服务执行窗口聚合/拓扑抑制拦截） |
+| `backend/internal/denoise/service.go` | 降噪服务（策略启停查询、窗口/拓扑抑制判断、`denoise_records` 记录与今日统计） |
+| `backend/controllers/denoise.go` | 降噪 REST 接口（`/api/denoise/policies`、`/api/denoise/stats`） |
+| `backend/controllers/dashboard.go` | 总览大盘接口（`/api/dashboard/overview`，KPI/趋势/级别分布/服务健康度/最新高危告警） |
 | `backend/internal/inspection/scheduler.go` | 巡检 Cron 调度器 |
 | `backend/internal/inspection/executor.go` | 巡检报告生成与通知 |
 | `backend/internal/rca/runner.go` | 根因分析异步执行器（后台 goroutine、超时控制、状态落库） |
 | `backend/internal/knowledge/` | 知识库编排服务（Go↔Python 客户端、文档/块元数据、Qdrant 交互） |
 | `backend/controllers/knowledge.go` | 知识库 REST 接口（`/api/knowledge-base`） |
 | `backend/models/service.go` / `backend/controllers/service.go` | 服务注册（服务↔ES 索引模式/Prometheus job 映射，`/api/services`，含连通性探测、`preview-jobs` 预览与 `list_services` Agent 工具） |
+| `backend/controllers/search.go` | 全局搜索聚合接口（`/api/search`，服务/告警事件/告警规则/知识库文档四类 LIKE 查询） |
 | `frontend/src/views/ServiceRegistryView.vue` | 服务注册页（列表/表单/验证） |
 | `algorithm/app/routers/knowledge.py` | Python 知识库服务（解析/向量化/检索，`/api/v1/knowledge`） |
 | `docker-compose.yml` | Qdrant 向量库编排 |
@@ -262,6 +269,10 @@ pytest                             # 运行 Python 测试（venv 见 algorithm/.
 | `frontend/src/views/AlertRuleView.vue` | 告警规则配置页 |
 | `frontend/src/views/AnomalyView.vue` | 告警事件页（含「根因分析」触发入口） |
 | `frontend/src/views/RcaView.vue` | 根因分析页（分析历史列表 + 结构化结果展示，running 状态轮询） |
+| `frontend/src/views/DenoiseView.vue` | 告警降噪页（KPI/4 级漏斗/2 策略开关卡片） |
+| `frontend/src/views/Dashboard.vue` | 总览大盘页（KPI/原始 vs 降噪趋势/级别分布/服务健康度/最新高危告警，近 24h 与自定义范围） |
+| `frontend/src/api/denoise.js` / `frontend/src/api/dashboard.js` / `frontend/src/api/search.js` | 降噪/大盘/全局搜索接口封装 |
+| `frontend/src/components/GlobalSearchBox.vue` | 顶栏全局搜索组件（分组下拉、键盘导航、最近搜索、问 AI 兜底） |
 | `frontend/src/mock/data.js` | 演示页面 Mock 数据 |
 | `frontend/src/styles/theme.css` | 主题变量 |
 | `docs/AIOPS系统设计文档.md` | 系统架构设计 |
@@ -272,3 +283,7 @@ pytest                             # 运行 Python 测试（venv 见 algorithm/.
 *最后更新：2026-09-09 — 服务注册 Prom 关联改为标签选择器：移除 `prom_job`/`level` 字段（旧库列保留不用），新增 `datasource.BuildPromSelector` 与 `POST /api/services/preview-jobs`（预览标签匹配的 job 列表），verify/健康检查/自动发现/Agent 工具全部改为按 `{k="v"}` selector 查询 `count(up{...})`；前端弹窗移除「Prom job 名」「服务等级」并新增「预览 job」按钮，列表「Prom job」列改为「Prom 标签」。*
 
 *更新：移除服务注册的定时健康检查功能：删除 `internal/servicereg/` 目录与 `Service` 模型的 `health_status`/`health_message`/`last_check_at`/`miss_count` 字段（`last_verified_at` 手动验证保留），`main.go` 不再启动 Checker，`ElasticsearchClient.CountSince` 随检查器一并删除（`Count` 供 verify 保留），服务健康状态仅通过手动 verify 探测。*
+
+*更新：新增告警降噪与总览大盘真实接口。降噪仅实现时间窗口聚合（5 分钟窗口防抖）与拓扑抑制（`Service` 新增 `parent_id` 服务树，祖先服务 firing 时抑制后代告警）两种策略，引擎 `fireLocked` 建事件前拦截并写 `denoise_records`；`denoise_policies`/`denoise_records` 表启动自动迁移+策略种子，`/api/denoise/policies|stats` 管理开关与统计。总览大盘 `GET /api/dashboard/overview`（hours 或 start/end）输出 KPI、原始 vs 降噪分桶趋势、级别分布、服务健康度、最新高危告警；前端 DenoiseView 移除生命周期区块、仅保留两策略开关，Dashboard 全面真实化；ChatView 用户消息右对齐并支持复制。权限种子新增「告警降噪」。*
+
+*更新：新增顶栏全局搜索。后端 `GET /api/search` 聚合 services/alert_events/alert_rules/kb_document 四类 LIKE 查询（documents 响应 title 键映射 name 字段，alerts.trigger_time 为 epoch 秒）；前端 `GlobalSearchBox.vue` 防抖 + 分组下拉 + 键盘导航 + 最近搜索，无果可一键「问 AI」跳对话页代填发送；落地页支持 `?highlight=`（服务）、`?q=`（告警事件服务端过滤/告警规则客户端过滤/知识库过滤）、`?doc=`（知识库高亮）。*

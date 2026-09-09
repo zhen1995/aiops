@@ -9,6 +9,7 @@ import (
 	"aiops/controllers"
 	"aiops/internal/agent"
 	"aiops/internal/alerting"
+	"aiops/internal/denoise"
 	"aiops/internal/inspection"
 	"aiops/internal/knowledge"
 	"aiops/middleware"
@@ -74,6 +75,9 @@ func main() {
 		&models.KBChunk{},
 		// 夜莺告警引擎
 		&models.N9eConfig{},
+		// 告警降噪
+		&models.DenoisePolicy{},
+		&models.DenoiseRecord{},
 	); err != nil {
 		panic("数据库自动迁移失败: " + err.Error())
 	}
@@ -97,6 +101,13 @@ func main() {
 		fmt.Println("启动告警引擎失败:", err)
 	}
 	controllers.SetAlertingEngine(alertEngine)
+
+	// 告警降噪服务：注入引擎，并在策略表为空时种子插入两条默认策略
+	denoiseSvc := denoise.NewService(db)
+	alertEngine.SetDenoise(denoiseSvc)
+	if err := seedDenoisePolicies(db); err != nil {
+		fmt.Println("初始化降噪策略失败:", err)
+	}
 
 	// 启动巡检调度器
 	sched := inspection.NewScheduler(db, cfg.App.FrontendBaseURL)
@@ -208,6 +219,24 @@ func main() {
 	api.GET("/alert-events", eventCtrl.List)
 	api.DELETE("/alert-events/batch", eventCtrl.BatchDelete)
 	api.DELETE("/alert-events/:id", eventCtrl.Delete)
+
+	// 告警降噪相关路由
+	denoiseCtrl := controllers.NewDenoiseController(db, denoiseSvc)
+	denoiseGroup := api.Group("/denoise")
+	{
+		denoiseGroup.GET("/policies", denoiseCtrl.ListPolicies)
+		denoiseGroup.PUT("/policies/:strategy", denoiseCtrl.UpdatePolicy)
+		denoiseGroup.GET("/stats", denoiseCtrl.Stats)
+	}
+
+	// 总览大盘相关路由
+	dashboardCtrl := controllers.NewDashboardController(db)
+	api.GET("/dashboard/overview", dashboardCtrl.Overview)
+
+	// 全局搜索聚合路由
+	searchCtrl := controllers.NewSearchController(db)
+	api.GET("/search", searchCtrl.Search)
+
 
 	// 夜莺（Nightingale）引擎配置与告警代理
 	n9eCtrl := controllers.NewN9eController(db)
@@ -329,4 +358,37 @@ func main() {
 	// 启动服务器
 	router.SetTrustedProxies(nil)
 	router.Run(cfg.Server.Port)
+}
+
+// seedDenoisePolicies 降噪策略表为空时种子插入两条默认策略（幂等）
+func seedDenoisePolicies(db *gorm.DB) error {
+	var count int64
+	if err := db.Model(&models.DenoisePolicy{}).Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	policies := []models.DenoisePolicy{
+		{
+			Strategy:    models.DenoiseStrategyWindowAggregation,
+			Name:        "时间窗口聚合",
+			Description: "5 分钟内相同告警合并为一条",
+			Enabled:     true,
+			Config:      `{"window_minutes":5}`,
+		},
+		{
+			Strategy:    models.DenoiseStrategyTopologySuppression,
+			Name:        "拓扑抑制",
+			Description: "父节点故障抑制子节点告警",
+			Enabled:     true,
+			Config:      `{}`,
+		},
+	}
+	for _, p := range policies {
+		if err := db.Create(&p).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
