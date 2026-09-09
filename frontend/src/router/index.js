@@ -35,6 +35,7 @@ const routes = [
   { path: '/org', redirect: '/org/user' },
   { path: '/org/user', name: 'org-user', component: () => import('../views/org/UserManagementView.vue'), meta: { title: '用户管理', auth: '用户管理' } },
   { path: '/org/role', name: 'org-role', component: () => import('../views/org/RoleManagementView.vue'), meta: { title: '角色管理', auth: '角色管理' } },
+  { path: '/services', name: 'services', component: () => import('../views/ServiceRegistryView.vue'), meta: { title: '服务注册', auth: '服务注册' } },
   { path: '/datasource', name: 'datasource', component: () => import('../views/DatasourceView.vue'), meta: { title: '数据源接入', auth: '数据源接入' } },
   { path: '/:pathMatch(.*)*', redirect: '/chat' }
 ]

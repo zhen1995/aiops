@@ -128,6 +128,44 @@ func (c *ElasticsearchClient) Search(ctx context.Context, indexPattern, queryStr
 	return result, nil
 }
 
+// Count 执行索引文档计数查询（match_all，不带时间过滤），用于服务注册的连通性探测
+func (c *ElasticsearchClient) Count(ctx context.Context, indexPattern string) (int, error) {
+	if indexPattern == "" {
+		return 0, fmt.Errorf("索引模式不能为空")
+	}
+	if err := validateIndexPattern(indexPattern); err != nil {
+		return 0, err
+	}
+
+	url := strings.TrimRight(c.ds.URL, "/") + "/" + indexPattern + "/_count"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, bytes.NewReader([]byte(`{"query":{"match_all":{}}}`)))
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.ds.Username != "" {
+		req.SetBasicAuth(c.ds.Username, c.ds.Password)
+	}
+
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("请求 Elasticsearch 失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var payload struct {
+		Error map[string]interface{} `json:"error,omitempty"`
+		Count int                    `json:"count"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return 0, fmt.Errorf("解析 Elasticsearch 响应失败: %w", err)
+	}
+	if payload.Error != nil {
+		return 0, fmt.Errorf("Elasticsearch 查询失败: %v", payload.Error)
+	}
+	return payload.Count, nil
+}
+
 func buildQueryString(queryString string) map[string]interface{} {
 	if strings.TrimSpace(queryString) == "" {
 		return map[string]interface{}{"match_all": map[string]interface{}{}}

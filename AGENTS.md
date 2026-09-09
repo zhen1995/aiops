@@ -7,7 +7,7 @@
 当前仓库包含：
 
 - **frontend/**：Vue 3 + Vite 前端，已通过 `src/api/` 接口层对接真实后端（开发环境由 Vite proxy 转发 `/api`）；总览大盘、告警降噪、日志分析等演示页面仍使用 `src/mock/data.js` 的 Mock 数据，知识库页面已接入真实接口。
-- **backend/**：Go 后端服务，基于 Gin + GORM + MySQL + Viper + CloudWeGo Eino，已实现认证、对话 Agent、LLM 配置、数据源管理、告警规则评估引擎、告警事件、根因分析、定时巡检、运维知识库、通知媒介、用户与角色权限等完整接口。
+- **backend/**：Go 后端服务，基于 Gin + GORM + MySQL + Viper + CloudWeGo Eino，已实现认证、对话 Agent、LLM 配置、数据源管理、服务注册（服务↔ES 索引模式/Prometheus job 映射）、告警规则评估引擎、告警事件、根因分析、定时巡检、运维知识库、通知媒介、用户与角色权限等完整接口。
 - **algorithm/**：Python 算法服务（FastAPI，入口 `app.main:app`），目前承载运维知识库的文档解析、切块、向量化与向量检索，依赖 Qdrant 向量库（仓库根 `docker-compose.yml` 编排）。设计文档中的异常检测、日志聚类等其他算法能力尚未实现。
 - **docs/**：系统设计文档（`AIOPS系统设计文档.md`）与前端原型 SPEC（`SPEC.md`）。
 
@@ -171,6 +171,7 @@ pytest                             # 运行 Python 测试（venv 见 algorithm/.
 - **巡检**：`internal/inspection.Scheduler`（robfig/cron，支持 5/6 段表达式）定时触发 `Executor`，通过公共 Agent 生成 Markdown 报告并落库，按任务配置的通知媒介推送（钉钉/Webhook）。
 - **根因分析**：`POST /api/alert-events/:id/root-cause` 触发后由 `internal/rca.StartAnalysis` 起后台 goroutine 异步执行（10 分钟超时，状态 running/completed/failed 落库 `root_cause_analyses` 表）；Eino compose Graph 工作流先经 collect 证据收集节点（公共 Agent 调用 Prometheus/ElasticSearch/Pyroscope 只读工具），再经 synthesize 综合分析节点由大模型输出严格 JSON（含修复重试）；`GET /api/root-cause-analyses(:id)` 查询列表/详情，前端 `/rca` 页面对 running 状态轮询展示结构化结果（证据链/可信度/影响范围/修复建议）。
 - **运维知识库**：Go 侧 `controllers/knowledge.go` + `internal/knowledge`（编排、文件落盘 `knowledge.upload_dir`、Qdrant/文档元数据维护，REST 前缀 `/api/knowledge-base`）调用 Python 服务（`algorithm/`，FastAPI，`/api/v1/knowledge` 的 index/retrieve/documents）完成文档解析、切块、向量化（embedding 密钥由 Go 从默认的向量化 LLM 配置读取后随请求透传）与向量检索，向量库存 Qdrant（chunk 全文存 Qdrant payload，`kb_chunk` 表只存元数据）；对话 Agent 通过 `search_knowledge_base` 工具（`internal/agent/tools.go`）检索知识库问答，命中结果含 chunk_id/title/score 供引用标注。不同 embedding 模型维度不同，换模型需重建 Qdrant collection。
+- **服务注册**：服务与 Prometheus 的关联通过标签选择器（`{k="v"}`，可一对多匹配 job，由 `datasource.BuildPromSelector` 生成），不再使用单一 job 字段；`POST /api/services/preview-jobs` 可按数据源+标签预览匹配的 job 列表；`POST /api/services/:id/verify` 手动探测服务连通性（ES `Count` / Prometheus `count(up{selector})`）并更新 `verified`/`last_verified_at`。
 
 ---
 
@@ -228,7 +229,7 @@ pytest                             # 运行 Python 测试（venv 见 algorithm/.
 
 ## 开发注意事项
 
-1. **前后端已联调**：登录、对话、LLM 配置、数据源、告警规则、告警事件、根因分析、巡检、运维知识库、通知媒介、用户/角色均已接真实 API；总览大盘、告警降噪、日志分析仍为 Mock 演示页。
+1. **前后端已联调**：登录、对话、LLM 配置、数据源、服务注册、告警规则、告警事件、根因分析、巡检、运维知识库、通知媒介、用户/角色均已接真实 API；总览大盘、告警降噪、日志分析仍为 Mock 演示页。
 2. **修改告警规则字段时需同步**：模型（`models/alert_rule.go`）、校验（`controllers/alert_rule.go validateRule`）、评估引擎（`internal/alerting/engine.go`）、前端表单（`AlertRuleView.vue`）四处。
 3. **新增数据源工具**：在 `internal/agent/tools.go` 的 `ToolMap` 注册，Agent system prompt 会自动带上工具说明。
 4. **知识库接口契约需双端同步**：新增/变更知识库接口时，需同时更新 Python 服务端点（`algorithm/app/routers/knowledge.py`）与 Go 客户端（`backend/internal/knowledge/client.go`）的 payload 键名、multipart 字段名及返回结构；Python 侧改动后运行 `cd algorithm && pytest` 验证。
@@ -251,6 +252,8 @@ pytest                             # 运行 Python 测试（venv 见 algorithm/.
 | `backend/internal/rca/runner.go` | 根因分析异步执行器（后台 goroutine、超时控制、状态落库） |
 | `backend/internal/knowledge/` | 知识库编排服务（Go↔Python 客户端、文档/块元数据、Qdrant 交互） |
 | `backend/controllers/knowledge.go` | 知识库 REST 接口（`/api/knowledge-base`） |
+| `backend/models/service.go` / `backend/controllers/service.go` | 服务注册（服务↔ES 索引模式/Prometheus job 映射，`/api/services`，含连通性探测、`preview-jobs` 预览与 `list_services` Agent 工具） |
+| `frontend/src/views/ServiceRegistryView.vue` | 服务注册页（列表/表单/验证） |
 | `algorithm/app/routers/knowledge.py` | Python 知识库服务（解析/向量化/检索，`/api/v1/knowledge`） |
 | `docker-compose.yml` | Qdrant 向量库编排 |
 | `frontend/src/router/index.js` | 前端路由 |
@@ -266,4 +269,6 @@ pytest                             # 运行 Python 测试（venv 见 algorithm/.
 
 ---
 
-*最后更新：2026-09-04 — 补充运维知识库功能：`algorithm/` Python 服务（FastAPI，解析/切块/向量化/检索）、根 `docker-compose.yml` Qdrant 编排、Go 侧 `internal/knowledge` + `controllers/knowledge_base.go`（`/api/knowledge-base`）、对话 Agent `search_knowledge_base` 工具、前端知识库页面接入真实接口；README 增加知识库（可选组件）启动说明。*
+*最后更新：2026-09-09 — 服务注册 Prom 关联改为标签选择器：移除 `prom_job`/`level` 字段（旧库列保留不用），新增 `datasource.BuildPromSelector` 与 `POST /api/services/preview-jobs`（预览标签匹配的 job 列表），verify/健康检查/自动发现/Agent 工具全部改为按 `{k="v"}` selector 查询 `count(up{...})`；前端弹窗移除「Prom job 名」「服务等级」并新增「预览 job」按钮，列表「Prom job」列改为「Prom 标签」。*
+
+*更新：移除服务注册的定时健康检查功能：删除 `internal/servicereg/` 目录与 `Service` 模型的 `health_status`/`health_message`/`last_check_at`/`miss_count` 字段（`last_verified_at` 手动验证保留），`main.go` 不再启动 Checker，`ElasticsearchClient.CountSince` 随检查器一并删除（`Count` 供 verify 保留），服务健康状态仅通过手动 verify 探测。*

@@ -88,13 +88,17 @@ func (a *Agent) Run(ctx context.Context, messages []*schema.Message, cb *Callbac
 				if !reminderSent && i < a.opts.MaxIterations-1 {
 					// 先追加一条强提醒，让模型重新决策
 					messages = append(messages, schema.SystemMessage(
-						"注意：该问题涉及具体运维数据，你必须先调用 query_prometheus / query_elasticsearch / query_pyroscope 获取真实数据，禁止凭先验知识或编造数据回答。如果问题属于运维知识、故障处理经验、手册类，可调用 search_knowledge_base 检索知识库。如果工具调用失败，请向用户说明无法获取数据。",
+						"注意：该问题涉及具体运维数据，你必须先调用 query_prometheus / query_elasticsearch / query_pyroscope 获取真实数据，或调用 list_services / get_service_info 查询服务注册信息，禁止凭先验知识或编造数据回答。如果问题属于运维知识、故障处理经验、手册类，可调用 search_knowledge_base 检索知识库。如果工具调用失败，请向用户说明无法获取数据。",
 					))
 					reminderSent = true
 					continue
 				}
 				// 提醒后仍不查询，返回兜底拒绝消息，避免幻觉
-				return refusalMessage("该问题需要查询运维数据源才能准确回答，但我未能获取到真实数据。请检查数据源配置，或更具体地描述你想查询的指标、日志、节点、服务或火焰图。"), nil
+				msg := refusalMessage("该问题需要查询运维数据源才能准确回答，但我未能获取到真实数据。请检查数据源配置，或更具体地描述你想查询的指标、日志、节点、服务或火焰图。")
+				if cb != nil && cb.OnChunk != nil {
+					cb.OnChunk(msg.Content)
+				}
+				return msg, nil
 			}
 
 			// 最终答案
@@ -106,7 +110,7 @@ func (a *Agent) Run(ctx context.Context, messages []*schema.Message, cb *Callbac
 
 		// 记录本次 tool_calls 中是否有真正的查询工具
 		for _, tc := range resp.ToolCalls {
-			if strings.HasPrefix(tc.Function.Name, "query_") || strings.HasPrefix(tc.Function.Name, "search_") {
+			if isDataQueryTool(tc.Function.Name) {
 				invokedQueryTools = append(invokedQueryTools, tc.Function.Name)
 			}
 		}
@@ -238,6 +242,14 @@ func lastUserContent(messages []*schema.Message) string {
 		}
 	}
 	return ""
+}
+
+// isDataQueryTool 判断工具调用是否算作"已查询真实数据"：
+// 除 query_*/search_* 前缀工具外，服务注册信息工具（list_services/get_service_info）
+// 返回的也是系统真实数据，同样满足防幻觉校验；list_data_sources 仅为元信息工具，不计入。
+func isDataQueryTool(name string) bool {
+	return strings.HasPrefix(name, "query_") || strings.HasPrefix(name, "search_") ||
+		name == "list_services" || name == "get_service_info"
 }
 
 func refusalMessage(content string) *schema.Message {

@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"aiops/internal/datasource"
 	"aiops/internal/knowledge"
+	"aiops/models"
 
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
@@ -48,6 +50,8 @@ func (r *Registry) Tools(ctx context.Context) ([]tool.InvokableTool, []*schema.T
 func (r *Registry) ToolMap(ctx context.Context) (map[string]tool.InvokableTool, []*schema.ToolInfo, error) {
 	builders := []func() (tool.InvokableTool, error){
 		r.listDataSourcesTool,
+		r.listServicesTool,
+		r.getServiceInfoTool,
 		r.queryPrometheusTool,
 		r.queryElasticsearchTool,
 		r.queryPyroscopeTool,
@@ -111,6 +115,169 @@ func (r *Registry) listDataSourcesTool() (tool.InvokableTool, error) {
 			out := ListDataSourcesOutput{Sources: make([]DataSourceInfo, 0, len(list))}
 			for _, ds := range list {
 				out.Sources = append(out.Sources, DataSourceInfo{Name: ds.Name, Type: ds.Type})
+			}
+			return out, nil
+		},
+	)
+}
+
+// ---------- list_services ----------
+
+type ListServicesInput struct{}
+
+// ServiceInfo 单个启用服务的数据源定位信息
+type ServiceInfo struct {
+	Code            string            `json:"code"`
+	Name            string            `json:"name"`
+	ESIndexPatterns []string          `json:"es_index_patterns"`
+	PromLabels      map[string]string `json:"prom_labels"`
+}
+
+type ListServicesOutput struct {
+	Services []ServiceInfo `json:"services"`
+}
+
+func (r *Registry) listServicesTool() (tool.InvokableTool, error) {
+	return utils.InferTool[ListServicesInput, ListServicesOutput](
+		"list_services",
+		"列出所有已启用的服务注册信息（code、名称、ES 索引模式、Prometheus 标签选择器）。查询指定服务的日志或指标前，先用本工具获取该服务对应的 ES 索引模式和 Prometheus 标签选择器，避免猜错索引。",
+		func(ctx context.Context, in ListServicesInput) (ListServicesOutput, error) {
+			var list []models.Service
+			if err := r.db.WithContext(ctx).
+				Where("status = ?", 1).
+				Order("name ASC").
+				Find(&list).Error; err != nil {
+				return ListServicesOutput{}, err
+			}
+			out := ListServicesOutput{Services: make([]ServiceInfo, 0, len(list))}
+			for _, svc := range list {
+				info := ServiceInfo{
+					Code:            svc.Code,
+					Name:            svc.Name,
+					ESIndexPatterns: []string{},
+					PromLabels:      map[string]string{},
+				}
+				if svc.ESIndexPatterns != "" {
+					var patterns []string
+					if err := json.Unmarshal([]byte(svc.ESIndexPatterns), &patterns); err == nil {
+						info.ESIndexPatterns = patterns
+					}
+				}
+				if svc.PromLabels != "" {
+					var labels map[string]string
+					if err := json.Unmarshal([]byte(svc.PromLabels), &labels); err == nil {
+						info.PromLabels = labels
+					}
+				}
+				out.Services = append(out.Services, info)
+			}
+			return out, nil
+		},
+	)
+}
+
+// ---------- get_service_info ----------
+
+type GetServiceInfoInput struct {
+	Keyword string `json:"keyword" jsonschema:"required,description=服务编码或名称，支持模糊匹配，例如 order-service 或 订单"`
+}
+
+// ServiceDetail 服务注册详情（含数据源名称与元信息）
+type ServiceDetail struct {
+	Code            string            `json:"code"`
+	Name            string            `json:"name"`
+	ESDatasource    string            `json:"es_datasource"`
+	ESIndexPatterns []string          `json:"es_index_patterns"`
+	PromDatasource  string            `json:"prom_datasource"`
+	PromLabels      map[string]string `json:"prom_labels"`
+	PyroscopeApp    string            `json:"pyroscope_app"`
+	Owner           string            `json:"owner"`
+	Description     string            `json:"description"`
+	Status          int               `json:"status"`
+	Verified        int               `json:"verified"`
+	VerifyMessage   string            `json:"verify_message"`
+}
+
+type GetServiceInfoOutput struct {
+	Services []ServiceDetail `json:"services"`
+}
+
+func (r *Registry) getServiceInfoTool() (tool.InvokableTool, error) {
+	return utils.InferTool[GetServiceInfoInput, GetServiceInfoOutput](
+		"get_service_info",
+		"按服务编码或名称查询服务注册的完整详情（ES 索引模式、Prometheus 标签选择器、Pyroscope 应用名、负责人、探测状态等），支持模糊匹配。已知服务名称、需要它的数据定位信息或负责人等元信息时调用本工具。",
+		func(ctx context.Context, in GetServiceInfoInput) (GetServiceInfoOutput, error) {
+			kw := strings.TrimSpace(in.Keyword)
+			var list []models.Service
+			// 先精确匹配编码，未命中再按编码/名称模糊匹配
+			if err := r.db.WithContext(ctx).
+				Where("code = ?", kw).
+				Limit(20).Find(&list).Error; err != nil {
+				return GetServiceInfoOutput{}, err
+			}
+			if len(list) == 0 {
+				if err := r.db.WithContext(ctx).
+					Where("code LIKE ? OR name LIKE ?", "%"+kw+"%", "%"+kw+"%").
+					Order("name ASC").
+					Limit(20).Find(&list).Error; err != nil {
+					return GetServiceInfoOutput{}, err
+				}
+			}
+
+			// 收集引用的数据源 ID，批量查出名称
+			dsIDs := map[string]bool{}
+			for _, svc := range list {
+				if svc.ESDatasourceID != "" {
+					dsIDs[svc.ESDatasourceID] = true
+				}
+				if svc.PromDatasourceID != "" {
+					dsIDs[svc.PromDatasourceID] = true
+				}
+			}
+			dsNames := map[string]string{}
+			if len(dsIDs) > 0 {
+				ids := make([]string, 0, len(dsIDs))
+				for id := range dsIDs {
+					ids = append(ids, id)
+				}
+				var dsList []models.Datasource
+				if err := r.db.WithContext(ctx).Where("id IN ?", ids).Find(&dsList).Error; err != nil {
+					return GetServiceInfoOutput{}, err
+				}
+				for _, ds := range dsList {
+					dsNames[ds.ID] = ds.Name
+				}
+			}
+
+			out := GetServiceInfoOutput{Services: make([]ServiceDetail, 0, len(list))}
+			for _, svc := range list {
+				detail := ServiceDetail{
+					Code:            svc.Code,
+					Name:            svc.Name,
+					ESDatasource:    dsNames[svc.ESDatasourceID],
+					PromDatasource:  dsNames[svc.PromDatasourceID],
+					PyroscopeApp:    svc.PyroscopeApp,
+					Owner:           svc.Owner,
+					Description:     svc.Description,
+					Status:          svc.Status,
+					Verified:        svc.Verified,
+					VerifyMessage:   svc.VerifyMessage,
+					ESIndexPatterns: []string{},
+					PromLabels:      map[string]string{},
+				}
+				if svc.ESIndexPatterns != "" {
+					var patterns []string
+					if err := json.Unmarshal([]byte(svc.ESIndexPatterns), &patterns); err == nil {
+						detail.ESIndexPatterns = patterns
+					}
+				}
+				if svc.PromLabels != "" {
+					var labels map[string]string
+					if err := json.Unmarshal([]byte(svc.PromLabels), &labels); err == nil {
+						detail.PromLabels = labels
+					}
+				}
+				out.Services = append(out.Services, detail)
 			}
 			return out, nil
 		},

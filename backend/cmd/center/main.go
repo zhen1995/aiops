@@ -57,6 +57,8 @@ func main() {
 		&models.LLMConfig{},
 		&models.Datasource{},
 		&models.AlertEngineConfig{},
+		// 服务注册
+		&models.Service{},
 		// 告警
 		&models.AlertRule{},
 		&models.AlertEvent{},
@@ -159,6 +161,21 @@ func main() {
 		dsGroup.PUT("/:id", dsCtrl.Update)
 		dsGroup.DELETE("/:id", dsCtrl.Delete)
 		dsGroup.PATCH("/:id/toggle", dsCtrl.ToggleEnabled)
+	}
+
+	// 服务注册相关路由
+	serviceCtrl := controllers.NewServiceController(db)
+	serviceGroup := api.Group("/services")
+	{
+		serviceGroup.GET("", serviceCtrl.List)
+		serviceGroup.GET("/options", serviceCtrl.Options)
+		serviceGroup.POST("/preview-jobs", serviceCtrl.PreviewJobs)
+		serviceGroup.GET("/:id", serviceCtrl.Get)
+		serviceGroup.POST("", serviceCtrl.Create)
+		serviceGroup.PUT("/:id", serviceCtrl.Update)
+		serviceGroup.DELETE("/:id", serviceCtrl.Delete)
+		serviceGroup.PATCH("/:id/toggle", serviceCtrl.Toggle)
+		serviceGroup.POST("/:id/verify", serviceCtrl.Verify)
 	}
 
 	// 告警引擎配置相关路由

@@ -392,7 +392,8 @@ FROM (
   SELECT '夜莺告警事件' UNION ALL
   SELECT '用户管理'     UNION ALL
   SELECT '角色管理'     UNION ALL
-  SELECT '数据源接入'
+  SELECT '数据源接入'   UNION ALL
+  SELECT '服务注册'
 ) t
 WHERE NOT EXISTS (SELECT 1 FROM `sys_auth` a WHERE a.`name` = t.`name`);
 
