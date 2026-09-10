@@ -12,6 +12,7 @@ An intelligent operations (AIOps) platform for large-scale distributed systems. 
 - **Notification Records**: The full notification lifecycle (intercepted / no rule matched / severity filtered / delivery succeeded or failed) is persisted and traceable.
 - **Dashboard**: KPIs, raw vs. post-denoise trends, severity distribution, service health scores, and more.
 - **Root Cause Analysis**: An asynchronous Eino Graph workflow that collects evidence first, then synthesizes a structured conclusion (evidence chain / confidence / remediation suggestions).
+- **Log Analysis**: Wait to implement.
 - **Scheduled Inspections**: Cron-based scheduling with LLM-generated Markdown reports, delivered via DingTalk bot or Webhook.
 - **Operations Knowledge Base**: Document parsing, chunking, and vectorization into Qdrant; the chat agent can search and cite it (optional component).
 - **Global Search / i18n (Chinese, English) / RBAC**: User, role, and permission seeding.
