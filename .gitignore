@@ -4,7 +4,6 @@
 /.kimi-code/
 /docs/
 /AGENTS.md
-/docker-compose.yml
 /eli5-architecture.html
 # Python 知识库服务
 .venv/
@@ -13,4 +12,3 @@ __pycache__/
 .pytest_cache/
 .env
 /backend/uploads/knowledge/
-/docs/
