@@ -1,13 +1,16 @@
 /.idea/
 /backend/center.exe
 /.superpowers/
-
+/.kimi-code/
+/docs/
+/AGENTS.md
+/docker-compose.yml
+/eli5-architecture.html
 # Python 知识库服务
 .venv/
 __pycache__/
 *.pyc
 .pytest_cache/
-# 知识库服务本地配置（Qdrant 地址等）
 .env
-# 知识库上传的文档（本地文件，不入库）
 /backend/uploads/knowledge/
+/docs/
