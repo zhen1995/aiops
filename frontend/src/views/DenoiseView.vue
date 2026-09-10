@@ -1,14 +1,14 @@
 <template>
   <div>
-    <PageHeader title="告警降噪" desc="多级降噪策略链，重复与级联告警自动压缩，仅有效告警触达值班人员" />
+    <PageHeader :title="$t('alert.denoise.title')" :desc="$t('alert.denoise.desc')" />
 
     <!-- 统计卡片 -->
     <div v-if="loading" class="kpi-grid">
-      <div class="card stat-placeholder">加载中...</div>
+      <div class="card stat-placeholder">{{ $t('alert.denoise.loading') }}</div>
     </div>
     <div v-else-if="loadError" class="card error-card">
       <span>{{ loadError }}</span>
-      <button class="btn btn-sm btn-primary" @click="loadAll">重试</button>
+      <button class="btn btn-sm btn-primary" @click="loadAll">{{ $t('alert.denoise.retry') }}</button>
     </div>
     <div v-else class="kpi-grid">
       <StatCard v-for="k in kpiCards" :key="k.label" v-bind="k" />
@@ -16,21 +16,21 @@
 
     <!-- 降噪漏斗 -->
     <div class="card funnel-card">
-      <h3 class="card-title">降噪漏斗</h3>
-      <p class="card-sub">原始告警经窗口聚合、拓扑抑制逐级压缩，最终仅有效通知触达值班人员</p>
+      <h3 class="card-title">{{ $t('alert.denoise.funnelTitle') }}</h3>
+      <p class="card-sub">{{ $t('alert.denoise.funnelSub') }}</p>
       <ChartBox v-if="funnelData.length" :option="funnelOption" height="340px" />
-      <p v-else class="empty-funnel muted">暂无统计数据</p>
+      <p v-else class="empty-funnel muted">{{ $t('alert.denoise.funnelEmpty') }}</p>
     </div>
 
     <!-- 降噪策略 -->
     <div class="card">
-      <h3 class="card-title">降噪策略</h3>
-      <p class="card-sub">策略按序执行，可随时启停；开关变更实时生效</p>
+      <h3 class="card-title">{{ $t('alert.denoise.policyTitle') }}</h3>
+      <p class="card-sub">{{ $t('alert.denoise.policySub') }}</p>
       <div class="policy-grid">
         <div v-for="p in policies" :key="p.strategy" class="policy-card" :class="{ off: !p.enabled }">
           <div class="policy-head">
             <span class="policy-name">{{ p.name }}</span>
-            <label class="switch" :title="p.enabled ? '点击停用' : '点击启用'">
+            <label class="switch" :title="p.enabled ? $t('alert.denoise.switchDisable') : $t('alert.denoise.switchEnable')">
               <input
                 type="checkbox"
                 :checked="p.enabled"
@@ -43,8 +43,10 @@
           <p class="policy-desc">{{ p.description }}</p>
           <p class="policy-effect">{{ effectText(p.strategy) }}</p>
           <div class="policy-foot">
-            <span class="muted">今日已拦截</span>
-            <span class="policy-reduced mono">{{ Number(p.suppressed_today || 0).toLocaleString() }}</span>
+            <span class="muted">{{ $t('alert.denoise.suppressedToday') }}</span>
+            <button class="policy-reduced mono" :title="$t('alert.denoise.viewRecords')" @click="goRecords(p)">
+              {{ Number(p.suppressed_today || 0).toLocaleString() }}
+            </button>
           </div>
         </div>
       </div>
@@ -54,10 +56,15 @@
 
 <script setup>
 import { computed, ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../components/PageHeader.vue'
 import StatCard from '../components/StatCard.vue'
 import ChartBox from '../components/ChartBox.vue'
 import { denoiseApi } from '../api/denoise.js'
+
+const { t } = useI18n({ useScope: 'global' })
+const router = useRouter()
 
 const loading = ref(false)
 const loadError = ref('')
@@ -81,10 +88,10 @@ function pickStats(s) {
 const kpiCards = computed(() => {
   const s = pickStats(stats.value)
   return [
-    { label: '原始告警总量', value: s.raw_total.toLocaleString(), hint: '今日进入降噪管道' },
-    { label: '有效告警', value: s.effective.toLocaleString(), hint: '实际触达值班' },
-    { label: '压缩率', value: String(s.compression_rate), unit: '%', hint: '降噪整体效果' },
-    { label: '已拦截告警', value: s.suppressed_total.toLocaleString(), hint: '降噪策略合计拦截' }
+    { label: t('alert.denoise.kpi.rawTotal'), value: s.raw_total.toLocaleString(), hint: t('alert.denoise.kpi.rawHint') },
+    { label: t('alert.denoise.kpi.effective'), value: s.effective.toLocaleString(), hint: t('alert.denoise.kpi.effectiveHint') },
+    { label: t('alert.denoise.kpi.compressionRate'), value: s.compression_rate.toFixed(2), unit: '%', hint: t('alert.denoise.kpi.compressionHint') },
+    { label: t('alert.denoise.kpi.suppressed'), value: s.suppressed_total.toLocaleString(), hint: t('alert.denoise.kpi.suppressedHint') }
   ]
 })
 
@@ -94,7 +101,10 @@ const funnelColors = ['#c4e2de', '#9bd0ca', '#43a298', '#0a5f57']
 const funnelData = computed(() => pickStats(stats.value).funnel)
 
 const funnelOption = computed(() => ({
-  tooltip: { trigger: 'item', formatter: '{b}：{c} 条' },
+  tooltip: {
+    trigger: 'item',
+    formatter: (params) => t('alert.denoise.funnelTooltip', { name: params.name, value: params.value })
+  },
   series: [{
     type: 'funnel',
     left: '12%', right: '12%', top: 8, bottom: 8,
@@ -113,12 +123,26 @@ const funnelOption = computed(() => ({
 }))
 
 // 策略效果文案（本地补充，优先展示接口返回的名称/描述）
-const EFFECT_TEXTS = {
-  window_aggregation: '减少重复告警',
-  topology_suppression: '减少级联告警'
-}
 function effectText(strategy) {
-  return EFFECT_TEXTS[strategy] || ''
+  if (strategy === 'window_aggregation') return t('alert.denoise.effect.windowAggregation')
+  if (strategy === 'topology_suppression') return t('alert.denoise.effect.topologySuppression')
+  return ''
+}
+
+// datetime-local 格式（yyyy-MM-ddTHH:mm），与通知记录页时间筛选输入框格式一致
+function fmtLocal(d) {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+// 跳转通知记录：查看今日被该策略拦截的记录
+function goRecords(policy) {
+  const now = new Date()
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  router.push({
+    path: '/notify/records',
+    query: { status: 'intercepted', strategy: policy.strategy, start: fmtLocal(dayStart), end: fmtLocal(now) }
+  })
 }
 
 async function loadAll() {
@@ -132,7 +156,7 @@ async function loadAll() {
     stats.value = statsData
     policies.value = (policyData?.policies || []).map((p) => ({ ...p }))
   } catch (err) {
-    loadError.value = '加载降噪数据失败：' + err.message
+    loadError.value = t('alert.denoise.msg.loadFailed', { msg: err.message })
   } finally {
     loading.value = false
   }
@@ -144,7 +168,7 @@ async function togglePolicy(policy, enabled) {
     await denoiseApi.updatePolicy(policy.strategy, enabled)
     await loadAll()
   } catch (err) {
-    alert('切换策略失败：' + err.message)
+    alert(t('alert.denoise.msg.toggleFailed', { msg: err.message }))
   } finally {
     toggling.value = ''
   }
@@ -175,7 +199,11 @@ onMounted(loadAll)
 .policy-desc { margin: 0; font-size: 12.5px; color: var(--c-text-2); line-height: 1.5; }
 .policy-effect { margin: 0; font-size: 12.5px; font-weight: 600; color: var(--c-primary); }
 .policy-foot { margin-top: auto; display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--c-border); padding-top: 8px; }
-.policy-reduced { font-size: 16px; font-weight: 700; color: var(--c-primary-dark); }
+.policy-reduced {
+  font-size: 16px; font-weight: 700; color: var(--c-primary-dark);
+  border: none; background: none; padding: 0; cursor: pointer; font-family: inherit;
+}
+.policy-reduced:hover { color: var(--c-primary); text-decoration: underline; }
 
 /* 开关 */
 .switch { position: relative; width: 38px; height: 20px; flex-shrink: 0; cursor: pointer; }

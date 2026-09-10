@@ -1,8 +1,10 @@
 package knowledge
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -63,12 +65,11 @@ func (s *Service) IndexDocument(docID string) {
 			s.DB.Model(&doc).Updates(map[string]interface{}{"status": "failed", "error_msg": msg})
 		}
 
-		f, err := os.Open(doc.FilePath)
+		data, err := os.ReadFile(doc.FilePath)
 		if err != nil {
 			fail("读取文件失败: " + err.Error())
 			return
 		}
-		defer f.Close()
 
 		emb, err := chat.DefaultConfig(s.DB, models.LLMModelTypeEmbedding)
 		if err != nil {
@@ -76,8 +77,15 @@ func (s *Service) IndexDocument(docID string) {
 			return
 		}
 
-		if _, err := s.Client.Index(ctx, doc.ID, doc.Name, emb, doc.Name, f); err != nil {
+		if _, err := s.Client.Index(ctx, doc.ID, doc.Name, emb, doc.Name, bytes.NewReader(data)); err != nil {
 			fail(err.Error())
+			return
+		}
+
+		// 索引期间文档可能已被删除：回滚刚写入的向量，避免 Qdrant 孤儿数据
+		var latest models.KBDocument
+		if err := s.DB.First(&latest, "id = ?", doc.ID).Error; err != nil {
+			s.Client.DeleteDocument(ctx, doc.ID)
 			return
 		}
 
@@ -109,7 +117,20 @@ func (s *Service) Delete(ctx context.Context, docID string) error {
 		return err
 	}
 	if doc.FilePath != "" {
-		_ = os.Remove(doc.FilePath)
+		// Windows 下索引协程可能短暂持有文件句柄，短重试吸收锁窗口；
+		// 仍失败则保留文档记录并返回错误，避免"行已删、文件残留"
+		var rmErr error
+		for attempt := 0; attempt < 5; attempt++ {
+			if rmErr = os.Remove(doc.FilePath); rmErr == nil {
+				break
+			}
+			if attempt < 4 {
+				time.Sleep(300 * time.Millisecond)
+			}
+		}
+		if rmErr != nil {
+			return fmt.Errorf("文件删除失败（文档记录已保留，可重试）: %w", rmErr)
+		}
 	}
 	return s.DB.Delete(&doc).Error
 }

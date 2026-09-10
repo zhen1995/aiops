@@ -1,0 +1,20 @@
+export default {
+  brand: 'Intelligent Ops Platform',
+  welcome: 'Welcome Back',
+  welcomeDesc: 'Enter your account credentials',
+  username: 'Username',
+  usernamePlaceholder: 'Enter your username',
+  usernameRequired: 'Please enter your username',
+  password: 'Password',
+  passwordPlaceholder: 'Enter your password',
+  passwordRequired: 'Please enter your password',
+  show: 'Show',
+  hide: 'Hide',
+  rememberMe: 'Remember me',
+  submit: 'Sign In',
+  loggingIn: 'Signing in...',
+  failed: 'Sign-in failed, please try again',
+  footer: 'AIOPS Intelligent Ops Platform © {year}',
+  chartNormal: 'Normal',
+  chartAlert: 'Alert'
+}

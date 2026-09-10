@@ -1,0 +1,122 @@
+export default {
+  user: {
+    title: '用户管理',
+    desc: '维护平台用户账号信息',
+    searchPlaceholder: '搜索用户名或姓名',
+    addUser: '+ 新增用户',
+    listTitle: '用户列表',
+    listSub: '平台全部账号信息',
+    loading: '加载中...',
+    refresh: '刷新',
+    table: {
+      username: '用户名',
+      name: '姓名',
+      roles: '角色',
+      createdAt: '创建时间',
+      updatedAt: '更新时间',
+      status: '状态',
+      actions: '操作'
+    },
+    statusNormal: '正常',
+    statusDeleted: '已删除',
+    edit: '编辑',
+    resetPassword: '重置密码',
+    delete: '删除',
+    empty: '暂无用户数据，请点击"新增用户"添加',
+    modal: {
+      createTitle: '新增用户',
+      editTitle: '编辑用户',
+      username: '用户名',
+      usernamePlaceholder: '请输入用户名',
+      password: '密码',
+      passwordPlaceholder: '请输入初始密码',
+      show: '显示',
+      hide: '隐藏',
+      name: '姓名',
+      namePlaceholder: '请输入姓名',
+      roles: '角色',
+      noRoles: '暂无角色，请先到角色管理创建',
+      loadingRoles: '加载角色列表中...',
+      cancel: '取消',
+      save: '保存',
+      saving: '保存中...'
+    },
+    validation: {
+      usernameRequired: '请输入用户名',
+      usernameMax: '用户名最长 30 个字符',
+      passwordRequired: '请输入密码',
+      passwordMin: '密码至少 6 位',
+      passwordMax: '密码最长 30 个字符',
+      nameRequired: '请输入姓名',
+      nameMax: '姓名最长 10 个字符'
+    },
+    resetPwd: {
+      title: '重置密码',
+      tipPrefix: '正在为用户',
+      tipSuffix: '重置密码',
+      newPassword: '新密码',
+      newPasswordPlaceholder: '请输入新密码',
+      confirmPassword: '确认密码',
+      confirmPasswordPlaceholder: '请再次输入新密码',
+      submitting: '提交中...',
+      confirm: '确认重置',
+      newPasswordRequired: '请输入新密码',
+      passwordMin: '密码至少 6 位',
+      mismatch: '两次输入的密码不一致',
+      success: '密码重置成功'
+    },
+    loadFailed: '加载用户列表失败：',
+    saveFailed: '保存失败：',
+    deleteConfirm: '确定要删除用户「{name}」吗？此操作将进行软删除。',
+    deleteSuccess: '删除成功',
+    deleteFailed: '删除失败：',
+    resetPwdFailed: '重置密码失败：'
+  },
+  role: {
+    title: '角色管理',
+    desc: '维护平台角色、权限范围与角色成员',
+    addRole: '+ 新增角色',
+    listTitle: '角色列表',
+    listSub: '基于 RBAC 的角色权限配置',
+    loading: '加载中...',
+    refresh: '刷新',
+    table: {
+      name: '角色名称',
+      memberCount: '成员数',
+      permissions: '权限范围',
+      createdAt: '创建时间',
+      actions: '操作'
+    },
+    membersUnit: '人',
+    unassigned: '暂未分配',
+    edit: '编辑',
+    permissions: '权限',
+    delete: '删除',
+    empty: '暂无角色数据，请点击"新增角色"添加',
+    modal: {
+      createTitle: '新增角色',
+      editTitle: '编辑角色',
+      name: '角色名称',
+      namePlaceholder: '请输入角色名称',
+      cancel: '取消',
+      save: '保存',
+      saving: '保存中...'
+    },
+    validation: {
+      nameRequired: '请输入角色名称',
+      nameMax: '角色名称最长 30 个字符'
+    },
+    authModal: {
+      titlePrefix: '权限分配 - ',
+      loadingAuths: '加载权限列表中...',
+      emptyAuths: '暂无权限数据'
+    },
+    loadFailed: '加载角色列表失败：',
+    saveFailed: '保存失败：',
+    deleteConfirm: '确定要删除角色「{name}」吗？',
+    deleteSuccess: '删除成功',
+    deleteFailed: '删除失败：',
+    loadAuthsFailed: '加载权限数据失败：',
+    saveAuthsSuccess: '权限设置成功'
+  }
+}

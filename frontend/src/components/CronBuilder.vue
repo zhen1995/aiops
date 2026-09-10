@@ -6,7 +6,7 @@
         <input type="checkbox" v-model="state.useSeconds" />
         <span class="slider"></span>
       </label>
-      <span class="cb-toggle-label">显示秒字段（表达式为 6 段）</span>
+      <span class="cb-toggle-label">{{ $t('inspection.cron.showSeconds') }}</span>
     </div>
 
     <!-- 字段 Tab -->
@@ -25,14 +25,14 @@
         <div class="cb-section">
           <label class="cb-radio">
             <input type="radio" :name="'mode_' + currentField.key" value="every" v-model="currentState.mode" />
-            <span>每 {{ currentField.label }} ({{ currentField.wildcard }})</span>
+            <span>{{ $t('inspection.cron.everyLabel', { label: currentField.label, wildcard: currentField.wildcard }) }}</span>
           </label>
         </div>
 
         <div class="cb-section">
           <label class="cb-radio">
             <input type="radio" :name="'mode_' + currentField.key" value="interval" v-model="currentState.mode" />
-            <span>每隔</span>
+            <span>{{ $t('inspection.cron.interval') }}</span>
           </label>
           <div v-if="currentState.mode === 'interval'" class="cb-inline">
             <input
@@ -47,7 +47,7 @@
         <div class="cb-section">
           <label class="cb-radio">
             <input type="radio" :name="'mode_' + currentField.key" value="range" v-model="currentState.mode" />
-            <span>范围</span>
+            <span>{{ $t('inspection.cron.range') }}</span>
           </label>
           <div v-if="currentState.mode === 'range'" class="cb-inline">
             <input
@@ -67,7 +67,7 @@
         <div class="cb-section">
           <label class="cb-radio">
             <input type="radio" :name="'mode_' + currentField.key" value="specific" v-model="currentState.mode" />
-            <span>指定 {{ currentField.unitLabel }} <span class="cb-hint">（多选）</span></span>
+            <span>{{ $t('inspection.cron.specific', { unit: currentField.unitLabel }) }} <span class="cb-hint">{{ $t('inspection.cron.multiple') }}</span></span>
           </label>
           <div v-if="currentState.mode === 'specific'" class="cb-chips">
             <button
@@ -80,8 +80,8 @@
 
         <!-- 日 vs 周 互斥提示 -->
         <div v-if="currentField.key === 'day' || currentField.key === 'week'" class="cb-note">
-          <span v-if="currentField.key === 'day'">配置日后，周字段将自动设为 <code>?</code></span>
-          <span v-else>配置周后，日字段将自动设为 <code>?</code></span>
+          <span v-if="currentField.key === 'day'">{{ $t('inspection.cron.dayNote') }} <code>?</code></span>
+          <span v-else>{{ $t('inspection.cron.weekNote') }} <code>?</code></span>
         </div>
       </template>
     </div>
@@ -93,8 +93,8 @@
       </div>
       <div class="cb-summary">{{ summaryText }}</div>
       <div class="cb-actions">
-        <button class="btn btn-sm" @click="$emit('cancel')">取消</button>
-        <button class="btn btn-sm btn-primary" @click="confirm">确定</button>
+        <button class="btn btn-sm" @click="$emit('cancel')">{{ $t('inspection.cron.cancel') }}</button>
+        <button class="btn btn-sm btn-primary" @click="confirm">{{ $t('inspection.cron.confirm') }}</button>
       </div>
     </div>
   </div>
@@ -102,6 +102,9 @@
 
 <script setup>
 import { reactive, computed, watch, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -109,29 +112,45 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:modelValue', 'confirm', 'cancel'])
 
-// 字段定义（5 段 + 可选秒）
-const allFields = {
-  second: { key: 'second', label: '秒', wildcard: '*', min: 0, max: 59, unitLabel: '秒', values: [] },
-  minute: { key: 'minute', label: '分钟', wildcard: '*', min: 0, max: 59, unitLabel: '分钟', values: [] },
-  hour: { key: 'hour', label: '小时', wildcard: '*', min: 0, max: 23, unitLabel: '小时', values: [] },
-  day: { key: 'day', label: '日', wildcard: '*', min: 1, max: 31, unitLabel: '日', values: [] },
-  month: { key: 'month', label: '月', wildcard: '*', min: 1, max: 12, unitLabel: '月', values: [] },
-  week: { key: 'week', label: '周', wildcard: '?', min: 1, max: 7, unitLabel: '周', values: [] }
+// 字段元数据（5 段 + 可选秒）
+const fieldMeta = {
+  second: { wildcard: '*', min: 0, max: 59 },
+  minute: { wildcard: '*', min: 0, max: 59 },
+  hour: { wildcard: '*', min: 0, max: 23 },
+  day: { wildcard: '*', min: 1, max: 31 },
+  month: { wildcard: '*', min: 1, max: 12 },
+  week: { wildcard: '?', min: 1, max: 7 }
 }
 
-// 为每个字段预先生成可选值列表（避免响应式深拷贝问题）
-const weekLabels = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日']
-const monthLabels = ['', '1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
-Object.keys(allFields).forEach(k => {
-  const f = allFields[k]
-  f.values = []
-  for (let i = f.min; i <= f.max; i++) {
+// 为字段生成可选值列表（周/月标签随语言切换）
+function fieldValues(key, meta) {
+  const values = []
+  for (let i = meta.min; i <= meta.max; i++) {
     let label
-    if (k === 'week') label = weekLabels[i]
-    else if (k === 'month') label = monthLabels[i]
+    if (key === 'week') label = t(`inspection.cron.weekDays.${i}`)
+    else if (key === 'month') label = t(`inspection.cron.months.${i}`)
     else label = String(i).padStart(2, '0')
-    f.values.push({ value: i, label })
+    values.push({ value: i, label })
   }
+  return values
+}
+
+// 完整字段定义（标签随语言切换）
+const fieldDefs = computed(() => {
+  const defs = {}
+  for (const key of Object.keys(fieldMeta)) {
+    const m = fieldMeta[key]
+    defs[key] = {
+      key,
+      label: t(`inspection.cron.fields.${key}`),
+      wildcard: m.wildcard,
+      min: m.min,
+      max: m.max,
+      unitLabel: t(`inspection.cron.units.${key}`),
+      values: fieldValues(key, m)
+    }
+  }
+  return defs
 })
 
 function makeFieldState(mode = 'every') {
@@ -196,17 +215,17 @@ function setupFromCron(expr) {
   if (parts.length === 6) {
     state.useSeconds = !!props.allowSeconds
     const keys = ['second', 'minute', 'hour', 'day', 'month', 'week']
-    keys.forEach((k, i) => { state.fields[k] = parseField(parts[i], allFields[k]) })
+    keys.forEach((k, i) => { state.fields[k] = parseField(parts[i], fieldDefs.value[k]) })
   } else if (parts.length === 5) {
     state.useSeconds = false
     const keys = ['minute', 'hour', 'day', 'month', 'week']
-    keys.forEach((k, i) => { state.fields[k] = parseField(parts[i], allFields[k]) })
+    keys.forEach((k, i) => { state.fields[k] = parseField(parts[i], fieldDefs.value[k]) })
   }
 }
 
 // 序列化单个字段
 function serializeField(key) {
-  const fd = allFields[key]
+  const fd = fieldDefs.value[key]
   const s = state.fields[key] || makeFieldState('every')
   const W = '?'
 
@@ -247,7 +266,7 @@ const visibleFieldKeys = computed(() => {
 })
 
 // 根据 keys 获取完整 field 定义对象
-const visibleFields = computed(() => visibleFieldKeys.value.map(k => allFields[k]))
+const visibleFields = computed(() => visibleFieldKeys.value.map(k => fieldDefs.value[k]))
 
 // 确保 activeField 有效
 watch(visibleFieldKeys, (keys) => {
@@ -257,7 +276,7 @@ watch(visibleFieldKeys, (keys) => {
 }, { immediate: true })
 
 // 当前字段定义对象
-const currentField = computed(() => allFields[state.activeField])
+const currentField = computed(() => fieldDefs.value[state.activeField])
 // 当前字段的 state
 const currentState = computed(() => state.fields[state.activeField] || makeFieldState('every'))
 
@@ -272,26 +291,29 @@ const summaryText = computed(() => {
   const minS = serializeField('minute')
 
   const parts = []
-  if (minS !== '*' && !minS.startsWith('*/') && minS !== '0') parts.push(`在 ${minS} 分`)
-
-  if (weekS !== '?' && weekS !== '*') {
-    const labels = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日']
-    if (weekS.includes('-')) {
-      const [a, b] = weekS.split('-').map(Number)
-      parts.push(`每周 ${labels[a]}~${labels[b]}`)
-    } else if (weekS.includes(',')) {
-      parts.push(`每周 ${weekS.split(',').map(x => labels[Number(x)]).join('、')}`)
-    } else {
-      parts.push(`每周 ${labels[Number(weekS)]}`)
-    }
-  } else if (dayS !== '*') {
-    parts.push(`每月 ${dayS} 日`)
-  } else {
-    parts.push('每天')
+  if (minS !== '*' && !minS.startsWith('*/') && minS !== '0') {
+    parts.push(t('inspection.cron.summary.atMinute', { m: minS }))
   }
 
-  if (hourS !== '*' && !hourS.startsWith('*/')) parts.push(`${hourS} 点`)
-  else if (hourS.startsWith('*/')) parts.push(`每 ${hourS.slice(2)} 小时`)
+  if (weekS !== '?' && weekS !== '*') {
+    const labels = [''].concat(Array.from({ length: 7 }, (_, i) => t(`inspection.cron.weekDays.${i + 1}`)))
+    if (weekS.includes('-')) {
+      const [a, b] = weekS.split('-').map(Number)
+      parts.push(t('inspection.cron.summary.weekRange', { from: labels[a], to: labels[b] }))
+    } else if (weekS.includes(',')) {
+      const sep = t('inspection.cron.summary.daySeparator')
+      parts.push(t('inspection.cron.summary.weekList', { days: weekS.split(',').map(x => labels[Number(x)]).join(sep) }))
+    } else {
+      parts.push(t('inspection.cron.summary.weekSingle', { day: labels[Number(weekS)] }))
+    }
+  } else if (dayS !== '*') {
+    parts.push(t('inspection.cron.summary.monthDay', { d: dayS }))
+  } else {
+    parts.push(t('inspection.cron.summary.daily'))
+  }
+
+  if (hourS !== '*' && !hourS.startsWith('*/')) parts.push(t('inspection.cron.summary.atHour', { h: hourS }))
+  else if (hourS.startsWith('*/')) parts.push(t('inspection.cron.summary.everyNHours', { n: hourS.slice(2) }))
 
   return parts.join(' · ')
 })

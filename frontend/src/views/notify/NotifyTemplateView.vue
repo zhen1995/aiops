@@ -1,83 +1,83 @@
 <template>
   <div>
-    <PageHeader title="消息模板" desc="定义告警通知的内容模板，使用 Go template 语法，支持告警事件变量">
-      <button class="btn btn-primary" @click="openForm(null)">+ 新建模板</button>
+    <PageHeader :title="$t('notify.template.pageTitle')" :desc="$t('notify.template.pageDesc')">
+      <button class="btn btn-primary" @click="openForm(null)">{{ $t('notify.template.create') }}</button>
     </PageHeader>
 
     <div v-if="showForm" class="modal-mask" @click.self="close">
       <div class="modal modal-xl">
         <div class="modal-head">
-          <h3>{{ editing ? '编辑消息模板' : '新建消息模板' }}</h3>
+          <h3>{{ editing ? $t('notify.template.modal.editTitle') : $t('notify.template.modal.createTitle') }}</h3>
           <button class="close" @click="close">×</button>
         </div>
         <div class="modal-body">
           <div class="form-row">
             <div class="form-item">
-              <label>模板名称 <span class="req">*</span></label>
-              <input v-model="form.name" placeholder="例如：钉钉-通用告警模板" />
+              <label>{{ $t('notify.template.modal.name') }} <span class="req">*</span></label>
+              <input v-model="form.name" :placeholder="$t('notify.template.modal.namePlaceholder')" />
             </div>
             <div class="form-item">
-              <label>适用场景</label>
+              <label>{{ $t('notify.template.modal.scene') }}</label>
               <select v-model="form.type">
-                <option value="all">通用（触发 + 恢复）</option>
-                <option value="firing">仅告警触发</option>
-                <option value="recovered">仅告警恢复</option>
+                <option value="all">{{ $t('notify.template.modal.sceneAll') }}</option>
+                <option value="firing">{{ $t('notify.template.modal.sceneFiring') }}</option>
+                <option value="recovered">{{ $t('notify.template.modal.sceneRecovered') }}</option>
               </select>
             </div>
             <div class="form-item">
-              <label>媒介类型</label>
+              <label>{{ $t('notify.template.modal.mediaType') }}</label>
               <select v-model="form.media_type">
-                <option value="dingtalk">钉钉</option>
-                <option value="webhook">Webhook</option>
-                <option value="email">邮件</option>
-                <option value="wecom">企业微信</option>
+                <option value="dingtalk">{{ $t('notify.template.modal.mediaDingtalk') }}</option>
+                <option value="webhook">{{ $t('notify.template.modal.mediaWebhook') }}</option>
+                <option value="email">{{ $t('notify.template.modal.mediaEmail') }}</option>
+                <option value="wecom">{{ $t('notify.template.modal.mediaWecom') }}</option>
               </select>
             </div>
           </div>
           <div class="form-item">
-            <label>描述</label>
-            <input v-model="form.description" placeholder="模板说明，帮助识别用途" />
+            <label>{{ $t('notify.template.modal.description') }}</label>
+            <input v-model="form.description" :placeholder="$t('notify.template.modal.descriptionPlaceholder')" />
           </div>
 
           <!-- 模板编辑器（占满宽度） -->
           <div class="tpl-edit-wrap">
             <div class="tpl-edit-head">
-              <span>模板内容 (Go template)</span>
+              <span>{{ $t('notify.template.modal.contentLabel') }}</span>
             </div>
             <textarea
               v-model="form.content"
               rows="14"
               class="tpl-textarea"
-              placeholder='{{$event.RuleName}} 告警&#10;触发值: {{$event.TriggerValue}}&#10;站点: {{$.domain}}'></textarea>
+              :placeholder="$t('notify.template.modal.contentPlaceholder')"></textarea>
           </div>
 
           <!-- 预览 + 变量参考 -->
           <div class="tpl-bottom">
             <div class="tpl-preview">
-              <div class="tpl-panel-title">实时预览
-                <span v-if="!previewContent && !previewError" class="tpl-hint">（模板合法后将显示渲染结果）</span>
+              <div class="tpl-panel-title">{{ $t('notify.template.modal.preview') }}
+                <span v-if="!previewContent && !previewError" class="tpl-hint">{{ $t('notify.template.modal.previewHint') }}</span>
               </div>
               <div v-if="previewError" class="tpl-error">❌ {{ previewError }}</div>
               <pre v-else-if="previewContent" class="preview-text">{{ previewContent }}</pre>
-              <div v-else class="preview-placeholder">无内容</div>
+              <div v-else class="preview-placeholder">{{ $t('notify.template.modal.emptyPreview') }}</div>
             </div>
 
             <div class="tpl-ref">
-              <div class="tpl-panel-title">变量参考
-                <span class="tpl-hint">（点击可插入模板）</span>
+              <div class="tpl-panel-title">{{ $t('notify.template.modal.refTitle') }}
+                <span class="tpl-hint">{{ $t('notify.template.modal.refHint') }}</span>
               </div>
               <div class="ref-tabs">
-                <button class="ref-tab" :class="{active: refTab === 'vars'}" @click="refTab = 'vars'">告警事件变量</button>
-                <button class="ref-tab" :class="{active: refTab === 'funcs'}" @click="refTab = 'funcs'">内置函数</button>
+                <button class="ref-tab" :class="{active: refTab === 'vars'}" @click="refTab = 'vars'">{{ $t('notify.template.modal.tabVars') }}</button>
+                <button class="ref-tab" :class="{active: refTab === 'funcs'}" @click="refTab = 'funcs'">{{ $t('notify.template.modal.tabFuncs') }}</button>
               </div>
               <div v-if="refTab === 'vars'" class="ref-table">
                 <div class="ref-row ref-head">
-                  <span>变量</span>
-                  <span>说明</span>
+                  <span>{{ $t('notify.template.modal.colVar') }}</span>
+                  <span>{{ $t('notify.template.modal.colDesc') }}</span>
                 </div>
                 <div
                   v-for="item in alertVars" :key="item.key" class="ref-row clickable"
-                  :title="'点击插入: ' + item.snippet"
+                  :title="$t('notify.template.modal.clickInsert') + item.snippet"
                   @click="insertFunc(item.snippet)">
                   <code>{{ item.snippet }}</code>
                   <span class="ref-desc">{{ item.desc }}</span>
@@ -85,12 +85,12 @@
               </div>
               <div v-else class="ref-table">
                 <div class="ref-row ref-head">
-                  <span>函数</span>
-                  <span>说明</span>
+                  <span>{{ $t('notify.template.modal.colFunc') }}</span>
+                  <span>{{ $t('notify.template.modal.colDesc') }}</span>
                 </div>
                 <div
                   v-for="item in builtinFuncs" :key="item.key" class="ref-row clickable"
-                  :title="'点击插入: ' + item.snippet"
+                  :title="$t('notify.template.modal.clickInsert') + item.snippet"
                   @click="insertFunc(item.snippet)">
                   <code>{{ item.snippet }}</code>
                   <span class="ref-desc">{{ item.desc }}</span>
@@ -100,9 +100,9 @@
           </div>
         </div>
         <div class="modal-foot">
-          <button class="btn" @click="close">取消</button>
+          <button class="btn" @click="close">{{ $t('notify.template.modal.cancel') }}</button>
           <button class="btn btn-primary" :disabled="saving" @click="save">
-            {{ saving ? '保存中...' : '保存模板' }}
+            {{ saving ? $t('notify.template.modal.saving') : $t('notify.template.modal.save') }}
           </button>
         </div>
       </div>
@@ -122,12 +122,12 @@
           <div v-if="t.description" class="ci-desc">{{ t.description }}</div>
           <pre class="ci-preview">{{ truncate(contentOf(t.content), 160) }}</pre>
           <div class="ci-actions">
-            <button class="btn btn-sm" @click="openForm(t)">编辑</button>
-            <button class="btn btn-sm btn-danger" @click="remove(t)">删除</button>
+            <button class="btn btn-sm" @click="openForm(t)">{{ $t('notify.template.list.edit') }}</button>
+            <button class="btn btn-sm btn-danger" @click="remove(t)">{{ $t('notify.template.list.delete') }}</button>
           </div>
         </div>
-        <div v-if="templates.length === 0 && !loading" class="empty">暂无模板，点击右上角新建</div>
-        <div v-if="loading" class="empty">加载中...</div>
+        <div v-if="templates.length === 0 && !loading" class="empty">{{ $t('notify.template.list.empty') }}</div>
+        <div v-if="loading" class="empty">{{ $t('notify.template.list.loading') }}</div>
       </div>
     </div>
   </div>
@@ -135,8 +135,11 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../../components/PageHeader.vue'
 import { notifyApi } from '../../api/notify.js'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const templates = ref([])
 const loading = ref(false)
@@ -171,49 +174,49 @@ const defaultContent = `#### {{if $event.IsRecovered}}<font color="#008800">💚
 // -------- 告警事件变量（按夜莺分类） --------
 const alertVars = [
   // 整个事件
-  { key: 'event',     snippet: '{{$event}}',              desc: '整个告警事件对象，可用于调试查看全部字段' },
-  { key: 'labels',    snippet: '{{$labels}}',             desc: '事件标签 map，等价于 $event.TagsMap' },
-  { key: 'value',     snippet: '{{$value}}',              desc: '触发值，等价于 $event.TriggerValue' },
-  { key: 'domain',    snippet: '{{$.domain}}',            desc: '站点地址，用于拼接详情链接' },
+  { key: 'event',     snippet: '{{$event}}',              desc: t('notify.template.vars.event') },
+  { key: 'labels',    snippet: '{{$labels}}',             desc: t('notify.template.vars.labels') },
+  { key: 'value',     snippet: '{{$value}}',              desc: t('notify.template.vars.value') },
+  { key: 'domain',    snippet: '{{$.domain}}',            desc: t('notify.template.vars.domain') },
 
   // 基本信息
-  { key: 'RuleName',      snippet: '{{$event.RuleName}}',     desc: '告警规则名称' },
-  { key: 'RuleNote',      snippet: '{{$event.RuleNote}}',     desc: '告警规则备注/描述' },
-  { key: 'Id',            snippet: '{{$event.Id}}',           desc: '告警事件唯一 ID' },
-  { key: 'SeverityLabel', snippet: '{{$event.SeverityLabel}}',desc: '告警级别中文（P1-紧急 / P2-警告 / P3-提醒）' },
-  { key: 'TriggerValue',  snippet: '{{$event.TriggerValue}}', desc: '触发值（PromQL 表达式计算结果）' },
-  { key: 'BusiGroupName', snippet: '{{$event.BusiGroupName}}',desc: '夜莺业务组名称' },
-  { key: 'Cluster',       snippet: '{{$event.Cluster}}',      desc: '告警集群标识' },
+  { key: 'RuleName',      snippet: '{{$event.RuleName}}',     desc: t('notify.template.vars.ruleName') },
+  { key: 'RuleNote',      snippet: '{{$event.RuleNote}}',     desc: t('notify.template.vars.ruleNote') },
+  { key: 'Id',            snippet: '{{$event.Id}}',           desc: t('notify.template.vars.id') },
+  { key: 'SeverityLabel', snippet: '{{$event.SeverityLabel}}',desc: t('notify.template.vars.severityLabel') },
+  { key: 'TriggerValue',  snippet: '{{$event.TriggerValue}}', desc: t('notify.template.vars.triggerValue') },
+  { key: 'BusiGroupName', snippet: '{{$event.BusiGroupName}}',desc: t('notify.template.vars.busiGroupName') },
+  { key: 'Cluster',       snippet: '{{$event.Cluster}}',      desc: t('notify.template.vars.cluster') },
 
   // 触发相关
-  { key: 'TriggerTime',    snippet: '{{timeformatCN $event.TriggerTime}}',    desc: '触发时间' },
-  { key: 'LastEvalTime',   snippet: '{{timeformatCN $event.LastEvalTime}}',   desc: '最近一次 PromQL 命中时间' },
-  { key: 'FirstTrigger',   snippet: '{{timeformatCN $event.FirstTrigger}}',   desc: '首次触发时间' },
-  { key: 'IsRecovered',    snippet: '{{if $event.IsRecovered}}已恢复{{else}}告警{{end}}', desc: '是否已恢复（布尔）' },
+  { key: 'TriggerTime',    snippet: '{{timeformatCN $event.TriggerTime}}',    desc: t('notify.template.vars.triggerTime') },
+  { key: 'LastEvalTime',   snippet: '{{timeformatCN $event.LastEvalTime}}',   desc: t('notify.template.vars.lastEvalTime') },
+  { key: 'FirstTrigger',   snippet: '{{timeformatCN $event.FirstTrigger}}',   desc: t('notify.template.vars.firstTrigger') },
+  { key: 'IsRecovered',    snippet: '{{if $event.IsRecovered}}已恢复{{else}}告警{{end}}', desc: t('notify.template.vars.isRecovered') },
 
   // 标签与注解
-  { key: 'TagsMap',    snippet: '{{$event.TagsMap.instance}}',   desc: '事件标签 map，支持按 key 取值' },
-  { key: 'TagsJSON',   snippet: '{{$event.TagsJSON}}',           desc: '事件标签 JSON 字符串' },
-  { key: 'Annotations',snippet: '{{$event.AnnotationsJSON.dashboard}}', desc: '附加 annotations 字段' },
+  { key: 'TagsMap',    snippet: '{{$event.TagsMap.instance}}',   desc: t('notify.template.vars.tagsMap') },
+  { key: 'TagsJSON',   snippet: '{{$event.TagsJSON}}',           desc: t('notify.template.vars.tagsJson') },
+  { key: 'Annotations',snippet: '{{$event.AnnotationsJSON.dashboard}}', desc: t('notify.template.vars.annotations') },
 ]
 
 // -------- 内置函数（参考夜莺 tplx） --------
 const builtinFuncs = [
   // 时间
-  { key: 'timeformat',  snippet: '{{timeformat $event.TriggerTime "2006-01-02 15:04:05"}}', desc: '格式化时间，第二个参数为 Go layout' },
-  { key: 'timeformatCN',snippet: '{{timeformatCN $event.TriggerTime}}',                   desc: '简化版，输出 yyyy-MM-dd HH:mm:ss' },
-  { key: 'timestamp',   snippet: '{{timestamp}}',                                           desc: '当前时间字符串（常用于"发送时间"）' },
-  { key: 'now',         snippet: '{{now}}',                                                 desc: '当前秒级时间戳（int64），可用来算持续时长' },
+  { key: 'timeformat',  snippet: '{{timeformat $event.TriggerTime "2006-01-02 15:04:05"}}', desc: t('notify.template.funcs.timeformat') },
+  { key: 'timeformatCN',snippet: '{{timeformatCN $event.TriggerTime}}',                   desc: t('notify.template.funcs.timeformatCN') },
+  { key: 'timestamp',   snippet: '{{timestamp}}',                                           desc: t('notify.template.funcs.timestamp') },
+  { key: 'now',         snippet: '{{now}}',                                                 desc: t('notify.template.funcs.now') },
 
   // 算术
-  { key: 'sub', snippet: '{{sub now $event.FirstTrigger.Unix}}',      desc: '减法，常用于计算告警持续秒数' },
-  { key: 'add', snippet: '{{add $event.DurationSec 60}}',            desc: '加法' },
-  { key: 'mul', snippet: '{{mul $event.DurationSec 1000}}',          desc: '乘法' },
+  { key: 'sub', snippet: '{{sub now $event.FirstTrigger.Unix}}',      desc: t('notify.template.funcs.sub') },
+  { key: 'add', snippet: '{{add $event.DurationSec 60}}',            desc: t('notify.template.funcs.add') },
+  { key: 'mul', snippet: '{{mul $event.DurationSec 1000}}',          desc: t('notify.template.funcs.mul') },
 
   // 人类可读
-  { key: 'humanizeDuration',    snippet: '{{humanizeDuration $time_duration}}',    desc: '秒数 → 人类可读（3分 / 2时 / 1.5天）' },
-  { key: 'humanizeDurationIfc', snippet: '{{humanizeDurationInterface $time_duration}}', desc: 'humanizeDuration 别名，兼容夜莺模板' },
-  { key: 'durationHuman',       snippet: '{{durationHuman $event.DurationSec}}',     desc: '简化版（旧模板用，已废弃建议用 humanizeDuration）' },
+  { key: 'humanizeDuration',    snippet: '{{humanizeDuration $time_duration}}',    desc: t('notify.template.funcs.humanizeDuration') },
+  { key: 'humanizeDurationIfc', snippet: '{{humanizeDurationInterface $time_duration}}', desc: t('notify.template.funcs.humanizeDurationIfc') },
+  { key: 'durationHuman',       snippet: '{{durationHuman $event.DurationSec}}',     desc: t('notify.template.funcs.durationHuman') },
 ]
 
 const defaultForm = () => ({
@@ -250,13 +253,13 @@ async function load() {
   try {
     templates.value = await notifyApi.listTemplates() || []
   } catch (e) {
-    alert('加载失败: ' + e.message)
+    alert(t('notify.template.error.loadFailed') + e.message)
   } finally { loading.value = false }
 }
 
-function openForm(t) {
-  editing.value = t || null
-  form.value = t ? { ...t } : defaultForm()
+function openForm(tpl) {
+  editing.value = tpl || null
+  form.value = tpl ? { ...tpl } : defaultForm()
   previewContent.value = ''
   previewError.value = ''
   refTab.value = 'vars'
@@ -267,7 +270,7 @@ function close() { showForm.value = false; editing.value = null }
 
 async function save() {
   if (!form.value.name.trim() || !form.value.content.trim()) {
-    return alert('请填写模板名称和内容')
+    return alert(t('notify.template.error.nameContentRequired'))
   }
   saving.value = true
   try {
@@ -279,17 +282,30 @@ async function save() {
     showForm.value = false
     await load()
   } catch (e) {
-    alert('保存失败: ' + e.message)
+    alert(t('notify.template.error.saveFailed') + e.message)
   } finally { saving.value = false }
 }
 
-async function remove(t) {
-  if (!confirm(`确认删除模板「${t.name}」？`)) return
-  try { await notifyApi.deleteTemplate(t.id); await load() } catch (e) { alert('删除失败: ' + e.message) }
+async function remove(tpl) {
+  if (!confirm(t('notify.template.error.confirmDelete', { name: tpl.name }))) return
+  try { await notifyApi.deleteTemplate(tpl.id); await load() } catch (e) { alert(t('notify.template.error.deleteFailed') + e.message) }
 }
 
-function typeLabel(v) { return { all: '通用', firing: '触发', recovered: '恢复' }[v] || v }
-function mediaLabel(v) { return { dingtalk: '钉钉', webhook: 'Webhook', email: '邮件', wecom: '企微' }[v] || v }
+function typeLabel(v) {
+  return {
+    all: t('notify.template.type.all'),
+    firing: t('notify.template.type.firing'),
+    recovered: t('notify.template.type.recovered')
+  }[v] || v
+}
+function mediaLabel(v) {
+  return {
+    dingtalk: t('notify.template.mediaLabel.dingtalk'),
+    webhook: t('notify.template.mediaLabel.webhook'),
+    email: t('notify.template.mediaLabel.email'),
+    wecom: t('notify.template.mediaLabel.wecom')
+  }[v] || v
+}
 function fmtTime(s) { if (!s) return ''; return new Date(s).toLocaleString('zh-CN') }
 function truncate(s, n) { if (!s) return ''; return s.length > n ? s.slice(0, n) + '...' : s }
 const contentOf = (c) => c
@@ -390,7 +406,7 @@ onMounted(load)
 .ci-desc { font-size: 12px; color: var(--c-text-2); margin-bottom: 8px; }
 .ci-preview {
   background: var(--c-surface); border-radius: 6px; padding: 8px 10px; margin: 6px 0 10px;
-  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; color: var(--c-text-2);
+  font-family: ui-monospace, Menlo, Monaco, Consolas, monospace; font-size: 11.5px; color: var(--c-text-2);
   white-space: pre-wrap; line-height: 1.6; overflow: hidden; max-height: 110px;
 }
 .ci-actions { display: flex; gap: 6px; }

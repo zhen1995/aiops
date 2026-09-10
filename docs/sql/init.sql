@@ -355,7 +355,7 @@ CREATE TABLE IF NOT EXISTS `kb_chunk` (
 
 -- 1. root 管理员（用户名 root / 密码 sanquan）
 INSERT INTO `sys_user` (`id`, `username`, `password`, `name`, `created_at`, `update_at`)
-SELECT UUID(), 'root', 'sanquan', '管理员', NOW(), NOW()
+SELECT UUID(), 'root', 'root', '管理员', NOW(), NOW()
 FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `sys_user` WHERE `username` = 'root');
 

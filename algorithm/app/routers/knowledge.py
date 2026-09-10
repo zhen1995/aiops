@@ -45,7 +45,8 @@ def get_store() -> VectorStore:
     global _store
     if _store is None:
         s = get_settings()
-        _store = VectorStore(QdrantClient(url=s.qdrant_url), collection=s.collection)
+        # 大批量 upsert / 写负载下的 filter delete 可能超过客户端默认 5s 超时，放宽到 60s
+        _store = VectorStore(QdrantClient(url=s.qdrant_url, timeout=60), collection=s.collection)
     return _store
 
 

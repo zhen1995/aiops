@@ -1,27 +1,27 @@
 <template>
   <div>
-    <PageHeader title="通知媒介" desc="维护钉钉、Webhook 回调等通知通道配置">
-      <button class="btn btn-primary" @click="openCreateModal" :disabled="loading">+ 新增媒介</button>
+    <PageHeader :title="$t('notify.medium.pageTitle')" :desc="$t('notify.medium.pageDesc')">
+      <button class="btn btn-primary" @click="openCreateModal" :disabled="loading">{{ $t('notify.medium.create') }}</button>
     </PageHeader>
 
     <div class="card">
       <div class="card-head-flex">
         <div>
-          <h3 class="card-title">媒介列表</h3>
-          <p class="card-sub">告警通知将通过以下媒介进行分发</p>
+          <h3 class="card-title">{{ $t('notify.medium.list.title') }}</h3>
+          <p class="card-sub">{{ $t('notify.medium.list.subtitle') }}</p>
         </div>
         <button class="btn btn-sm" @click="loadData" :disabled="loading">
-          {{ loading ? '加载中...' : '刷新' }}
+          {{ loading ? $t('notify.medium.list.loading') : $t('notify.medium.list.refresh') }}
         </button>
       </div>
       <table class="table">
         <thead>
           <tr>
-            <th>媒介名称</th>
-            <th>类型</th>
-            <th>配置摘要</th>
-            <th>状态</th>
-            <th>操作</th>
+            <th>{{ $t('notify.medium.list.name') }}</th>
+            <th>{{ $t('notify.medium.list.type') }}</th>
+            <th>{{ $t('notify.medium.list.summary') }}</th>
+            <th>{{ $t('notify.medium.list.status') }}</th>
+            <th>{{ $t('notify.medium.list.actions') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -35,27 +35,27 @@
             <td class="muted mono" style="max-width: 280px; overflow: hidden; text-overflow: ellipsis">{{ configSummary(m) }}</td>
             <td>
               <LevelTag :level="m.is_enabled === 1 ? 'running' : 'info'">
-                {{ m.is_enabled === 1 ? '运行中' : '已停用' }}
+                {{ m.is_enabled === 1 ? $t('notify.medium.list.running') : $t('notify.medium.list.disabled') }}
               </LevelTag>
             </td>
             <td>
               <div class="ops">
-                <button class="btn btn-sm" @click="openEditModal(m)">编辑</button>
+                <button class="btn btn-sm" @click="openEditModal(m)">{{ $t('notify.medium.list.edit') }}</button>
                 <button class="btn btn-sm" :disabled="testingId === m.id" @click="openTestModal(m)">
-                  {{ testingId === m.id ? '测试中...' : '测试' }}
+                  {{ testingId === m.id ? $t('notify.medium.list.testing') : $t('notify.medium.list.test') }}
                 </button>
                 <button class="btn btn-sm" :class="m.is_enabled === 1 ? '' : 'btn-primary'" @click="toggleEnabled(m)">
-                  {{ m.is_enabled === 1 ? '停用' : '启用' }}
+                  {{ m.is_enabled === 1 ? $t('notify.medium.list.disable') : $t('notify.medium.list.enable') }}
                 </button>
-                <button class="btn btn-sm btn-danger" @click="deleteMedia(m)">删除</button>
+                <button class="btn btn-sm btn-danger" @click="deleteMedia(m)">{{ $t('notify.medium.list.delete') }}</button>
               </div>
             </td>
           </tr>
           <tr v-if="!loading && media.length === 0">
-            <td colspan="5" class="empty-row">暂无数据，请点击"新增媒介"添加配置</td>
+            <td colspan="5" class="empty-row">{{ $t('notify.medium.list.empty') }}</td>
           </tr>
           <tr v-if="loading">
-            <td colspan="5" class="empty-row">加载中...</td>
+            <td colspan="5" class="empty-row">{{ $t('notify.medium.list.loading') }}</td>
           </tr>
         </tbody>
       </table>
@@ -65,22 +65,22 @@
     <div v-if="modalVisible" class="modal-mask" @click.self="closeModal">
       <div class="modal">
         <div class="modal-header">
-          <h3>{{ isEdit ? '编辑媒介' : '新增媒介' }}</h3>
+          <h3>{{ isEdit ? $t('notify.medium.modal.editTitle') : $t('notify.medium.modal.createTitle') }}</h3>
           <span class="modal-close" @click="closeModal">×</span>
         </div>
         <div class="modal-body">
           <div class="form-row">
             <div class="form-item form-item-half">
-              <label class="form-label required">媒介名称</label>
-              <input v-model="form.name" class="form-input" placeholder="例如：SRE 值班钉钉群" />
+              <label class="form-label required">{{ $t('notify.medium.modal.name') }}</label>
+              <input v-model="form.name" class="form-input" :placeholder="$t('notify.medium.modal.namePlaceholder')" />
               <span v-if="errors.name" class="form-error">{{ errors.name }}</span>
             </div>
             <div class="form-item form-item-half">
-              <label class="form-label required">媒介类型</label>
+              <label class="form-label required">{{ $t('notify.medium.modal.type') }}</label>
               <select v-model="form.type" class="form-input" :disabled="isEdit">
-                <option value="">请选择类型</option>
-                <option value="dingtalk">钉钉</option>
-                <option value="webhook">Webhook 回调</option>
+                <option value="">{{ $t('notify.medium.modal.selectType') }}</option>
+                <option value="dingtalk">{{ $t('notify.medium.type.dingtalk') }}</option>
+                <option value="webhook">{{ $t('notify.medium.type.webhook') }}</option>
               </select>
               <span v-if="errors.type" class="form-error">{{ errors.type }}</span>
             </div>
@@ -89,21 +89,21 @@
           <!-- Webhook 回调配置 -->
           <template v-if="form.type === 'webhook'">
             <div class="form-item">
-              <label class="form-label required">回调地址</label>
-              <input v-model="form.webhookUrl" class="form-input" placeholder="请输入回调 URL，例如：https://example.com/api/notify" />
+              <label class="form-label required">{{ $t('notify.medium.modal.webhookUrl') }}</label>
+              <input v-model="form.webhookUrl" class="form-input" :placeholder="$t('notify.medium.modal.webhookUrlPlaceholder')" />
               <span v-if="errors.webhookUrl" class="form-error">{{ errors.webhookUrl }}</span>
             </div>
             <div class="form-row">
               <div class="form-item form-item-half">
-                <label class="form-label">请求方法</label>
+                <label class="form-label">{{ $t('notify.medium.modal.method') }}</label>
                 <select v-model="form.method" class="form-input">
                   <option value="POST">POST</option>
                   <option value="PUT">PUT</option>
                 </select>
               </div>
               <div class="form-item form-item-half">
-                <label class="form-label">超时(ms)</label>
-                <input v-model.number="form.timeout" type="number" class="form-input" placeholder="默认 5000" />
+                <label class="form-label">{{ $t('notify.medium.modal.timeout') }}</label>
+                <input v-model.number="form.timeout" type="number" class="form-input" :placeholder="$t('notify.medium.modal.timeoutPlaceholder')" />
               </div>
             </div>
           </template>
@@ -111,39 +111,39 @@
           <!-- 钉钉配置 -->
           <template v-if="form.type === 'dingtalk'">
             <div class="form-item">
-              <label class="form-label required">机器人 Webhook</label>
+              <label class="form-label required">{{ $t('notify.medium.modal.dingWebhook') }}</label>
               <input v-model="form.dingWebhook" class="form-input" placeholder="https://oapi.dingtalk.com/robot/send?access_token=..." />
               <span v-if="errors.dingWebhook" class="form-error">{{ errors.dingWebhook }}</span>
             </div>
             <div class="form-row">
               <div class="form-item form-item-half">
-                <label class="form-label">加签 Secret</label>
+                <label class="form-label">{{ $t('notify.medium.modal.secret') }}</label>
                 <div class="input-with-action">
                   <input
                     v-model="form.secret"
                     class="form-input"
                     :type="showSecret ? 'text' : 'password'"
-                    placeholder="选填，开启加签时填写"
+                    :placeholder="$t('notify.medium.modal.secretPlaceholder')"
                   />
                   <span class="input-action" @click="showSecret = !showSecret">
-                    {{ showSecret ? '隐藏' : '显示' }}
+                    {{ showSecret ? $t('notify.medium.modal.hide') : $t('notify.medium.modal.show') }}
                   </span>
                 </div>
               </div>
               <div class="form-item form-item-half">
-                <label class="form-label">超时(ms)</label>
-                <input v-model.number="form.timeout" type="number" class="form-input" placeholder="默认 5000" />
+                <label class="form-label">{{ $t('notify.medium.modal.timeout') }}</label>
+                <input v-model.number="form.timeout" type="number" class="form-input" :placeholder="$t('notify.medium.modal.timeoutPlaceholder')" />
               </div>
             </div>
           </template>
 
           <div class="form-item">
-            <label class="form-label">备注</label>
-            <textarea v-model="form.remark" class="form-input form-textarea" placeholder="选填" rows="2"></textarea>
+            <label class="form-label">{{ $t('notify.medium.modal.remark') }}</label>
+            <textarea v-model="form.remark" class="form-input form-textarea" :placeholder="$t('notify.medium.modal.remarkPlaceholder')" rows="2"></textarea>
           </div>
 
           <div class="form-item form-item-toggle">
-            <label class="form-label">启用</label>
+            <label class="form-label">{{ $t('notify.medium.modal.enabled') }}</label>
             <label class="switch">
               <input type="checkbox" v-model="form.is_enabled" :true-value="1" :false-value="0" />
               <span class="slider"></span>
@@ -151,9 +151,9 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn" @click="closeModal" :disabled="saving">取消</button>
+          <button class="btn" @click="closeModal" :disabled="saving">{{ $t('notify.medium.modal.cancel') }}</button>
           <button class="btn btn-primary" @click="saveMedia" :disabled="saving">
-            {{ saving ? '保存中...' : '保存' }}
+            {{ saving ? $t('notify.medium.modal.saving') : $t('notify.medium.modal.save') }}
           </button>
         </div>
       </div>
@@ -163,25 +163,25 @@
     <div v-if="testModalVisible" class="modal-mask" @click.self="closeTestModal">
       <div class="modal">
         <div class="modal-header">
-          <h3>发送测试消息{{ testTarget ? ` — ${testTarget.name}` : '' }}</h3>
+          <h3>{{ testTarget ? $t('notify.medium.test.titleWithName', { name: testTarget.name }) : $t('notify.medium.test.title') }}</h3>
           <span class="modal-close" @click="closeTestModal">×</span>
         </div>
         <div class="modal-body">
           <div class="form-item">
-            <label class="form-label required">消息内容</label>
+            <label class="form-label required">{{ $t('notify.medium.test.content') }}</label>
             <textarea
               v-model="testForm.content"
               class="form-input form-textarea"
               rows="4"
-              placeholder="请输入测试消息内容"
+              :placeholder="$t('notify.medium.test.contentPlaceholder')"
             ></textarea>
             <span v-if="testErrors.content" class="form-error">{{ testErrors.content }}</span>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn" @click="closeTestModal" :disabled="testingId !== ''">取消</button>
+          <button class="btn" @click="closeTestModal" :disabled="testingId !== ''">{{ $t('notify.medium.modal.cancel') }}</button>
           <button class="btn btn-primary" @click="sendTest" :disabled="testingId !== ''">
-            {{ testingId !== '' ? '发送中...' : '发送测试' }}
+            {{ testingId !== '' ? $t('notify.medium.test.sending') : $t('notify.medium.test.send') }}
           </button>
         </div>
       </div>
@@ -191,12 +191,15 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../../components/PageHeader.vue'
 import LevelTag from '../../components/LevelTag.vue'
 import { notifyMediaApi } from '../../api/notifyMedia.js'
 
+const { t } = useI18n({ useScope: 'global' })
+
 const typeText = (type) => {
-  const map = { dingtalk: '钉钉', webhook: 'Webhook 回调' }
+  const map = { dingtalk: t('notify.medium.type.dingtalk'), webhook: t('notify.medium.type.webhook') }
   return map[type] || type
 }
 
@@ -205,7 +208,7 @@ const configSummary = (m) => {
   try {
     const cfg = JSON.parse(m.config || '{}')
     if (m.type === 'dingtalk') {
-      return (cfg.webhook || '') + (cfg.secret ? '（已加签）' : '')
+      return (cfg.webhook || '') + (cfg.secret ? t('notify.medium.signed') : '')
     }
     return (cfg.url || '') + (cfg.method ? ` [${cfg.method}]` : '')
   } catch (e) {
@@ -244,7 +247,7 @@ async function loadData() {
     const data = await notifyMediaApi.list()
     media.value = data || []
   } catch (err) {
-    alert('加载媒介列表失败：' + err.message)
+    alert(t('notify.medium.error.loadFailed') + err.message)
     media.value = []
   } finally {
     loading.value = false
@@ -307,19 +310,19 @@ function validateForm() {
   let valid = true
 
   if (!form.name.trim()) {
-    errors.name = '请输入媒介名称'
+    errors.name = t('notify.medium.error.nameRequired')
     valid = false
   }
   if (!form.type) {
-    errors.type = '请选择媒介类型'
+    errors.type = t('notify.medium.error.typeRequired')
     valid = false
   }
   if (form.type === 'webhook' && !form.webhookUrl.trim()) {
-    errors.webhookUrl = '请输入回调地址'
+    errors.webhookUrl = t('notify.medium.error.webhookUrlRequired')
     valid = false
   }
   if (form.type === 'dingtalk' && !form.dingWebhook.trim()) {
-    errors.dingWebhook = '请输入机器人 Webhook 地址'
+    errors.dingWebhook = t('notify.medium.error.dingWebhookRequired')
     valid = false
   }
 
@@ -357,7 +360,7 @@ async function saveMedia() {
     closeModal()
     await loadData()
   } catch (err) {
-    alert((isEdit.value ? '更新' : '新建') + '失败：' + err.message)
+    alert((isEdit.value ? t('notify.medium.error.updateFailed') : t('notify.medium.error.createFailed')) + err.message)
     saving.value = false
   }
 }
@@ -367,7 +370,7 @@ const defaultTestContent = () => {
   const now = new Date()
   const pad = (n) => String(n).padStart(2, '0')
   const ts = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
-  return `【AIOPS】通知媒介「测试」消息，时间：${ts}`
+  return t('notify.medium.defaultTestMessage', { time: ts })
 }
 
 // 测试弹窗状态
@@ -392,7 +395,7 @@ function closeTestModal() {
 async function sendTest() {
   Object.keys(testErrors).forEach(k => delete testErrors[k])
   if (!testForm.content.trim()) {
-    testErrors.content = '请输入测试消息内容'
+    testErrors.content = t('notify.medium.error.testContentRequired')
     return
   }
 
@@ -402,10 +405,10 @@ async function sendTest() {
     await notifyMediaApi.test(m.id, { content: testForm.content.trim() })
     testModalVisible.value = false
     testTarget.value = null
-    alert(`测试消息已发送至「${m.name}」`)
+    alert(t('notify.medium.error.testSent', { name: m.name }))
   } catch (err) {
     // 保留弹窗内容，方便修改后重发
-    alert(`「${m.name}」测试失败：${err.message}`)
+    alert(t('notify.medium.error.testFailed', { name: m.name, message: err.message }))
   } finally {
     testingId.value = ''
   }
@@ -419,17 +422,17 @@ async function toggleEnabled(m) {
       media.value[idx] = result
     }
   } catch (err) {
-    alert('切换状态失败：' + err.message)
+    alert(t('notify.medium.error.toggleFailed') + err.message)
   }
 }
 
 async function deleteMedia(m) {
-  if (!confirm(`确定要删除媒介"${m.name}"吗？`)) return
+  if (!confirm(t('notify.medium.error.confirmDelete', { name: m.name }))) return
   try {
     await notifyMediaApi.remove(m.id)
     await loadData()
   } catch (err) {
-    alert('删除失败：' + err.message)
+    alert(t('notify.medium.error.deleteFailed') + err.message)
   }
 }
 

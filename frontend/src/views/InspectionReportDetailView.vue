@@ -1,12 +1,12 @@
 <template>
   <div>
-    <PageHeader :title="report.title || '加载中...'" :desc="reportDesc">
-      <RouterLink to="/inspection/reports" class="btn">返回列表</RouterLink>
+    <PageHeader :title="report.title || $t('inspection.detail.loading')" :desc="reportDesc">
+      <RouterLink to="/inspection/reports" class="btn">{{ $t('inspection.detail.back') }}</RouterLink>
     </PageHeader>
 
     <div v-if="report.id" class="score-banner" :class="scoreClass(report.score)">
       <div>
-        <b>综合评分</b>
+        <b>{{ $t('inspection.detail.overallScore') }}</b>
         <span class="score-value">{{ report.score }}</span>
       </div>
       <p>{{ report.summary }}</p>
@@ -17,7 +17,7 @@
     </div>
 
     <div v-if="report.error" class="card error-box">
-      <b style="color: var(--c-danger);">生成失败</b>
+      <b style="color: var(--c-danger);">{{ $t('inspection.detail.generateFailed') }}</b>
       <p>{{ report.error }}</p>
     </div>
   </div>
@@ -26,6 +26,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../components/PageHeader.vue'
 import MarkdownContent from '../components/MarkdownContent.vue'
 import { getReport } from '../api/inspection.js'
@@ -33,11 +34,13 @@ import { getReport } from '../api/inspection.js'
 const route = useRoute()
 const report = ref({})
 
+const { t } = useI18n({ useScope: 'global' })
+
 onMounted(async () => {
   try {
     report.value = await getReport(route.params.id)
   } catch (e) {
-    alert('加载报告失败: ' + e.message)
+    alert(t('inspection.detail.loadFailed') + e.message)
   }
 })
 
@@ -46,7 +49,11 @@ const reportDesc = computed(() => {
   const date = report.value.created_at
     ? new Date(report.value.created_at).toLocaleString('zh-CN')
     : '-'
-  return `来源：${report.value.task_name || '-'} · 生成时间：${date} · 综合评分：${report.value.score} 分`
+  return t('inspection.detail.desc', {
+    task: report.value.task_name || '-',
+    date,
+    score: report.value.score
+  })
 })
 
 const scoreClass = (score) => {

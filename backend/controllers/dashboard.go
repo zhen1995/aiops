@@ -131,7 +131,8 @@ func (c *DashboardController) buildKPI(start, end time.Time) dashboardKPI {
 	yesterdayAlerts := c.countAlertEvents(yesterdayStart, yesterdayEnd)
 	kpi.AnomalyToday = todayAlerts
 	kpi.AnomalyDelta = todayAlerts - yesterdayAlerts
-	kpi.ActiveAlertsDeltaPct = pctChange(float64(todayAlerts), float64(yesterdayAlerts))
+	// 活动告警「较昨日变化」：对比 24 小时前的未恢复告警快照
+	kpi.ActiveAlertsDeltaPct = round1(pctChange(float64(kpi.ActiveAlerts), float64(c.countActiveAt(yesterdayEnd))))
 
 	// 降噪压缩率：今日 records / (alert 事件 + records)
 	todayRecords := c.countDenoiseRecords(dayStart, now)
@@ -154,6 +155,16 @@ func (c *DashboardController) countAlertEvents(start, end time.Time) int64 {
 	var n int64
 	c.DB.Model(&models.AlertEvent{}).
 		Where("type = ? AND trigger_time >= ? AND trigger_time < ?", models.AlertEventTypeAlert, start, end).
+		Count(&n)
+	return n
+}
+
+// countActiveAt 统计指定时间点处于未恢复状态的告警事件数（触发于该时点之前且当时尚未恢复）
+func (c *DashboardController) countActiveAt(t time.Time) int64 {
+	var n int64
+	c.DB.Model(&models.AlertEvent{}).
+		Where("type = ? AND trigger_time < ? AND (recovered_at IS NULL OR recovered_at > ?)",
+			models.AlertEventTypeAlert, t, t).
 		Count(&n)
 	return n
 }

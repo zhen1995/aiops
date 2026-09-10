@@ -1,6 +1,6 @@
 <template>
   <div>
-    <PageHeader title="用户管理" desc="维护平台用户账号信息">
+    <PageHeader :title="$t('org.user.title')" :desc="$t('org.user.desc')">
       <div class="header-actions">
         <div class="search-box">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -9,35 +9,35 @@
           <input
             v-model="searchKeyword"
             type="text"
-            placeholder="搜索用户名或姓名"
+            :placeholder="$t('org.user.searchPlaceholder')"
             @keyup.enter="loadData"
           />
           <button v-if="searchKeyword" class="clear-btn" @click="clearSearch">×</button>
         </div>
-        <button class="btn btn-primary" @click="openCreateModal" :disabled="loading">+ 新增用户</button>
+        <button class="btn btn-primary" @click="openCreateModal" :disabled="loading">{{ $t('org.user.addUser') }}</button>
       </div>
     </PageHeader>
 
     <div class="card">
       <div class="card-head-flex">
         <div>
-          <h3 class="card-title">用户列表</h3>
-          <p class="card-sub">平台全部账号信息</p>
+          <h3 class="card-title">{{ $t('org.user.listTitle') }}</h3>
+          <p class="card-sub">{{ $t('org.user.listSub') }}</p>
         </div>
         <button class="btn btn-sm" @click="loadData" :disabled="loading">
-          {{ loading ? '加载中...' : '刷新' }}
+          {{ loading ? $t('org.user.loading') : $t('org.user.refresh') }}
         </button>
       </div>
       <table class="table">
         <thead>
           <tr>
-            <th>用户名</th>
-            <th>姓名</th>
-            <th>角色</th>
-            <th>创建时间</th>
-            <th>更新时间</th>
-            <th>状态</th>
-            <th>操作</th>
+            <th>{{ $t('org.user.table.username') }}</th>
+            <th>{{ $t('org.user.table.name') }}</th>
+            <th>{{ $t('org.user.table.roles') }}</th>
+            <th>{{ $t('org.user.table.createdAt') }}</th>
+            <th>{{ $t('org.user.table.updatedAt') }}</th>
+            <th>{{ $t('org.user.table.status') }}</th>
+            <th>{{ $t('org.user.table.actions') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -52,22 +52,22 @@
             <td class="muted">{{ formatTime(u.update_at) }}</td>
             <td>
               <LevelTag :level="isDeleted(u) ? 'info' : 'running'">
-                {{ isDeleted(u) ? '已删除' : '正常' }}
+                {{ isDeleted(u) ? $t('org.user.statusDeleted') : $t('org.user.statusNormal') }}
               </LevelTag>
             </td>
             <td>
               <div class="ops">
-                <button class="btn btn-sm" @click="openEditModal(u)">编辑</button>
-                <button class="btn btn-sm" @click="openResetPwdModal(u)">重置密码</button>
-                <button class="btn btn-sm btn-danger" @click="deleteUser(u)">删除</button>
+                <button class="btn btn-sm" @click="openEditModal(u)">{{ $t('org.user.edit') }}</button>
+                <button class="btn btn-sm" @click="openResetPwdModal(u)">{{ $t('org.user.resetPassword') }}</button>
+                <button class="btn btn-sm btn-danger" @click="deleteUser(u)">{{ $t('org.user.delete') }}</button>
               </div>
             </td>
           </tr>
           <tr v-if="!loading && users.length === 0">
-            <td colspan="7" class="empty-row">暂无用户数据，请点击"新增用户"添加</td>
+            <td colspan="7" class="empty-row">{{ $t('org.user.empty') }}</td>
           </tr>
           <tr v-if="loading">
-            <td colspan="7" class="empty-row">加载中...</td>
+            <td colspan="7" class="empty-row">{{ $t('org.user.loading') }}</td>
           </tr>
         </tbody>
       </table>
@@ -77,16 +77,16 @@
     <div v-if="modalVisible" class="modal-mask" @click.self="closeModal">
       <div class="modal">
         <div class="modal-header">
-          <h3>{{ isEdit ? '编辑用户' : '新增用户' }}</h3>
+          <h3>{{ isEdit ? $t('org.user.modal.editTitle') : $t('org.user.modal.createTitle') }}</h3>
           <span class="modal-close" @click="closeModal">×</span>
         </div>
         <div class="modal-body">
           <div class="form-item">
-            <label class="form-label required">用户名</label>
+            <label class="form-label required">{{ $t('org.user.modal.username') }}</label>
             <input
               v-model="form.username"
               class="form-input"
-              placeholder="请输入用户名"
+              :placeholder="$t('org.user.modal.usernamePlaceholder')"
               :disabled="isEdit"
               maxlength="30"
             />
@@ -94,37 +94,37 @@
           </div>
 
           <div v-if="!isEdit" class="form-item">
-            <label class="form-label required">密码</label>
+            <label class="form-label required">{{ $t('org.user.modal.password') }}</label>
             <div class="input-with-action">
               <input
                 v-model="form.password"
                 class="form-input"
                 :type="showPassword ? 'text' : 'password'"
-                placeholder="请输入初始密码"
+                :placeholder="$t('org.user.modal.passwordPlaceholder')"
                 maxlength="30"
               />
               <span class="input-action" @click="showPassword = !showPassword">
-                {{ showPassword ? '隐藏' : '显示' }}
+                {{ showPassword ? $t('org.user.modal.hide') : $t('org.user.modal.show') }}
               </span>
             </div>
             <span v-if="errors.password" class="form-error">{{ errors.password }}</span>
           </div>
 
           <div class="form-item">
-            <label class="form-label required">姓名</label>
+            <label class="form-label required">{{ $t('org.user.modal.name') }}</label>
             <input
               v-model="form.name"
               class="form-input"
-              placeholder="请输入姓名"
+              :placeholder="$t('org.user.modal.namePlaceholder')"
               maxlength="10"
             />
             <span v-if="errors.name" class="form-error">{{ errors.name }}</span>
           </div>
 
           <div class="form-item">
-            <label class="form-label">角色</label>
-            <div v-if="!rolesLoading && roleOptions.length === 0" class="muted" style="font-size: 12px;">暂无角色，请先到角色管理创建</div>
-            <div v-else-if="rolesLoading" class="muted" style="font-size: 12px;">加载角色列表中...</div>
+            <label class="form-label">{{ $t('org.user.modal.roles') }}</label>
+            <div v-if="!rolesLoading && roleOptions.length === 0" class="muted" style="font-size: 12px;">{{ $t('org.user.modal.noRoles') }}</div>
+            <div v-else-if="rolesLoading" class="muted" style="font-size: 12px;">{{ $t('org.user.modal.loadingRoles') }}</div>
             <div v-else class="role-select">
               <label v-for="role in roleOptions" :key="role.id" class="role-option">
                 <input
@@ -138,9 +138,9 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn" @click="closeModal" :disabled="saving">取消</button>
+          <button class="btn" @click="closeModal" :disabled="saving">{{ $t('org.user.modal.cancel') }}</button>
           <button class="btn btn-primary" @click="saveUser" :disabled="saving">
-            {{ saving ? '保存中...' : '保存' }}
+            {{ saving ? $t('org.user.modal.saving') : $t('org.user.modal.save') }}
           </button>
         </div>
       </div>
@@ -150,44 +150,44 @@
     <div v-if="resetPwdVisible" class="modal-mask" @click.self="closeResetPwdModal">
       <div class="modal">
         <div class="modal-header">
-          <h3>重置密码</h3>
+          <h3>{{ $t('org.user.resetPwd.title') }}</h3>
           <span class="modal-close" @click="closeResetPwdModal">×</span>
         </div>
         <div class="modal-body">
-          <p class="form-tip">正在为用户 <b>{{ resetPwdUser?.username }}</b> 重置密码</p>
+          <p class="form-tip">{{ $t('org.user.resetPwd.tipPrefix') }} <b>{{ resetPwdUser?.username }}</b> {{ $t('org.user.resetPwd.tipSuffix') }}</p>
           <div class="form-item">
-            <label class="form-label required">新密码</label>
+            <label class="form-label required">{{ $t('org.user.resetPwd.newPassword') }}</label>
             <div class="input-with-action">
               <input
                 v-model="resetPwdForm.password"
                 class="form-input"
                 :type="resetPwdShowPassword ? 'text' : 'password'"
-                placeholder="请输入新密码"
+                :placeholder="$t('org.user.resetPwd.newPasswordPlaceholder')"
                 maxlength="30"
               />
               <span class="input-action" @click="resetPwdShowPassword = !resetPwdShowPassword">
-                {{ resetPwdShowPassword ? '隐藏' : '显示' }}
+                {{ resetPwdShowPassword ? $t('org.user.modal.hide') : $t('org.user.modal.show') }}
               </span>
             </div>
             <span v-if="resetPwdErrors.password" class="form-error">{{ resetPwdErrors.password }}</span>
           </div>
           <div class="form-item">
-            <label class="form-label required">确认密码</label>
+            <label class="form-label required">{{ $t('org.user.resetPwd.confirmPassword') }}</label>
             <div class="input-with-action">
               <input
                 v-model="resetPwdForm.confirmPassword"
                 class="form-input"
                 :type="resetPwdShowPassword ? 'text' : 'password'"
-                placeholder="请再次输入新密码"
+                :placeholder="$t('org.user.resetPwd.confirmPasswordPlaceholder')"
                 maxlength="30"
               />
             </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn" @click="closeResetPwdModal" :disabled="resetPwdSaving">取消</button>
+          <button class="btn" @click="closeResetPwdModal" :disabled="resetPwdSaving">{{ $t('org.user.modal.cancel') }}</button>
           <button class="btn btn-primary" @click="submitResetPwd" :disabled="resetPwdSaving">
-            {{ resetPwdSaving ? '提交中...' : '确认重置' }}
+            {{ resetPwdSaving ? $t('org.user.resetPwd.submitting') : $t('org.user.resetPwd.confirm') }}
           </button>
         </div>
       </div>
@@ -197,10 +197,13 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../../components/PageHeader.vue'
 import LevelTag from '../../components/LevelTag.vue'
 import { userApi } from '../../api/user.js'
 import { roleApi } from '../../api/role.js'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 数据
 const users = ref([])
@@ -270,7 +273,7 @@ async function loadData() {
     const data = await userApi.list(searchKeyword.value.trim())
     users.value = data || []
   } catch (err) {
-    alert('加载用户列表失败：' + err.message)
+    alert(t('org.user.loadFailed') + err.message)
     users.value = []
   } finally {
     loading.value = false
@@ -333,31 +336,31 @@ function validateForm() {
   let valid = true
 
   if (!form.username.trim()) {
-    errors.username = '请输入用户名'
+    errors.username = t('org.user.validation.usernameRequired')
     valid = false
   } else if (form.username.length > 30) {
-    errors.username = '用户名最长 30 个字符'
+    errors.username = t('org.user.validation.usernameMax')
     valid = false
   }
 
   if (!isEdit.value) {
     if (!form.password) {
-      errors.password = '请输入密码'
+      errors.password = t('org.user.validation.passwordRequired')
       valid = false
     } else if (form.password.length < 6) {
-      errors.password = '密码至少 6 位'
+      errors.password = t('org.user.validation.passwordMin')
       valid = false
     } else if (form.password.length > 30) {
-      errors.password = '密码最长 30 个字符'
+      errors.password = t('org.user.validation.passwordMax')
       valid = false
     }
   }
 
   if (!form.name.trim()) {
-    errors.name = '请输入姓名'
+    errors.name = t('org.user.validation.nameRequired')
     valid = false
   } else if (form.name.length > 10) {
-    errors.name = '姓名最长 10 个字符'
+    errors.name = t('org.user.validation.nameMax')
     valid = false
   }
 
@@ -388,7 +391,7 @@ async function saveUser() {
     modalVisible.value = false
     await loadData()
   } catch (err) {
-    alert('保存失败：' + err.message)
+    alert(t('org.user.saveFailed') + err.message)
   } finally {
     saving.value = false
   }
@@ -396,14 +399,14 @@ async function saveUser() {
 
 // 删除
 async function deleteUser(u) {
-  if (!confirm(`确定要删除用户「${u.username}」吗？此操作将进行软删除。`)) return
+  if (!confirm(t('org.user.deleteConfirm', { name: u.username }))) return
 
   try {
     await userApi.remove(u.id)
-    alert('删除成功')
+    alert(t('org.user.deleteSuccess'))
     await loadData()
   } catch (err) {
-    alert('删除失败：' + err.message)
+    alert(t('org.user.deleteFailed') + err.message)
   }
 }
 
@@ -426,25 +429,25 @@ async function submitResetPwd() {
   Object.keys(resetPwdErrors).forEach(k => delete resetPwdErrors[k])
 
   if (!resetPwdForm.password) {
-    resetPwdErrors.password = '请输入新密码'
+    resetPwdErrors.password = t('org.user.resetPwd.newPasswordRequired')
     return
   }
   if (resetPwdForm.password.length < 6) {
-    resetPwdErrors.password = '密码至少 6 位'
+    resetPwdErrors.password = t('org.user.resetPwd.passwordMin')
     return
   }
   if (resetPwdForm.password !== resetPwdForm.confirmPassword) {
-    resetPwdErrors.password = '两次输入的密码不一致'
+    resetPwdErrors.password = t('org.user.resetPwd.mismatch')
     return
   }
 
   resetPwdSaving.value = true
   try {
     await userApi.resetPassword(resetPwdUser.value.id, resetPwdForm.password)
-    alert('密码重置成功')
+    alert(t('org.user.resetPwd.success'))
     resetPwdVisible.value = false
   } catch (err) {
-    alert('重置密码失败：' + err.message)
+    alert(t('org.user.resetPwdFailed') + err.message)
   } finally {
     resetPwdSaving.value = false
   }

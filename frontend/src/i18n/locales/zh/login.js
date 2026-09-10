@@ -1,0 +1,20 @@
+export default {
+  brand: '智能运维平台',
+  welcome: '欢迎登录',
+  welcomeDesc: '请输入您的账号信息',
+  username: '用户名',
+  usernamePlaceholder: '请输入用户名',
+  usernameRequired: '请输入用户名',
+  password: '密码',
+  passwordPlaceholder: '请输入密码',
+  passwordRequired: '请输入密码',
+  show: '显示',
+  hide: '隐藏',
+  rememberMe: '记住我',
+  submit: '登录',
+  loggingIn: '登录中...',
+  failed: '登录失败，请重试',
+  footer: 'AIOPS 智能运维平台 © {year}',
+  chartNormal: '正常',
+  chartAlert: '告警'
+}

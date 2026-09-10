@@ -7,10 +7,10 @@
           <path d="M9 12l2 2 4-4"/>
         </svg>
       </div>
-      <h2>暂无访问权限</h2>
-      <p>您的账号尚未分配任何菜单权限，请联系管理员为您配置角色权限。</p>
+      <h2>{{ $t('common.noPermissionPage.title') }}</h2>
+      <p>{{ $t('common.noPermissionPage.desc') }}</p>
       <div class="actions">
-        <button class="btn-logout" @click="handleLogout">退出登录</button>
+        <button class="btn-logout" @click="handleLogout">{{ $t('common.noPermissionPage.logout') }}</button>
       </div>
     </div>
   </div>

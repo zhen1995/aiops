@@ -3,7 +3,7 @@
     <!-- 左侧会话列表 -->
     <aside class="session-list">
       <div class="session-header">
-        <button class="btn btn-primary" @click="createNewSession">+ 新会话</button>
+        <button class="btn btn-primary" @click="createNewSession">{{ $t('chat.session.newButton') }}</button>
       </div>
       <div class="session-items">
         <div
@@ -14,7 +14,7 @@
           @click="switchSession(session.id)"
         >
           <div class="session-title">{{ session.title }}</div>
-          <div class="session-meta">{{ session.last_msg || '暂无消息' }}</div>
+          <div class="session-meta">{{ session.last_msg || $t('chat.session.noMessage') }}</div>
           <button class="session-delete" @click.stop="removeSession(session.id)">×</button>
         </div>
       </div>
@@ -24,11 +24,11 @@
     <div class="chat-card card">
       <div class="chat-header">
         <div>
-          <h3 class="card-title">AI 运维助手</h3>
-          <p class="card-sub">基于大模型的智能运维问答、告警解读与根因分析</p>
+          <h3 class="card-title">{{ $t('chat.header.title') }}</h3>
+          <p class="card-sub">{{ $t('chat.header.subtitle') }}</p>
         </div>
         <div class="model-selector">
-          <span class="muted">当前模型</span>
+          <span class="muted">{{ $t('chat.header.currentModel') }}</span>
           <span class="model-name">{{ defaultModelName }}</span>
         </div>
       </div>
@@ -42,18 +42,12 @@
         >
           <div class="message-avatar">
             <span v-if="msg.role === 'assistant'">AI</span>
-            <span v-else>我</span>
+            <span v-else>{{ $t('chat.message.userAvatar') }}</span>
           </div>
           <div class="message-body">
             <div class="message-meta">
-              <b>{{ msg.role === 'assistant' ? 'AIOPS 助手' : '运维管理员' }}</b>
+              <b>{{ msg.role === 'assistant' ? $t('chat.message.assistantName') : $t('chat.message.userName') }}</b>
               <span class="muted">{{ fmtTime(msg.created_at) }}</span>
-              <button
-                v-if="msg.role === 'user'"
-                class="copy-btn"
-                :class="{ copied: copyState[idx] }"
-                @click="copyMessage(msg, idx)"
-              >{{ copyState[idx] ? '已复制' : '复制' }}</button>
             </div>
             <div class="message-content">
               <template v-if="isThinkingMessage(msg)">
@@ -63,11 +57,18 @@
                     <span></span>
                     <span></span>
                   </span>
-                  <span class="thinking-text">正在思考中</span>
+                  <span class="thinking-text">{{ $t('chat.message.thinking') }}</span>
                 </span>
               </template>
               <MarkdownContent v-else-if="msg.role === 'assistant'" :content="msg.content" />
               <template v-else>{{ msg.content }}</template>
+            </div>
+            <div v-if="msg.role === 'user'" class="message-actions">
+              <button
+                class="copy-btn"
+                :class="{ copied: copyState[idx] }"
+                @click="copyMessage(msg, idx)"
+              >{{ copyState[idx] ? $t('chat.message.copied') : $t('chat.message.copy') }}</button>
             </div>
           </div>
         </div>
@@ -75,16 +76,16 @@
 
       <div class="chat-input-area">
         <div class="chat-toolbar">
-          <button class="tool-btn" @click="quickAsk('今天有哪些 P0 告警？')">今日 P0 告警</button>
-          <button class="tool-btn" @click="quickAsk('分析一下当前最高优先级的根因')">根因分析</button>
-          <button class="tool-btn" @click="quickAsk('生成今日巡检摘要')">巡检摘要</button>
+          <button class="tool-btn" @click="quickAsk('今天有哪些 P0 告警？')">{{ $t('chat.toolbar.p0Alerts') }}</button>
+          <button class="tool-btn" @click="quickAsk('分析一下当前最高优先级的根因')">{{ $t('chat.toolbar.rootCause') }}</button>
+          <button class="tool-btn" @click="quickAsk('生成今日巡检摘要')">{{ $t('chat.toolbar.inspectionSummary') }}</button>
         </div>
         <div class="chat-input">
           <textarea
             v-model="input"
             rows="2"
             :disabled="isStreaming"
-            placeholder="输入问题，例如：今天系统状态如何？"
+            :placeholder="$t('chat.input.placeholder')"
             @keydown.enter.prevent="send"
           />
           <button
@@ -92,13 +93,13 @@
             class="btn btn-primary send-btn"
             :disabled="!input.trim()"
             @click="send"
-          >发送</button>
+          >{{ $t('chat.input.send') }}</button>
           <button
             v-else
             class="btn btn-danger send-btn"
             @click="abortStreaming"
           >
-            <span class="stop-icon"></span>中止
+            <span class="stop-icon"></span>{{ $t('chat.input.abort') }}
           </button>
         </div>
       </div>
@@ -109,10 +110,13 @@
 <script setup>
 import { ref, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { fmtTime } from '../mock/data'
 import { getSessions, createSession, deleteSession, getMessages, streamChat } from '../api/chat'
 import { llmConfigApi } from '../api/llmConfig'
 import MarkdownContent from '../components/MarkdownContent.vue'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const route = useRoute()
 const router = useRouter()
@@ -124,7 +128,7 @@ const input = ref('')
 const isStreaming = ref(false)
 const isThinking = ref(false)
 const messagesRef = ref(null)
-const defaultModelName = ref('默认模型')
+const defaultModelName = ref(t('chat.header.defaultModel'))
 const currentAssistantIndex = ref(-1)
 const manuallyAborting = ref(false)
 const copyState = ref({})
@@ -166,10 +170,10 @@ async function loadDefaultModelName() {
     if (defaultConfig) {
       defaultModelName.value = defaultConfig.name
     } else {
-      defaultModelName.value = '未配置默认模型'
+      defaultModelName.value = t('chat.header.noDefaultModel')
     }
   } catch (e) {
-    defaultModelName.value = '默认模型'
+    defaultModelName.value = t('chat.header.defaultModel')
   }
 }
 
@@ -207,7 +211,7 @@ async function loadSessions() {
 async function handleCreateSession() {
   resetStreaming()
   try {
-    const data = await createSession('新会话')
+    const data = await createSession(t('chat.session.defaultTitle'))
     sessions.value.unshift(data)
     currentSessionId.value = data.id
     messages.value = []
@@ -267,26 +271,29 @@ function decodeEvent(encoded) {
 }
 
 function buildRcaPrompt(event) {
-  const statusText = event.is_recovered ? '已恢复' : '告警中'
-  const severityText = { 1: 'P1-紧急', 2: 'P2-警告', 3: 'P3-提醒' }[event.severity] || event.severity
+  const statusText = event.is_recovered ? t('chat.rca.statusRecovered') : t('chat.rca.statusFiring')
+  const severityText = {
+    1: t('chat.rca.severityP1'),
+    2: t('chat.rca.severityP2'),
+    3: t('chat.rca.severityP3')
+  }[event.severity] || event.severity
   const timeStr = event.trigger_time ? new Date(event.trigger_time * 1000).toLocaleString() : '-'
-  return `请对以下告警事件进行根因分析：
-- 规则名称：${event.rule_name || '-'}
-- 告警对象：${event.target_ident || '-'}
-- 触发时间：${timeStr}
-- 级别：${severityText}
-- 状态：${statusText}
-- 标签：${event.tags || '-'}
-- 触发值：${event.trigger_value || '-'}
-
-请查询相关 Prometheus 指标和 Elasticsearch 日志，排查宕机原因，并给出根因、证据链和修复建议。`
+  return t('chat.rca.prompt', {
+    ruleName: event.rule_name || '-',
+    targetIdent: event.target_ident || '-',
+    time: timeStr,
+    severity: severityText,
+    status: statusText,
+    tags: event.tags || '-',
+    triggerValue: event.trigger_value || '-'
+  })
 }
 
 async function handleRcaParam() {
   if (route.query.rca !== '1' || !route.query.event) return
   const event = decodeEvent(route.query.event)
   if (!event) {
-    alert('根因分析参数无效')
+    alert(t('chat.rca.invalidParam'))
     clearRcaQuery()
     return
   }
@@ -326,7 +333,7 @@ async function send() {
   let sessionId = currentSessionId.value
   if (!sessionId) {
     try {
-      const data = await createSession('新会话')
+      const data = await createSession(t('chat.session.defaultTitle'))
       sessions.value.unshift(data)
       currentSessionId.value = data.id
       sessionId = data.id
@@ -380,7 +387,7 @@ async function send() {
       isStreaming.value = false
       isThinking.value = false
       currentEventSource = null
-      messages.value[currentAssistantIndex.value].content += '\n[错误：' + err + ']'
+      messages.value[currentAssistantIndex.value].content += t('chat.message.error', { err })
       scrollToBottom()
     }
   })
@@ -398,7 +405,7 @@ function abortStreaming() {
   // 在当前助手消息末尾追加中止标记
   if (currentAssistantIndex.value >= 0 && messages.value[currentAssistantIndex.value]) {
     const msg = messages.value[currentAssistantIndex.value]
-    msg.content += (msg.content ? '\n\n' : '') + '_[已中止]_'
+    msg.content += (msg.content ? '\n\n' : '') + t('chat.message.aborted')
     scrollToBottom()
   }
 
@@ -411,7 +418,6 @@ function abortStreaming() {
 .chat-page {
   display: flex;
   gap: 16px;
-  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -498,7 +504,7 @@ function abortStreaming() {
   flex: 1;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - var(--topbar-h) - 44px);
+  height: calc(100vh - var(--topbar-h) - 54px);
   padding: 0;
   overflow: hidden;
 }
@@ -530,7 +536,7 @@ function abortStreaming() {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
-  background: var(--c-bg);
+  background: var(--c-surface);
 }
 
 .message {
@@ -590,6 +596,13 @@ function abortStreaming() {
 }
 
 .message.user .message-content { background: var(--c-primary-tint); border-color: #cfe6e2; }
+
+.message-actions {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  margin-top: 4px;
+}
 
 .copy-btn {
   border: none;

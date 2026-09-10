@@ -5,6 +5,7 @@ package denoise
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -65,39 +66,46 @@ func (s *DenoiseService) WindowMinutes() int {
 	return cfg.WindowMinutes
 }
 
-// SuppressWindow 时间窗口聚合：同规则同标签的最近一条事件距 now 小于窗口分钟数则拦截
-func (s *DenoiseService) SuppressWindow(ruleID, tags string, now time.Time) bool {
+// SuppressWindow 时间窗口聚合：同规则同标签的最近一条事件距 now 小于窗口分钟数则拦截。
+// 返回 (是否拦截, 拦截原因)；未拦截时原因为空。
+func (s *DenoiseService) SuppressWindow(ruleID, tags string, now time.Time) (bool, string) {
 	if !s.Enabled(models.DenoiseStrategyWindowAggregation) {
-		return false
+		return false, ""
 	}
 	var ev models.AlertEvent
 	err := s.db.Where("rule_id = ? AND tags = ?", ruleID, tags).
 		Order("trigger_time DESC").First(&ev).Error
 	if err != nil {
-		return false
+		return false, ""
 	}
-	return now.Sub(ev.TriggerTime) < time.Duration(s.WindowMinutes())*time.Minute
+	if now.Sub(ev.TriggerTime) < time.Duration(s.WindowMinutes())*time.Minute {
+		reason := fmt.Sprintf("命中时间窗口聚合策略：同规则同标签在 %d 分钟窗口内已有告警事件", s.WindowMinutes())
+		return true, reason
+	}
+	return false, ""
 }
 
-// SuppressTopology 拓扑抑制：告警标签中的 service 对应服务的任一祖先服务当前存在 firing 告警则拦截
-func (s *DenoiseService) SuppressTopology(tags string) bool {
+// SuppressTopology 拓扑抑制：告警标签中的 service 对应服务的任一祖先服务当前存在 firing 告警则拦截。
+// 返回 (是否拦截, 拦截原因)；未拦截时原因为空。
+func (s *DenoiseService) SuppressTopology(tags string) (bool, string) {
 	if !s.Enabled(models.DenoiseStrategyTopologySuppression) {
-		return false
+		return false, ""
 	}
 	svcName := parseTags(tags)["service"]
 	if svcName == "" {
-		return false
+		return false, ""
 	}
 
 	// 按 code 或 name 定位服务
 	var svc models.Service
 	err := s.db.Where("code = ? OR name = ?", svcName, svcName).First(&svc).Error
 	if err != nil {
-		return false
+		return false, ""
 	}
 
 	// 沿 ParentID 上溯收集祖先的 code/name
 	ancestors := make([]string, 0, 4)
+	ancestorNames := make([]string, 0, 4)
 	visited := map[string]bool{svc.ID: true}
 	cur := svc.ParentID
 	for cur != nil && *cur != "" && len(ancestors) < maxAncestors && !visited[*cur] {
@@ -107,10 +115,15 @@ func (s *DenoiseService) SuppressTopology(tags string) bool {
 			break
 		}
 		ancestors = append(ancestors, parent.Code, parent.Name)
+		if parent.Name != "" {
+			ancestorNames = append(ancestorNames, parent.Name)
+		} else if parent.Code != "" {
+			ancestorNames = append(ancestorNames, parent.Code)
+		}
 		cur = parent.ParentID
 	}
 	if len(ancestors) == 0 {
-		return false
+		return false, ""
 	}
 
 	// 任一祖先服务有 firing 告警（其 code/name 出现在某条 firing 事件标签中）则抑制。
@@ -120,9 +133,13 @@ func (s *DenoiseService) SuppressTopology(tags string) bool {
 		Where("type = ? AND status = ?", models.AlertEventTypeAlert, models.AlertEventStatusFiring).
 		Where("("+orLikeClauses("tags", len(ancestors))+")", likeArgs(ancestors)...).
 		Count(&count).Error; err != nil {
-		return false
+		return false, ""
 	}
-	return count > 0
+	if count > 0 {
+		reason := fmt.Sprintf("命中拓扑抑制策略：父服务 %s 存在未恢复告警，级联告警已抑制", strings.Join(ancestorNames, "、"))
+		return true, reason
+	}
+	return false, ""
 }
 
 // orLikeClauses 生成 tags LIKE ? OR tags LIKE ? ... 的参数占位串

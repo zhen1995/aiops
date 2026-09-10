@@ -168,7 +168,8 @@ pytest                             # 运行 Python 测试（venv 见 algorithm/.
 - **对话 Agent**：`GET /api/chat/sessions/:id/stream`（SSE）→ `controllers/chat.go` 组装 `internal/agent.Agent`，通过 Function Calling 循环调用只读数据源工具回答，命中运维数据关键词时强制先查数据源（防幻觉）。
 - **告警评估引擎**：`internal/alerting.Engine` 为每条启用规则按「执行频率」起 Ticker，用 PromQL 即时查询探测；**每条满足条件的时序序列（标签组合）独立计数**：持续命中达到「持续时间」为该序列创建 `alert` 事件（firing，复用同标签未恢复事件防止重启重复告警），持续未命中达到「持续时间」将该序列事件置 `resolved` 并创建 `recovery` 事件；「持续时间」为 0 时表示命中/未命中一次即触发告警/恢复。规则 CRUD/启停/删除实时联动引擎。
 - **告警事件查询**：`GET /api/alert-events?scope=active|history` 查询本地 `alert_events` 表；active = 未恢复，history = 已恢复（含恢复事件）；`DELETE /api/alert-events/:id` 删除单条事件，删除未恢复的告警事件会联动引擎清理对应序列状态（条件仍满足时可重新触发）。不再查询 Nightingale。
-- **告警降噪**：仅实现两种策略——**时间窗口聚合**（默认 5 分钟窗口内同 rule_id+tags 序列恢复后再次触发视为抖动，拦截不建事件）与**拓扑抑制**（告警 tags 中 `service` 匹配服务后沿 `Service.parent_id` 祖先链上溯，祖先服务存在 firing 告警则判定级联并拦截）。`internal/alerting.Engine.fireLocked` 在建事件前依次执行两策略（经 `Engine.SetDenoise` 注入的 `internal/denoise.DenoiseService`），被拦截的不落 `alert_events`、只写 `denoise_records`（含 strategy/rule/severity/tags）；策略开关与今日统计经 `GET/PUT /api/denoise/policies`、`GET /api/denoise/stats`（`controllers/denoise.go`）管理，启动时种子两条策略。降噪漏斗口径：原始 = 今日 alert_events + denoise_records，逐级扣减后得有效通知。
+- **告警降噪**：仅实现两种策略——**时间窗口聚合**（默认 5 分钟窗口内同 rule_id+tags 序列恢复后再次触发视为抖动，拦截不建事件）与**拓扑抑制**（告警 tags 中 `service` 匹配服务后沿 `Service.parent_id` 祖先链上溯，祖先服务存在 firing 告警则判定级联并拦截）。`internal/alerting.Engine.fireLocked` 在建事件前依次执行两策略（经 `Engine.SetDenoise` 注入的 `internal/denoise.DenoiseService`，两方法返回 `(bool, reason)` 供通知记录展示拦截原因），被拦截的不落 `alert_events`、只写 `denoise_records`（含 strategy/rule/severity/tags）；策略开关与今日统计经 `GET/PUT /api/denoise/policies`、`GET /api/denoise/stats`（`controllers/denoise.go`）管理，启动时种子两条策略。降噪漏斗口径：原始 = 今日 alert_events + denoise_records，逐级扣减后得有效通知。
+- **通知记录**：每次告警通知的完整轨迹统一落 `notify_records` 表（`models/notify_record.go`）：引擎 `fireLocked` 在「被降噪拦截」（status=intercepted，strategy+reason）与「规则未配通知规则」（status=skipped）两个出口写记录；`dispatch` 通知链路各环节（通知规则/触发类型/级别过滤/媒介模板不匹配 → skipped，渲染或发送出错 → failed，成功 → success 并存渲染正文 content 与通知链路名称）均落记录，写库失败不影响主流程。查询经 `GET /api/notify-records(:id)`（`controllers/notify_record.go`，支持 status/event_type/keyword/start/end 过滤与分页），前端 `/notify/records` 页（`views/notify/NotifyRecordView.vue`）列表 + 详情弹窗（拦截原因高亮展示）。注意：功能上线前的历史通知无记录。
 - **总览大盘**：`GET /api/dashboard/overview?hours=24` 或 `?start=&end=`（`controllers/dashboard.go`）汇总 KPI（活动告警/今日异常检测/告警压缩率/平均 MTTR，含较昨日或上一时段变化）、原始 vs 降噪后分桶趋势（alert_events + denoise_records）、告警级别分布、服务健康度（score = 100 − 20×该服务 firing 数 − 未验证 10）与最新高危告警；前端 `Dashboard.vue` 支持近 24 小时/自定义范围切换。
 - **全局搜索**：`GET /api/search?q=&limit=`（`controllers/search.go`）聚合搜索 services / alert_events / alert_rules / kb_document（title 键映射自 name 字段）四类对象，参数化 LIKE + `ESCAPE '!'` 转义，单类失败返回空数组不影响整体；前端 `components/GlobalSearchBox.vue`（AppLayout 顶栏）防抖搜索 + 分组下拉（菜单/页面本地路由匹配 → 服务 → 告警事件 → 告警规则 → 知识库文档）+ 键盘导航 + 最近搜索（localStorage），落地跳转约定：`/services?highlight=<id>`（滚动高亮）、`/alerts/events?q=`（服务端过滤）、`/alert-rules?q=`（客户端过滤）、`/knowledge-base?doc=<id>&q=`（过滤+高亮）、`/chat?q=`（代填发送）。
 - **巡检**：`internal/inspection.Scheduler`（robfig/cron，支持 5/6 段表达式）定时触发 `Executor`，通过公共 Agent 生成 Markdown 报告并落库，按任务配置的通知媒介推送（钉钉/Webhook）。
@@ -194,8 +195,9 @@ pytest                             # 运行 Python 测试（venv 见 algorithm/.
 - 所有页面在 `src/views/` 下，按模块分子目录（如 `ai-config/`、`notification/`、`org/`）。
 - 业务请求统一走 `src/api/`（基于 `request.js` 的 `createRequest(baseURL)`），不要在视图里裸写 fetch。
 - 共享组件在 `src/components/`；样式统一使用 `src/styles/theme.css` 中的 CSS 变量，禁止硬编码颜色。
-- 路由使用 `createWebHashHistory`，默认重定向到 `/chat`；页面标题通过路由 `meta.title` 驱动。
+- 路由使用 `createWebHashHistory`，默认重定向到 `/chat`；页面标题通过路由 `meta.title` 驱动（meta.title 为 i18n 键，如 `layout.menu.dashboard`）。
 - 新页面若后端接口未就绪，可临时使用 `src/mock/data.js`，接入真实接口后移除 Mock 依赖。
+- **国际化（i18n）**：全站用户可见文本经 vue-i18n（`legacy:false`、`globalInjection:true`）输出，禁止在模板/脚本里硬编码界面文案。语言文件按模块命名空间放在 `src/i18n/locales/{zh,en}/<ns>.js`（如 `alert`、`notify`、`dashboard`），路由菜单等公共键在 `layout`/`common`/`login`。模板用 `$t('ns.key')`，`<script setup>` 用 `const { t } = useI18n({ useScope: 'global' })`；ECharts 配置等需包成 `computed` 以响应语言切换。语言切换组件为 `src/components/LangSwitch.vue`（顶栏与登录页均已嵌入），选择持久化在 localStorage `aiops_locale`。新增页面时需同步在 zh/en 两个语言文件中补键（zh 值为中文原文）。
 
 ---
 
@@ -232,7 +234,7 @@ pytest                             # 运行 Python 测试（venv 见 algorithm/.
 
 ## 开发注意事项
 
-1. **前后端已联调**：登录、对话、LLM 配置、数据源、服务注册、告警规则、告警事件、告警降噪、总览大盘、根因分析、巡检、运维知识库、通知媒介、用户/角色均已接真实 API；仅日志分析仍为 Mock 演示页。
+1. **前后端已联调**：登录、对话、LLM 配置、数据源、服务注册、告警规则、告警事件、告警降噪、通知记录、总览大盘、根因分析、巡检、运维知识库、通知媒介、用户/角色均已接真实 API；仅日志分析仍为 Mock 演示页。
 2. **修改告警规则字段时需同步**：模型（`models/alert_rule.go`）、校验（`controllers/alert_rule.go validateRule`）、评估引擎（`internal/alerting/engine.go`）、前端表单（`AlertRuleView.vue`）四处。
 3. **新增数据源工具**：在 `internal/agent/tools.go` 的 `ToolMap` 注册，Agent system prompt 会自动带上工具说明。
 4. **知识库接口契约需双端同步**：新增/变更知识库接口时，需同时更新 Python 服务端点（`algorithm/app/routers/knowledge.py`）与 Go 客户端（`backend/internal/knowledge/client.go`）的 payload 键名、multipart 字段名及返回结构；Python 侧改动后运行 `cd algorithm && pytest` 验证。
@@ -272,7 +274,9 @@ pytest                             # 运行 Python 测试（venv 见 algorithm/.
 | `frontend/src/views/DenoiseView.vue` | 告警降噪页（KPI/4 级漏斗/2 策略开关卡片） |
 | `frontend/src/views/Dashboard.vue` | 总览大盘页（KPI/原始 vs 降噪趋势/级别分布/服务健康度/最新高危告警，近 24h 与自定义范围） |
 | `frontend/src/api/denoise.js` / `frontend/src/api/dashboard.js` / `frontend/src/api/search.js` | 降噪/大盘/全局搜索接口封装 |
+| `backend/models/notify_record.go` / `backend/controllers/notify_record.go` | 通知记录模型与 REST 接口（`/api/notify-records`，status=success/failed/intercepted/skipped） |
 | `frontend/src/components/GlobalSearchBox.vue` | 顶栏全局搜索组件（分组下拉、键盘导航、最近搜索、问 AI 兜底） |
+| `frontend/src/views/notify/NotifyRecordView.vue` / `frontend/src/api/notifyRecord.js` | 通知记录页（筛选/列表/分页/详情弹窗，拦截原因高亮）与接口封装 |
 | `frontend/src/mock/data.js` | 演示页面 Mock 数据 |
 | `frontend/src/styles/theme.css` | 主题变量 |
 | `docs/AIOPS系统设计文档.md` | 系统架构设计 |
@@ -280,7 +284,9 @@ pytest                             # 运行 Python 测试（venv 见 algorithm/.
 
 ---
 
-*最后更新：2026-09-09 — 服务注册 Prom 关联改为标签选择器：移除 `prom_job`/`level` 字段（旧库列保留不用），新增 `datasource.BuildPromSelector` 与 `POST /api/services/preview-jobs`（预览标签匹配的 job 列表），verify/健康检查/自动发现/Agent 工具全部改为按 `{k="v"}` selector 查询 `count(up{...})`；前端弹窗移除「Prom job 名」「服务等级」并新增「预览 job」按钮，列表「Prom job」列改为「Prom 标签」。*
+*最后更新：2026-09-10 — 告警管理新增「通知记录」子菜单：引擎在告警通知全链路（被降噪拦截/未配通知规则/触发类型或级别过滤/媒介模板问题/渲染或发送失败/发送成功）统一落 `notify_records` 表（`models/notify_record.go`，status=success/failed/intercepted/skipped），降噪服务 `SuppressWindow`/`SuppressTopology` 改为返回 `(bool, reason)` 供拦截原因展示；`GET /api/notify-records(:id)`（`controllers/notify_record.go`）支持 status/event_type/keyword/时间过滤与分页；前端新增 `/notify/records` 页（`views/notify/NotifyRecordView.vue` + `api/notifyRecord.js`），详情弹窗高亮展示拦截策略与原因；权限种子新增「通知记录」（admin 自动补全）。*
+
+*更新：服务注册 Prom 关联改为标签选择器：移除 `prom_job`/`level` 字段（旧库列保留不用），新增 `datasource.BuildPromSelector` 与 `POST /api/services/preview-jobs`（预览标签匹配的 job 列表），verify/健康检查/自动发现/Agent 工具全部改为按 `{k="v"}` selector 查询 `count(up{...})`；前端弹窗移除「Prom job 名」「服务等级」并新增「预览 job」按钮，列表「Prom job」列改为「Prom 标签」。*
 
 *更新：移除服务注册的定时健康检查功能：删除 `internal/servicereg/` 目录与 `Service` 模型的 `health_status`/`health_message`/`last_check_at`/`miss_count` 字段（`last_verified_at` 手动验证保留），`main.go` 不再启动 Checker，`ElasticsearchClient.CountSince` 随检查器一并删除（`Count` 供 verify 保留），服务健康状态仅通过手动 verify 探测。*
 

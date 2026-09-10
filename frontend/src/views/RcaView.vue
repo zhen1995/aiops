@@ -1,9 +1,9 @@
 <template>
   <div>
-    <PageHeader title="根因分析" desc="基于告警事件的自动根因推理 · 附证据链、影响范围与修复建议">
-      <button class="btn" @click="openHistory">历史根因分析</button>
+    <PageHeader :title="$t('rca.header.title')" :desc="$t('rca.header.desc')">
+      <button class="btn" @click="openHistory">{{ $t('rca.header.history') }}</button>
       <button class="btn btn-primary" :disabled="!selected || reanalyzing" @click="reanalyze">
-        {{ reanalyzing ? '触发中...' : '重新分析' }}
+        {{ reanalyzing ? $t('rca.header.triggering') : $t('rca.header.reanalyze') }}
       </button>
     </PageHeader>
 
@@ -22,13 +22,13 @@
         </div>
         <div class="case-target mono muted">{{ item.target_ident || '-' }}</div>
         <div class="case-foot muted">
-          <span>触发时间 {{ fmtTime(item.trigger_time) }}</span>
-          <span>{{ candidateCount(item) }} 个候选根因</span>
+          <span>{{ $t('rca.list.triggerTime', { time: fmtTime(item.trigger_time) }) }}</span>
+          <span>{{ $t('rca.list.candidateCount', { count: candidateCount(item) }) }}</span>
         </div>
       </div>
     </div>
     <div class="card empty-card" v-if="!list.length && !loading">
-      暂无根因分析记录，请先在「告警事件」页对告警发起根因分析
+      {{ $t('rca.list.empty') }}
     </div>
 
     <!-- 详情区 -->
@@ -36,19 +36,19 @@
       <!-- 分析中 -->
       <div class="card running-card" v-if="selected.status === 'running'">
         <div class="running-bar"><i></i></div>
-        <p class="muted">根因分析进行中，正在聚合指标、日志与性能剖析证据，请稍候...</p>
+        <p class="muted">{{ $t('rca.status.runningDesc') }}</p>
       </div>
 
       <!-- 失败 -->
       <div class="card failed-card" v-else-if="selected.status === 'failed'">
-        <div class="failed-title">根因分析失败</div>
-        <p class="failed-error mono">{{ selected.error || '未知错误' }}</p>
+        <div class="failed-title">{{ $t('rca.status.failedTitle') }}</div>
+        <p class="failed-error mono">{{ selected.error || $t('rca.status.unknownError') }}</p>
       </div>
 
       <!-- 成功且有结构化结果 -->
       <template v-else-if="parsedResult">
         <div class="card summary-card" v-if="parsedResult.summary">
-          <div class="sec-title">分析结论</div>
+          <div class="sec-title">{{ $t('rca.detail.summaryTitle') }}</div>
           <p class="summary-text">{{ parsedResult.summary }}</p>
         </div>
 
@@ -58,11 +58,11 @@
               <span class="rank-badge" :class="{ top: rc.rank === 1 }">Rank {{ rc.rank }}</span>
               <div class="rc-entity">
                 <div class="rc-name mono">{{ rc.entity?.name || '-' }}</div>
-                <div class="muted">类型 {{ entityTypeText(rc.entity?.type) }} · 命名空间 {{ rc.entity?.namespace || '-' }}</div>
+                <div class="muted">{{ $t('rca.detail.entityMeta', { type: entityTypeText(rc.entity?.type), namespace: rc.entity?.namespace || '-' }) }}</div>
               </div>
               <div class="rc-conf">
                 <div class="conf-num">{{ Math.round((rc.confidence || 0) * 100) }}<small>%</small></div>
-                <div class="muted">可信度</div>
+                <div class="muted">{{ $t('rca.detail.confidence') }}</div>
               </div>
             </div>
             <div class="progress rc-progress">
@@ -71,7 +71,7 @@
 
             <div class="rc-body">
               <div class="rc-section">
-                <div class="sec-title">证据链</div>
+                <div class="sec-title">{{ $t('rca.detail.evidenceTitle') }}</div>
                 <ul class="evidence-list">
                   <li v-for="(e, i) in rc.evidence || []" :key="i">
                     <span class="ev-index">{{ i + 1 }}</span>{{ e }}
@@ -79,20 +79,20 @@
                 </ul>
               </div>
               <div class="rc-section">
-                <div class="sec-title">影响范围</div>
+                <div class="sec-title">{{ $t('rca.detail.impactTitle') }}</div>
                 <div class="impact">
                   <span v-for="s in rc.impact?.services || []" :key="s" class="svc-tag mono">{{ s }}</span>
                   <span class="muted" v-if="!(rc.impact?.services || []).length">-</span>
                 </div>
                 <div class="impact-foot">
-                  <span class="muted">影响用户：{{ rc.impact?.users || '-' }}</span>
+                  <span class="muted">{{ $t('rca.detail.impactUsers', { users: rc.impact?.users || '-' }) }}</span>
                   <LevelTag :level="impactLevel(rc.impact?.severity)" />
                 </div>
               </div>
             </div>
 
             <div class="rc-section" v-if="(rc.actions || []).length">
-              <div class="sec-title">修复建议</div>
+              <div class="sec-title">{{ $t('rca.detail.actionsTitle') }}</div>
               <ol class="action-list">
                 <li v-for="(act, i) in rc.actions" :key="i">{{ act }}</li>
               </ol>
@@ -103,9 +103,9 @@
 
       <!-- 成功但无结构化结果：回退展示 Markdown 报告 -->
       <div class="card" v-else>
-        <div class="sec-title">分析报告</div>
+        <div class="sec-title">{{ $t('rca.detail.reportTitle') }}</div>
         <MarkdownContent v-if="selected.content" :content="selected.content" />
-        <p class="muted" v-else>分析已完成，但未生成结果内容</p>
+        <p class="muted" v-else>{{ $t('rca.detail.reportEmpty') }}</p>
       </div>
     </template>
 
@@ -113,19 +113,19 @@
     <div v-if="historyVisible" class="modal-mask" @click.self="historyVisible = false">
       <div class="modal">
         <div class="modal-header">
-          <h3>历史根因分析</h3>
+          <h3>{{ $t('rca.history.title') }}</h3>
           <span class="modal-close" @click="historyVisible = false">×</span>
         </div>
         <div class="modal-body">
           <table class="table">
             <thead>
               <tr>
-                <th>标题</th>
-                <th>告警对象</th>
-                <th>触发时间</th>
-                <th>状态</th>
-                <th>候选根因</th>
-                <th>操作</th>
+                <th>{{ $t('rca.history.colTitle') }}</th>
+                <th>{{ $t('rca.history.colTarget') }}</th>
+                <th>{{ $t('rca.history.colTriggerTime') }}</th>
+                <th>{{ $t('rca.history.colStatus') }}</th>
+                <th>{{ $t('rca.history.colCandidates') }}</th>
+                <th>{{ $t('rca.history.colAction') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -138,14 +138,14 @@
                 </td>
                 <td>{{ candidateCount(h) }}</td>
                 <td>
-                  <button class="btn btn-sm btn-primary" @click="viewHistory(h)">查看</button>
+                  <button class="btn btn-sm btn-primary" @click="viewHistory(h)">{{ $t('rca.history.view') }}</button>
                 </td>
               </tr>
               <tr v-if="!historyLoading && !historyList.length">
-                <td colspan="6" class="empty-row">暂无历史根因分析记录</td>
+                <td colspan="6" class="empty-row">{{ $t('rca.history.empty') }}</td>
               </tr>
               <tr v-if="historyLoading">
-                <td colspan="6" class="empty-row">加载中...</td>
+                <td colspan="6" class="empty-row">{{ $t('rca.history.loading') }}</td>
               </tr>
             </tbody>
           </table>
@@ -158,11 +158,13 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../components/PageHeader.vue'
 import LevelTag from '../components/LevelTag.vue'
 import MarkdownContent from '../components/MarkdownContent.vue'
 import { rcaApi } from '../api/rca.js'
 
+const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
 
 const list = ref([])
@@ -178,10 +180,19 @@ const fmtTime = (ts) => {
   return isNaN(d.getTime()) ? '-' : d.toLocaleString('zh-CN')
 }
 
-const entityTypeText = (t) => ({ database: '数据库', service: '服务', host: '主机', middleware: '中间件' }[t] || t || '-')
+const entityTypeText = (type) => ({
+  database: t('rca.entityType.database'),
+  service: t('rca.entityType.service'),
+  host: t('rca.entityType.host'),
+  middleware: t('rca.entityType.middleware'),
+}[type] || type || '-')
 
 const statusLevel = (s) => ({ running: 'running', completed: 'resolved', failed: 'error' }[s] || 'info')
-const statusText = (s) => ({ running: '分析中', completed: '已完成', failed: '失败' }[s] || s || '-')
+const statusText = (s) => ({
+  running: t('rca.status.running'),
+  completed: t('rca.status.completed'),
+  failed: t('rca.status.failed'),
+}[s] || s || '-')
 
 // 影响级别映射：p0~p2 直出，none/空 归为提示
 const impactLevel = (s) => {
@@ -243,7 +254,7 @@ function startPolling(id) {
       if (data.status !== 'running') stopPolling()
     } catch (err) {
       stopPolling()
-      alert('查询根因分析进度失败：' + err.message)
+      alert(t('rca.errors.pollFailed', { msg: err.message }))
     }
   }, POLL_INTERVAL)
 }
@@ -254,7 +265,7 @@ async function selectAnalysis(item) {
     const data = await refreshDetail(item.id)
     if (data.status === 'running') startPolling(data.id)
   } catch (err) {
-    alert('加载根因分析详情失败：' + err.message)
+    alert(t('rca.errors.loadDetailFailed', { msg: err.message }))
   }
 }
 
@@ -264,7 +275,7 @@ async function loadList(alertEventId = '', limit = 10) {
     const result = await rcaApi.list({ alert_event_id: alertEventId, page: 1, limit })
     list.value = result?.list || []
   } catch (err) {
-    alert('加载根因分析历史失败：' + err.message)
+    alert(t('rca.errors.loadListFailed', { msg: err.message }))
     list.value = []
   } finally {
     loading.value = false
@@ -283,7 +294,7 @@ async function openHistory() {
     const result = await rcaApi.list({ page: 1, limit: 200 })
     historyList.value = result?.list || []
   } catch (err) {
-    alert('加载历史根因分析失败：' + err.message)
+    alert(t('rca.errors.loadHistoryFailed', { msg: err.message }))
     historyList.value = []
   } finally {
     historyLoading.value = false
@@ -307,7 +318,7 @@ async function reanalyze() {
       || list.value.find((x) => x.alert_event_id === selected.value.alert_event_id)
     if (target) selectAnalysis(target)
   } catch (err) {
-    alert('触发根因分析失败：' + err.message)
+    alert(t('rca.errors.triggerFailed', { msg: err.message }))
   } finally {
     reanalyzing.value = false
   }

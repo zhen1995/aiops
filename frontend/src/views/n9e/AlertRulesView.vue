@@ -1,7 +1,7 @@
 <template>
   <div>
-    <PageHeader title="夜莺告警规则" desc="从夜莺引擎同步展示的告警规则列表">
-      <button class="btn" @click="load" :disabled="loading">刷新</button>
+    <PageHeader :title="$t('n9e.rules.title')" :desc="$t('n9e.rules.desc')">
+      <button class="btn" @click="load" :disabled="loading">{{ $t('n9e.rules.refresh') }}</button>
     </PageHeader>
 
     <div v-if="message" class="banner" :class="messageType">{{ message }}</div>
@@ -11,12 +11,12 @@
         <thead>
           <tr>
             <th style="width:50px">#</th>
-            <th>规则名称</th>
-            <th style="width:120px">业务组</th>
-            <th style="width:90px">级别</th>
-            <th style="width:100px">持续时长(s)</th>
-            <th>PromQL / 表达式</th>
-            <th style="width:80px">启用</th>
+            <th>{{ $t('n9e.rules.colName') }}</th>
+            <th style="width:120px">{{ $t('n9e.rules.colGroup') }}</th>
+            <th style="width:90px">{{ $t('n9e.rules.colLevel') }}</th>
+            <th style="width:100px">{{ $t('n9e.rules.colDuration') }}</th>
+            <th>{{ $t('n9e.rules.colPromql') }}</th>
+            <th style="width:80px">{{ $t('n9e.rules.colEnabled') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -29,7 +29,7 @@
             <td class="mono" :title="promqlOf(r)">{{ truncate(promqlOf(r), 60) }}</td>
             <td>
               <span class="tag" :class="enabledOf(r) ? 'ok' : 'off'">
-                {{ enabledOf(r) ? '是' : '否' }}
+                {{ $t(enabledOf(r) ? 'n9e.rules.yes' : 'n9e.rules.no') }}
               </span>
             </td>
           </tr>
@@ -37,16 +37,19 @@
       </table>
     </div>
     <div v-else-if="!loading" class="empty-card">
-      <p class="empty-title">暂无告警规则</p>
-      <p class="empty-sub">请确认已在「引擎配置」中启用夜莺引擎，且夜莺侧已配置告警规则</p>
+      <p class="empty-title">{{ $t('n9e.rules.emptyTitle') }}</p>
+      <p class="empty-sub">{{ $t('n9e.rules.emptySub') }}</p>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../../components/PageHeader.vue'
 import { n9eApi } from '../../api/n9e.js'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const loading = ref(false)
 const rules = ref([])
@@ -131,12 +134,12 @@ function severityOf(r) {
   // 夜莺 severities 数组是每个 query 的级别：1=P3, 2=P2, 3=P1
   if (Array.isArray(r.severities) && r.severities.length > 0) {
     const lv = r.severities[0]
-    return { 1: 'P3-提醒', 2: 'P2-警告', 3: 'P1-紧急' }[lv] ?? `P${lv}`
+    return { 1: t('n9e.rules.severityP3'), 2: t('n9e.rules.severityP2'), 3: t('n9e.rules.severityP1') }[lv] ?? `P${lv}`
   }
   const lv = r.severity
   if (lv === undefined || lv === null) return '-'
   if (typeof lv === 'number') {
-    return { 0: 'P3-提醒', 1: 'P2-警告', 2: 'P1-紧急' }[lv] ?? `P${lv}`
+    return { 0: t('n9e.rules.severityP3'), 1: t('n9e.rules.severityP2'), 2: t('n9e.rules.severityP1') }[lv] ?? `P${lv}`
   }
   return String(lv)
 }

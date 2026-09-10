@@ -6,7 +6,7 @@
       </svg>
       <input
         v-model="keyword"
-        placeholder="搜索服务 / 告警 / 事件…"
+        :placeholder="$t('common.search.placeholder')"
         @focus="onFocus"
         @keydown="onKeydown"
       />
@@ -18,8 +18,8 @@
       <template v-if="!keyword.trim()">
         <div v-if="recents.length" class="gs-section">
           <div class="gs-sec-head">
-            <span>最近搜索</span>
-            <button class="gs-link-btn" @click="clearRecents">清空</button>
+            <span>{{ $t('common.search.recent') }}</span>
+            <button class="gs-link-btn" @click="clearRecents">{{ $t('common.search.clear') }}</button>
           </div>
           <div class="gs-recent-list">
             <span v-for="(r, i) in recents" :key="r + i" class="gs-chip" @click="applyRecent(r)">
@@ -29,7 +29,7 @@
           </div>
         </div>
         <div class="gs-section">
-          <div class="gs-sec-head"><span>快捷入口</span></div>
+          <div class="gs-sec-head"><span>{{ $t('common.search.quick') }}</span></div>
           <div
             v-for="item in quickEntries"
             :key="item.label"
@@ -38,13 +38,13 @@
           >
             <span class="gs-icon gs-icon-quick" v-html="item.icon"></span>
             <span class="gs-main">{{ item.label }}</span>
-            <span class="gs-sub">快捷入口</span>
+            <span class="gs-sub">{{ $t('common.search.quick') }}</span>
           </div>
         </div>
       </template>
 
       <!-- 搜索中 -->
-      <div v-else-if="searching" class="gs-empty">搜索中...</div>
+      <div v-else-if="searching" class="gs-empty">{{ $t('common.search.searching') }}</div>
 
       <!-- 搜索结果 -->
       <template v-else-if="resultGroups.length">
@@ -68,26 +68,26 @@
               <span v-if="item.type === 'alert'" class="gs-tags">
                 <LevelTag :level="item.severityLevel">{{ item.severityText }}</LevelTag>
                 <LevelTag :level="item.status === 'firing' ? 'active' : 'resolved'">
-                  {{ item.status === 'firing' ? '告警中' : '已恢复' }}
+                  {{ item.status === 'firing' ? $t('common.search.firing') : $t('common.search.resolved') }}
                 </LevelTag>
                 <span class="gs-time">{{ relTime(item.triggerTime) }}</span>
               </span>
             </span>
           </div>
           <div v-if="g.more" class="gs-more" @click="openGroupAll(g)">
-            查看全部{{ g.label }} →
+            {{ $t('common.search.viewAll', { label: g.label }) }}
           </div>
         </div>
-        <div class="gs-foot">↑↓ 选择 · Enter 打开 · Esc 关闭</div>
+        <div class="gs-foot">{{ $t('common.search.footerHint') }}</div>
       </template>
 
       <!-- 无结果 -->
       <template v-else-if="searched">
-        <div class="gs-empty">未找到相关内容</div>
+        <div class="gs-empty">{{ $t('common.search.noResults') }}</div>
         <div class="gs-item gs-ai" @click="askAi">
           <span class="gs-icon gs-icon-ai">AI</span>
-          <span class="gs-main">问 AI：{{ keyword.trim() }}</span>
-          <span class="gs-sub">跳转到对话</span>
+          <span class="gs-main">{{ $t('common.search.askAi', { keyword: keyword.trim() }) }}</span>
+          <span class="gs-sub">{{ $t('common.search.goToChat') }}</span>
         </div>
       </template>
     </div>
@@ -97,10 +97,12 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { searchApi } from '../api/search.js'
 import { getPermissions } from '../utils/auth.js'
 import LevelTag from './LevelTag.vue'
 
+const { t } = useI18n({ useScope: 'global' })
 const router = useRouter()
 
 const RECENT_KEY = 'aiops_recent_searches'
@@ -115,49 +117,49 @@ const results = ref(null)
 const activeIndex = ref(-1)
 const recents = ref(loadRecents())
 
-const quickEntries = [
+const quickEntries = computed(() => [
   {
-    label: '今日 P0 告警',
+    label: t('common.quick.todayP0'),
     path: '/alerts/events',
     icon: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>'
   },
   {
-    label: '根因分析',
+    label: t('common.quick.rca'),
     path: '/rca',
     icon: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>'
   },
   {
-    label: '巡检摘要',
+    label: t('common.quick.inspectionSummary'),
     path: '/inspection/reports',
     icon: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>'
   }
-]
+])
 
-// 可搜索的本地页面（与路由表 title 对应，按权限过滤）
-const allPages = [
-  { title: 'AI 对话', path: '/chat', auth: '对话' },
-  { title: '总览大盘', path: '/dashboard', auth: '总览大盘' },
-  { title: '服务注册', path: '/services', auth: '服务注册' },
-  { title: '告警降噪', path: '/alerts/denoise', auth: '告警降噪' },
-  { title: '告警事件', path: '/alerts/events', auth: '告警事件' },
-  { title: '告警规则', path: '/alert-rules', auth: '告警规则' },
-  { title: '消息模板', path: '/notify/templates', auth: '消息模板' },
-  { title: '通知规则', path: '/notify/rules', auth: '通知规则' },
-  { title: '引擎配置', path: '/n9e/config', auth: '夜莺引擎配置' },
-  { title: '夜莺告警规则', path: '/n9e/alert-rules', auth: '夜莺告警规则' },
-  { title: '夜莺告警事件', path: '/n9e/alert-events', auth: '夜莺告警事件' },
-  { title: '根因分析', path: '/rca', auth: '根因分析' },
-  { title: '日志分析', path: '/logs', auth: '日志分析' },
-  { title: 'LLM 管理', path: '/ai-config/llm', auth: 'LLM 管理' },
-  { title: 'Skill 管理', path: '/ai-config/skill', auth: 'Skill 管理' },
-  { title: '运维知识库', path: '/knowledge-base', auth: '运维知识库' },
-  { title: '巡检任务', path: '/inspection/tasks', auth: '巡检任务' },
-  { title: '巡检报告', path: '/inspection/reports', auth: '巡检报告' },
-  { title: '通知媒介', path: '/notification/medium', auth: '通知媒介' },
-  { title: '用户管理', path: '/org/user', auth: '用户管理' },
-  { title: '角色管理', path: '/org/role', auth: '角色管理' },
-  { title: '数据源接入', path: '/datasource', auth: '数据源接入' }
-]
+// 可搜索的本地页面（auth 为权限名，保持中文不翻译；title 随语言切换）
+const allPages = computed(() => [
+  { title: t('common.pages.aiChat'), path: '/chat', auth: '对话' },
+  { title: t('common.pages.dashboard'), path: '/dashboard', auth: '总览大盘' },
+  { title: t('common.pages.serviceRegistry'), path: '/services', auth: '服务注册' },
+  { title: t('common.pages.alertDenoise'), path: '/alerts/denoise', auth: '告警降噪' },
+  { title: t('common.pages.alertEvents'), path: '/alerts/events', auth: '告警事件' },
+  { title: t('common.pages.alertRules'), path: '/alert-rules', auth: '告警规则' },
+  { title: t('common.pages.messageTemplates'), path: '/notify/templates', auth: '消息模板' },
+  { title: t('common.pages.notifyRules'), path: '/notify/rules', auth: '通知规则' },
+  { title: t('common.pages.engineConfig'), path: '/n9e/config', auth: '夜莺引擎配置' },
+  { title: t('common.pages.n9eAlertRules'), path: '/n9e/alert-rules', auth: '夜莺告警规则' },
+  { title: t('common.pages.n9eAlertEvents'), path: '/n9e/alert-events', auth: '夜莺告警事件' },
+  { title: t('common.pages.rca'), path: '/rca', auth: '根因分析' },
+  { title: t('common.pages.logAnalysis'), path: '/logs', auth: '日志分析' },
+  { title: t('common.pages.llmMgmt'), path: '/ai-config/llm', auth: 'LLM 管理' },
+  { title: t('common.pages.skillMgmt'), path: '/ai-config/skill', auth: 'Skill 管理' },
+  { title: t('common.pages.knowledgeBase'), path: '/knowledge-base', auth: '运维知识库' },
+  { title: t('common.pages.inspectionTasks'), path: '/inspection/tasks', auth: '巡检任务' },
+  { title: t('common.pages.inspectionReports'), path: '/inspection/reports', auth: '巡检报告' },
+  { title: t('common.pages.notifyMedium'), path: '/notification/medium', auth: '通知媒介' },
+  { title: t('common.pages.userMgmt'), path: '/org/user', auth: '用户管理' },
+  { title: t('common.pages.roleMgmt'), path: '/org/role', auth: '角色管理' },
+  { title: t('common.pages.datasource'), path: '/datasource', auth: '数据源接入' }
+])
 
 const severityTextMap = { 1: 'P1', 2: 'P2', 3: 'P3' }
 
@@ -177,31 +179,31 @@ const resultGroups = computed(() => {
 
   const perms = getPermissions() || []
   const lower = kw.toLowerCase()
-  const menuItems = allPages
+  const menuItems = allPages.value
     .filter(p => (!p.auth || perms.includes(p.auth)) && p.title.toLowerCase().includes(lower))
     .slice(0, 5)
     .map(p => ({
       type: 'menu',
       id: p.path,
       titleHtml: hl(p.title),
-      subHtml: '菜单 / 页面',
+      subHtml: t('common.search.menuLabel'),
       path: p.path
     }))
 
   const groups = []
-  if (menuItems.length) groups.push({ type: 'menu', label: '菜单 / 页面', items: menuItems, more: false })
+  if (menuItems.length) groups.push({ type: 'menu', label: t('common.search.menuLabel'), items: menuItems, more: false })
 
   const data = results.value
   if (data.services?.length) {
     groups.push({
       type: 'service',
-      label: '服务',
+      label: t('common.search.serviceLabel'),
       more: false,
       items: data.services.map(s => ({
         type: 'service',
         id: s.id,
         titleHtml: hl(s.matched || s.name),
-        subHtml: s.code ? `${escapeHtml(s.code)} · 服务` : '服务',
+        subHtml: s.code ? `${escapeHtml(s.code)} · ${t('common.search.serviceLabel')}` : t('common.search.serviceLabel'),
         raw: s
       }))
     })
@@ -209,7 +211,7 @@ const resultGroups = computed(() => {
   if (data.alerts?.length) {
     groups.push({
       type: 'alert',
-      label: '告警事件',
+      label: t('common.search.alertLabel'),
       more: data.alerts.length >= 5,
       items: data.alerts.map(a => ({
         type: 'alert',
@@ -227,7 +229,7 @@ const resultGroups = computed(() => {
   if (data.rules?.length) {
     groups.push({
       type: 'rule',
-      label: '告警规则',
+      label: t('common.search.ruleLabel'),
       more: data.rules.length >= 5,
       items: data.rules.map(r => ({
         type: 'rule',
@@ -241,13 +243,13 @@ const resultGroups = computed(() => {
   if (data.documents?.length) {
     groups.push({
       type: 'doc',
-      label: '知识库文档',
+      label: t('common.search.docLabel'),
       more: data.documents.length >= 5,
       items: data.documents.map(d => ({
         type: 'doc',
         id: d.id,
         titleHtml: hl(d.matched || d.title),
-        subHtml: '知识库',
+        subHtml: t('common.search.knowledgeBase'),
         raw: d
       }))
     })
@@ -305,10 +307,10 @@ function relTime(ts) {
   const t = typeof ts === 'number' ? ts * 1000 : new Date(ts).getTime()
   if (isNaN(t)) return ''
   const diff = Date.now() - t
-  if (diff < 60 * 1000) return '刚刚'
-  if (diff < 3600 * 1000) return Math.floor(diff / 60000) + ' 分钟前'
-  if (diff < 86400 * 1000) return Math.floor(diff / 3600000) + ' 小时前'
-  return Math.floor(diff / 86400000) + ' 天前'
+  if (diff < 60 * 1000) return t('common.search.justNow')
+  if (diff < 3600 * 1000) return t('common.search.minutesAgo', { n: Math.floor(diff / 60000) })
+  if (diff < 86400 * 1000) return t('common.search.hoursAgo', { n: Math.floor(diff / 3600000) })
+  return t('common.search.daysAgo', { n: Math.floor(diff / 86400000) })
 }
 
 // ---------- 最近搜索 ----------

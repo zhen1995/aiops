@@ -1,0 +1,122 @@
+export default {
+  user: {
+    title: 'User Management',
+    desc: 'Manage platform user accounts',
+    searchPlaceholder: 'Search by username or name',
+    addUser: '+ Add User',
+    listTitle: 'User List',
+    listSub: 'All platform accounts',
+    loading: 'Loading...',
+    refresh: 'Refresh',
+    table: {
+      username: 'Username',
+      name: 'Name',
+      roles: 'Roles',
+      createdAt: 'Created At',
+      updatedAt: 'Updated At',
+      status: 'Status',
+      actions: 'Actions'
+    },
+    statusNormal: 'Active',
+    statusDeleted: 'Deleted',
+    edit: 'Edit',
+    resetPassword: 'Reset Password',
+    delete: 'Delete',
+    empty: 'No users yet. Click "Add User" to create one',
+    modal: {
+      createTitle: 'Add User',
+      editTitle: 'Edit User',
+      username: 'Username',
+      usernamePlaceholder: 'Enter username',
+      password: 'Password',
+      passwordPlaceholder: 'Enter initial password',
+      show: 'Show',
+      hide: 'Hide',
+      name: 'Name',
+      namePlaceholder: 'Enter name',
+      roles: 'Roles',
+      noRoles: 'No roles yet. Create one in Role Management first',
+      loadingRoles: 'Loading roles...',
+      cancel: 'Cancel',
+      save: 'Save',
+      saving: 'Saving...'
+    },
+    validation: {
+      usernameRequired: 'Please enter a username',
+      usernameMax: 'Username can be up to 30 characters',
+      passwordRequired: 'Please enter a password',
+      passwordMin: 'Password must be at least 6 characters',
+      passwordMax: 'Password can be up to 30 characters',
+      nameRequired: 'Please enter a name',
+      nameMax: 'Name can be up to 10 characters'
+    },
+    resetPwd: {
+      title: 'Reset Password',
+      tipPrefix: 'Resetting password for user',
+      tipSuffix: '',
+      newPassword: 'New Password',
+      newPasswordPlaceholder: 'Enter new password',
+      confirmPassword: 'Confirm Password',
+      confirmPasswordPlaceholder: 'Enter the new password again',
+      submitting: 'Submitting...',
+      confirm: 'Confirm Reset',
+      newPasswordRequired: 'Please enter a new password',
+      passwordMin: 'Password must be at least 6 characters',
+      mismatch: 'The two passwords do not match',
+      success: 'Password reset successfully'
+    },
+    loadFailed: 'Failed to load user list: ',
+    saveFailed: 'Save failed: ',
+    deleteConfirm: 'Are you sure you want to delete user "{name}"? This is a soft delete.',
+    deleteSuccess: 'Deleted successfully',
+    deleteFailed: 'Delete failed: ',
+    resetPwdFailed: 'Failed to reset password: '
+  },
+  role: {
+    title: 'Role Management',
+    desc: 'Manage platform roles, permission scopes and role members',
+    addRole: '+ Add Role',
+    listTitle: 'Role List',
+    listSub: 'RBAC-based role permission configuration',
+    loading: 'Loading...',
+    refresh: 'Refresh',
+    table: {
+      name: 'Role Name',
+      memberCount: 'Members',
+      permissions: 'Permission Scope',
+      createdAt: 'Created At',
+      actions: 'Actions'
+    },
+    membersUnit: 'members',
+    unassigned: 'Not assigned',
+    edit: 'Edit',
+    permissions: 'Permissions',
+    delete: 'Delete',
+    empty: 'No roles yet. Click "Add Role" to create one',
+    modal: {
+      createTitle: 'Add Role',
+      editTitle: 'Edit Role',
+      name: 'Role Name',
+      namePlaceholder: 'Enter role name',
+      cancel: 'Cancel',
+      save: 'Save',
+      saving: 'Saving...'
+    },
+    validation: {
+      nameRequired: 'Please enter a role name',
+      nameMax: 'Role name can be up to 30 characters'
+    },
+    authModal: {
+      titlePrefix: 'Assign Permissions - ',
+      loadingAuths: 'Loading permissions...',
+      emptyAuths: 'No permissions available'
+    },
+    loadFailed: 'Failed to load role list: ',
+    saveFailed: 'Save failed: ',
+    deleteConfirm: 'Are you sure you want to delete role "{name}"?',
+    deleteSuccess: 'Deleted successfully',
+    deleteFailed: 'Delete failed: ',
+    loadAuthsFailed: 'Failed to load permissions: ',
+    saveAuthsSuccess: 'Permissions saved successfully'
+  }
+}

@@ -9,7 +9,7 @@
         </div>
         <div class="brand-text">
           <h1>AIOPS</h1>
-          <span>智能运维平台</span>
+          <span>{{ $t('login.brand') }}</span>
         </div>
       </div>
       <div class="hero-illustration">
@@ -61,9 +61,9 @@
           <circle cx="420" cy="160" r="5" fill="#fff"/>
           <text x="420" y="224" text-anchor="middle" fill="rgba(255,255,255,0.75)" font-size="12" font-family="inherit">CPU 62%</text>
           <circle cx="380" cy="252" r="4" fill="#5eead4"/>
-          <text x="392" y="256" fill="rgba(255,255,255,0.65)" font-size="11" font-family="inherit">正常</text>
+          <text x="392" y="256" fill="rgba(255,255,255,0.65)" font-size="11" font-family="inherit">{{ $t('login.chartNormal') }}</text>
           <circle cx="444" cy="252" r="4" fill="#fb7185"/>
-          <text x="456" y="256" fill="rgba(255,255,255,0.65)" font-size="11" font-family="inherit">告警</text>
+          <text x="456" y="256" fill="rgba(255,255,255,0.65)" font-size="11" font-family="inherit">{{ $t('login.chartAlert') }}</text>
 
           <!-- 柱状图 -->
           <rect x="90" y="272" width="16" height="24" rx="3" fill="rgba(255,255,255,0.25)"/>
@@ -108,13 +108,13 @@
     <div class="login-right">
       <div class="login-form-wrap">
         <div class="form-header">
-          <h2>欢迎登录</h2>
-          <p>请输入您的账号信息</p>
+          <h2>{{ $t('login.welcome') }}</h2>
+          <p>{{ $t('login.welcomeDesc') }}</p>
         </div>
 
         <form @submit.prevent="handleLogin" class="login-form">
           <div class="form-group">
-            <label>用户名</label>
+            <label>{{ $t('login.username') }}</label>
             <div class="input-wrap">
               <svg class="input-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
@@ -122,7 +122,7 @@
               <input
                 v-model="username"
                 type="text"
-                placeholder="请输入用户名"
+                :placeholder="$t('login.usernamePlaceholder')"
                 autocomplete="username"
                 :disabled="loading"
                 @keyup.enter="handleLogin"
@@ -131,7 +131,7 @@
           </div>
 
           <div class="form-group">
-            <label>密码</label>
+            <label>{{ $t('login.password') }}</label>
             <div class="input-wrap">
               <svg class="input-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
@@ -139,13 +139,13 @@
               <input
                 v-model="password"
                 :type="showPassword ? 'text' : 'password'"
-                placeholder="请输入密码"
+                :placeholder="$t('login.passwordPlaceholder')"
                 autocomplete="current-password"
                 :disabled="loading"
                 @keyup.enter="handleLogin"
               />
               <span class="input-action" @click="showPassword = !showPassword">
-                {{ showPassword ? '隐藏' : '显示' }}
+                {{ $t(showPassword ? 'login.hide' : 'login.show') }}
               </span>
             </div>
           </div>
@@ -153,19 +153,23 @@
           <div class="form-options">
             <label class="remember">
               <input type="checkbox" v-model="rememberMe" />
-              <span>记住我</span>
+              <span>{{ $t('login.rememberMe') }}</span>
             </label>
           </div>
 
           <div v-if="errorMsg" class="error-msg">{{ errorMsg }}</div>
 
           <button type="submit" class="submit-btn" :disabled="loading">
-            {{ loading ? '登录中...' : '登录' }}
+            {{ loading ? $t('login.loggingIn') : $t('login.submit') }}
           </button>
         </form>
 
+        <div class="lang-row">
+          <LangSwitch />
+        </div>
+
         <div class="form-footer">
-          <span>AIOPS 智能运维平台 © 2026</span>
+          <span>{{ $t('login.footer', { year: 2026 }) }}</span>
         </div>
       </div>
     </div>
@@ -175,10 +179,13 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { authApi } from '../api/auth.js'
 import { setAuth } from '../utils/auth.js'
+import LangSwitch from '../components/LangSwitch.vue'
 
 const router = useRouter()
+const { t } = useI18n({ useScope: 'global' })
 
 const username = ref('')
 const password = ref('')
@@ -191,11 +198,11 @@ async function handleLogin() {
   errorMsg.value = ''
 
   if (!username.value.trim()) {
-    errorMsg.value = '请输入用户名'
+    errorMsg.value = t('login.usernameRequired')
     return
   }
   if (!password.value.trim()) {
-    errorMsg.value = '请输入密码'
+    errorMsg.value = t('login.passwordRequired')
     return
   }
 
@@ -205,7 +212,7 @@ async function handleLogin() {
     setAuth(result.token, result.user)
     router.push('/chat')
   } catch (err) {
-    errorMsg.value = err.message || '登录失败，请重试'
+    errorMsg.value = err.message || t('login.failed')
   } finally {
     loading.value = false
   }
@@ -442,6 +449,12 @@ async function handleLogin() {
 .submit-btn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+.lang-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
 }
 
 .form-footer {

@@ -1,38 +1,38 @@
 <template>
   <div>
-    <PageHeader title="告警规则" desc="创建和维护系统内的告警规则，基于 PromQL 表达式触发告警">
-      <button class="btn btn-primary" @click="openCreateModal" :disabled="loading">+ 新增规则</button>
+    <PageHeader :title="$t('alert.rules.title')" :desc="$t('alert.rules.desc')">
+      <button class="btn btn-primary" @click="openCreateModal" :disabled="loading">+ {{ $t('alert.rules.addRule') }}</button>
     </PageHeader>
 
     <div class="card">
       <div class="card-head-flex">
         <div>
-          <h3 class="card-title">规则列表</h3>
-          <p class="card-sub">已配置的告警规则及启用状态</p>
+          <h3 class="card-title">{{ $t('alert.rules.listTitle') }}</h3>
+          <p class="card-sub">{{ $t('alert.rules.listSub') }}</p>
         </div>
         <div style="display: flex; align-items: center; gap: 10px;">
           <span v-if="filterKw" class="filter-tag">
-            关键字：{{ filterKw }}
+            {{ $t('alert.rules.keyword', { kw: filterKw }) }}
             <em @click="filterKw = ''">×</em>
           </span>
           <button class="btn btn-sm" @click="loadData" :disabled="loading">
-            {{ loading ? '加载中...' : '刷新' }}
+            {{ loading ? $t('alert.rules.loading') : $t('alert.rules.refresh') }}
           </button>
         </div>
       </div>
       <table class="table">
         <thead>
           <tr>
-            <th class="col-status">状态</th>
-            <th>规则名称</th>
-            <th>告警级别</th>
+            <th class="col-status">{{ $t('alert.rules.colStatus') }}</th>
+            <th>{{ $t('alert.rules.colRuleName') }}</th>
+            <th>{{ $t('alert.rules.colSeverity') }}</th>
             <th>PromQL</th>
-            <th>执行频率</th>
-            <th>持续时间（秒）</th>
-            <th>通知规则</th>
-            <th>启用状态</th>
-            <th>创建时间</th>
-            <th>操作</th>
+            <th>{{ $t('alert.rules.colEvalInterval') }}</th>
+            <th>{{ $t('alert.rules.colDuration') }}</th>
+            <th>{{ $t('alert.rules.colNotifyRule') }}</th>
+            <th>{{ $t('alert.rules.colEnabled') }}</th>
+            <th>{{ $t('alert.rules.colCreatedAt') }}</th>
+            <th>{{ $t('alert.rules.colActions') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -50,7 +50,7 @@
                       <path d="M12 2L1 21h22L12 2zm0 6l7.53 13H4.47L12 8zm-1 5v4h2v-4h-2zm0 5v2h2v-2h-2z"/>
                     </svg>
                   </span>
-                  <span class="status-badge" :title="'告警中 ' + activeCount(rule.id) + ' 条'">{{ activeCount(rule.id) }}</span>
+                  <span class="status-badge" :title="$t('alert.rules.activeBadge', { count: activeCount(rule.id) })">{{ activeCount(rule.id) }}</span>
                 </template>
                 <template v-else>
                   <span class="status-dot status-ok">
@@ -68,8 +68,8 @@
               </LevelTag>
             </td>
             <td class="mono" :title="rule.prom_ql">{{ rule.prom_ql || '-' }}</td>
-            <td>每 {{ rule.eval_interval }} 秒</td>
-            <td>{{ rule.duration === 0 ? '0（立即）' : rule.duration }}</td>
+            <td>{{ $t('alert.rules.everySeconds', { n: rule.eval_interval }) }}</td>
+            <td>{{ rule.duration === 0 ? $t('alert.rules.durationImmediate') : rule.duration }}</td>
             <td>
               <template v-if="rule.notify_rule_id">
                 <span class="notify-link">{{ (notifyRules.find(nr => nr.id === rule.notify_rule_id) || {}).name || rule.notify_rule_id }}</span>
@@ -78,25 +78,25 @@
             </td>
             <td>
               <LevelTag :level="rule.is_enabled === 1 ? 'running' : 'info'">
-                {{ rule.is_enabled === 1 ? '已启用' : '已停用' }}
+                {{ rule.is_enabled === 1 ? $t('alert.rules.enabledOn') : $t('alert.rules.enabledOff') }}
               </LevelTag>
             </td>
             <td class="muted">{{ fmtTime(rule.created_at) }}</td>
             <td>
               <div class="ops">
-                <button class="btn btn-sm" @click="openEditModal(rule)">编辑</button>
+                <button class="btn btn-sm" @click="openEditModal(rule)">{{ $t('alert.rules.edit') }}</button>
                 <button class="btn btn-sm" :class="rule.is_enabled === 1 ? '' : 'btn-primary'" @click="toggleEnabled(rule)">
-                  {{ rule.is_enabled === 1 ? '停用' : '启用' }}
+                  {{ rule.is_enabled === 1 ? $t('alert.rules.disable') : $t('alert.rules.enable') }}
                 </button>
-                <button class="btn btn-sm btn-danger" @click="deleteRule(rule)">删除</button>
+                <button class="btn btn-sm btn-danger" @click="deleteRule(rule)">{{ $t('alert.rules.delete') }}</button>
               </div>
             </td>
           </tr>
           <tr v-if="!loading && filteredRules.length === 0">
-            <td colspan="10" class="empty-row">{{ filterKw ? '没有匹配关键字的告警规则' : '暂无告警规则，请点击"新增规则"创建' }}</td>
+            <td colspan="10" class="empty-row">{{ filterKw ? $t('alert.rules.emptyNoMatch') : $t('alert.rules.empty') }}</td>
           </tr>
           <tr v-if="loading">
-            <td colspan="10" class="empty-row">加载中...</td>
+            <td colspan="10" class="empty-row">{{ $t('alert.rules.loading') }}</td>
           </tr>
         </tbody>
       </table>
@@ -108,16 +108,16 @@
         <div class="modal-header">
           <h3>
             {{ eventsModal.rule?.name }}
-            <span v-if="eventsModal.list.length > 0" class="title-sub">· 活跃告警 {{ eventsModal.list.length }} 条</span>
-            <span v-else class="title-sub title-ok">· 暂无活跃告警</span>
+            <span v-if="eventsModal.list.length > 0" class="title-sub">{{ $t('alert.rules.eventsActive', { count: eventsModal.list.length }) }}</span>
+            <span v-else class="title-sub title-ok">{{ $t('alert.rules.eventsNone') }}</span>
           </h3>
           <span class="modal-close" @click="eventsModal.visible = false">×</span>
         </div>
         <div class="modal-body events-modal-body">
-          <div v-if="eventsModal.loading" class="empty-inner">加载中...</div>
+          <div v-if="eventsModal.loading" class="empty-inner">{{ $t('alert.rules.loading') }}</div>
           <div v-else-if="eventsModal.list.length === 0" class="empty-inner">
             <div class="empty-icon">✓</div>
-            <div>该规则下当前没有活跃的告警事件</div>
+            <div>{{ $t('alert.rules.eventsEmpty') }}</div>
           </div>
           <div v-else class="events-list">
             <div v-for="ev in eventsModal.list" :key="ev.id" class="event-card">
@@ -127,7 +127,7 @@
                 <span class="event-time">{{ fmtTime(ev.trigger_time) }}</span>
               </div>
               <div class="event-meta">
-                <span class="meta-item">触发值：<b>{{ ev.trigger_value || '-' }}</b></span>
+                <span class="meta-item">{{ $t('alert.rules.triggerValue') }}<b>{{ ev.trigger_value || '-' }}</b></span>
               </div>
               <div v-if="ev.tags" class="event-tags" :title="ev.tags">
                 <span v-for="(tag, idx) in parseTags(ev.tags)" :key="idx" class="tag-chip">{{ tag }}</span>
@@ -142,13 +142,13 @@
     <div v-if="modalVisible" class="modal-mask" @click.self="closeModal">
       <div class="modal">
         <div class="modal-header">
-          <h3>{{ isEdit ? '编辑告警规则' : '新增告警规则' }}</h3>
+          <h3>{{ isEdit ? $t('alert.rules.modal.editTitle') : $t('alert.rules.modal.createTitle') }}</h3>
           <span class="modal-close" @click="closeModal">×</span>
         </div>
         <div class="modal-body">
           <div class="form-item">
-            <label class="form-label required">规则名称</label>
-            <input v-model="form.name" class="form-input" placeholder="例如：CPU 使用率超过 90%" maxlength="128" />
+            <label class="form-label required">{{ $t('alert.rules.form.nameLabel') }}</label>
+            <input v-model="form.name" class="form-input" :placeholder="$t('alert.rules.form.namePlaceholder')" maxlength="128" />
             <span v-if="errors.name" class="form-error">{{ errors.name }}</span>
           </div>
 
@@ -158,69 +158,69 @@
               v-model="form.prom_ql"
               class="form-input form-textarea mono-textarea"
               rows="3"
-              placeholder='例如：100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90'
+              :placeholder="$t('alert.rules.form.promqlPlaceholder')"
             />
             <span v-if="errors.prom_ql" class="form-error">{{ errors.prom_ql }}</span>
           </div>
 
           <div class="form-row">
             <div class="form-item form-item-half">
-              <label class="form-label required">执行频率</label>
+              <label class="form-label required">{{ $t('alert.rules.form.evalIntervalLabel') }}</label>
               <select v-model.number="form.eval_interval" class="form-input">
-                <option :value="15">每 15 秒</option>
-                <option :value="30">每 30 秒</option>
-                <option :value="45">每 45 秒</option>
-                <option :value="60">每 60 秒</option>
-                <option :value="120">每 120 秒</option>
-                <option :value="180">每 180 秒</option>
-                <option :value="300">每 300 秒</option>
+                <option :value="15">{{ $t('alert.rules.everySeconds', { n: 15 }) }}</option>
+                <option :value="30">{{ $t('alert.rules.everySeconds', { n: 30 }) }}</option>
+                <option :value="45">{{ $t('alert.rules.everySeconds', { n: 45 }) }}</option>
+                <option :value="60">{{ $t('alert.rules.everySeconds', { n: 60 }) }}</option>
+                <option :value="120">{{ $t('alert.rules.everySeconds', { n: 120 }) }}</option>
+                <option :value="180">{{ $t('alert.rules.everySeconds', { n: 180 }) }}</option>
+                <option :value="300">{{ $t('alert.rules.everySeconds', { n: 300 }) }}</option>
               </select>
               <span v-if="errors.eval_interval" class="form-error">{{ errors.eval_interval }}</span>
             </div>
             <div class="form-item form-item-half">
-              <label class="form-label required">持续时间（秒）</label>
-              <input v-model.number="form.duration" type="number" min="0" class="form-input" placeholder="例如：300" />
-              <span class="form-hint">0 表示只要有一次查询满足告警条件即触发</span>
+              <label class="form-label required">{{ $t('alert.rules.form.durationLabel') }}</label>
+              <input v-model.number="form.duration" type="number" min="0" class="form-input" :placeholder="$t('alert.rules.form.durationPlaceholder')" />
+              <span class="form-hint">{{ $t('alert.rules.form.durationHint') }}</span>
               <span v-if="errors.duration" class="form-error">{{ errors.duration }}</span>
             </div>
           </div>
 
           <div class="form-item">
-            <label class="form-label required">告警级别</label>
+            <label class="form-label required">{{ $t('alert.rules.form.severityLabel') }}</label>
             <select v-model.number="form.severity" class="form-input">
-              <option :value="1">P1-紧急</option>
-              <option :value="2">P2-警告</option>
-              <option :value="3">P3-提醒</option>
+              <option :value="1">{{ $t('alert.severity.p1') }}</option>
+              <option :value="2">{{ $t('alert.severity.p2') }}</option>
+              <option :value="3">{{ $t('alert.severity.p3') }}</option>
             </select>
           </div>
 
           <div class="form-item">
-            <label class="form-label">通知规则 <span class="form-hint-inline">选填，告警触发/恢复时自动发送通知</span></label>
+            <label class="form-label">{{ $t('alert.rules.form.notifyRuleLabel') }} <span class="form-hint-inline">{{ $t('alert.rules.form.notifyOptional') }}</span></label>
             <select v-model="form.notify_rule_id" class="form-input">
-              <option value="">不发送通知</option>
+              <option value="">{{ $t('alert.rules.form.noNotify') }}</option>
               <option v-for="nr in notifyRules" :key="nr.id" :value="nr.id">{{ nr.name }}（{{ triggerLabel(nr.trigger_types) }}）</option>
             </select>
           </div>
 
           <!-- 通知配置 -->
           <div class="form-section">
-            <div class="form-section-title">通知配置</div>
+            <div class="form-section-title">{{ $t('alert.rules.form.notifyConfigTitle') }}</div>
             <div class="form-row">
               <div class="form-item form-item-half">
-                <label class="form-label">重复通知间隔（分钟）</label>
-                <input v-model.number="form.repeat_interval_minutes" type="number" min="0" class="form-input" placeholder="例如：60" />
-                <span class="form-hint">如果告警持续未恢复，间隔 xx 分钟之后重复提醒；填 0 表示不重复</span>
+                <label class="form-label">{{ $t('alert.rules.form.repeatLabel') }}</label>
+                <input v-model.number="form.repeat_interval_minutes" type="number" min="0" class="form-input" :placeholder="$t('alert.rules.form.repeatPlaceholder')" />
+                <span class="form-hint">{{ $t('alert.rules.form.repeatHint') }}</span>
               </div>
               <div class="form-item form-item-half">
-                <label class="form-label">最大发送次数</label>
-                <input v-model.number="form.max_send_count" type="number" min="0" class="form-input" placeholder="例如：3" />
-                <span class="form-hint">如果值为 0，则不做最大发送次数的限制</span>
+                <label class="form-label">{{ $t('alert.rules.form.maxSendLabel') }}</label>
+                <input v-model.number="form.max_send_count" type="number" min="0" class="form-input" :placeholder="$t('alert.rules.form.maxSendPlaceholder')" />
+                <span class="form-hint">{{ $t('alert.rules.form.maxSendHint') }}</span>
               </div>
             </div>
           </div>
 
           <div class="form-item form-item-toggle">
-            <label class="form-label">启用状态</label>
+            <label class="form-label">{{ $t('alert.rules.form.enabledLabel') }}</label>
             <label class="switch">
               <input type="checkbox" v-model="form.is_enabled" :true-value="1" :false-value="0" />
               <span class="slider"></span>
@@ -228,9 +228,9 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn" @click="closeModal" :disabled="saving">取消</button>
+          <button class="btn" @click="closeModal" :disabled="saving">{{ $t('alert.rules.form.cancel') }}</button>
           <button class="btn btn-primary" @click="saveRule" :disabled="saving">
-            {{ saving ? '保存中...' : '保存' }}
+            {{ saving ? $t('alert.rules.form.saving') : $t('alert.rules.form.save') }}
           </button>
         </div>
       </div>
@@ -241,20 +241,22 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../components/PageHeader.vue'
 import LevelTag from '../components/LevelTag.vue'
 import { alertRuleApi } from '../api/alertRule.js'
 import { notifyApi } from '../api/notify.js'
 import { alertEventApi } from '../api/alertEvent.js'
 
+const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
 
-const severityText = (s) => ({ 1: 'P1-紧急', 2: 'P2-警告', 3: 'P3-提醒' }[s] || `P${s}`)
+const severityText = (s) => ({ 1: t('alert.severity.p1'), 2: t('alert.severity.p2'), 3: t('alert.severity.p3') }[s] || `P${s}`)
 
 const severityLevel = (s) => {
   if (s === 1) return 'critical'
-  if (s === 2) return 'warning'
-  return 'info'
+  if (s === 2) return 'major'
+  return 'warning'
 }
 
 const fmtTime = (v) => {
@@ -297,10 +299,10 @@ function ruleStatusClass(rule) {
 }
 
 function ruleStatusTitle(rule) {
-  if (rule.is_enabled !== 1) return '规则已停用'
+  if (rule.is_enabled !== 1) return t('alert.rules.statusTitle.disabled')
   const count = activeCount(rule.id)
-  if (count > 0) return `告警中（${count} 条活跃告警），点击查看`
-  return '无告警，点击查看最近告警'
+  if (count > 0) return t('alert.rules.statusTitle.alerting', { count })
+  return t('alert.rules.statusTitle.noAlert')
 }
 
 // -------- 活跃事件弹窗 --------
@@ -369,7 +371,7 @@ async function loadData() {
     // 同时刷新活跃事件列表（规则状态图标依赖）
     await loadActiveEvents()
   } catch (err) {
-    alert('加载告警规则失败：' + err.message)
+    alert(t('alert.rules.msg.loadFailed', { msg: err.message }))
     rules.value = []
   } finally {
     loading.value = false
@@ -422,19 +424,19 @@ function validateForm() {
   let valid = true
 
   if (!form.name.trim()) {
-    errors.name = '请输入规则名称'
+    errors.name = t('alert.rules.error.nameRequired')
     valid = false
   }
   if (!form.prom_ql.trim()) {
-    errors.prom_ql = '请输入 PromQL 表达式'
+    errors.prom_ql = t('alert.rules.error.promqlRequired')
     valid = false
   }
   if (form.eval_interval === null || form.eval_interval === undefined || form.eval_interval <= 0) {
-    errors.eval_interval = '请选择执行频率'
+    errors.eval_interval = t('alert.rules.error.evalRequired')
     valid = false
   }
   if (form.duration === null || form.duration === undefined || form.duration < 0) {
-    errors.duration = '持续时间不能为负数'
+    errors.duration = t('alert.rules.error.durationNegative')
     valid = false
   }
 
@@ -468,7 +470,7 @@ async function saveRule() {
     closeModal()
     await loadData()
   } catch (err) {
-    alert((isEdit.value ? '更新' : '新建') + '失败：' + err.message)
+    alert(t(isEdit.value ? 'alert.rules.msg.updateFailed' : 'alert.rules.msg.createFailed', { msg: err.message }))
     saving.value = false
   }
 }
@@ -481,21 +483,21 @@ async function toggleEnabled(rule) {
       rules.value[idx] = result
     }
   } catch (err) {
-    alert('切换状态失败：' + err.message)
+    alert(t('alert.rules.msg.toggleFailed', { msg: err.message }))
   }
 }
 
 async function deleteRule(rule) {
-  if (!confirm(`确定要删除告警规则"${rule.name}"吗？`)) return
+  if (!confirm(t('alert.rules.msg.confirmDelete', { name: rule.name }))) return
   try {
     await alertRuleApi.remove(rule.id)
     await loadData()
   } catch (err) {
-    alert('删除失败：' + err.message)
+    alert(t('alert.rules.msg.deleteFailed', { msg: err.message }))
   }
 }
 
-const triggerLabel = (t) => ({ all: '触发+恢复', firing: '仅触发', recovered: '仅恢复' }[t] || t)
+const triggerLabel = (triggerTypes) => t('alert.rules.triggerType.' + triggerTypes)
 
 async function loadNotifyRules() {
   try {
@@ -597,7 +599,7 @@ onMounted(() => {
 }
 .event-sev.sev-1 { background: #ffe5e5; color: #e74c3c; }
 .event-sev.sev-2 { background: #ffecd8; color: #f39c12; }
-.event-sev.sev-3 { background: #e8f0fe; color: #1677ff; }
+.event-sev.sev-3 { background: #fdf6dc; color: #d9a400; }
 .event-target { font-size: 13px; font-family: ui-monospace, Menlo, monospace; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .event-time { margin-left: auto; font-size: 11.5px; color: var(--c-text-3); }
 .event-meta { font-size: 12px; color: var(--c-text-2); margin-bottom: 5px; }

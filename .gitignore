@@ -9,3 +9,5 @@ __pycache__/
 .pytest_cache/
 # 知识库服务本地配置（Qdrant 地址等）
 .env
+# 知识库上传的文档（本地文件，不入库）
+/backend/uploads/knowledge/

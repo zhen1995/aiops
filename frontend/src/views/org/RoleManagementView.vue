@@ -1,51 +1,51 @@
 <template>
   <div>
-    <PageHeader title="角色管理" desc="维护平台角色、权限范围与角色成员">
-      <button class="btn btn-primary" @click="openCreateModal" :disabled="loading">+ 新增角色</button>
+    <PageHeader :title="$t('org.role.title')" :desc="$t('org.role.desc')">
+      <button class="btn btn-primary" @click="openCreateModal" :disabled="loading">{{ $t('org.role.addRole') }}</button>
     </PageHeader>
 
     <div class="card">
       <div class="card-head-flex">
         <div>
-          <h3 class="card-title">角色列表</h3>
-          <p class="card-sub">基于 RBAC 的角色权限配置</p>
+          <h3 class="card-title">{{ $t('org.role.listTitle') }}</h3>
+          <p class="card-sub">{{ $t('org.role.listSub') }}</p>
         </div>
         <button class="btn btn-sm" @click="loadData" :disabled="loading">
-          {{ loading ? '加载中...' : '刷新' }}
+          {{ loading ? $t('org.role.loading') : $t('org.role.refresh') }}
         </button>
       </div>
       <table class="table">
         <thead>
           <tr>
-            <th>角色名称</th>
-            <th>成员数</th>
-            <th>权限范围</th>
-            <th>创建时间</th>
-            <th>操作</th>
+            <th>{{ $t('org.role.table.name') }}</th>
+            <th>{{ $t('org.role.table.memberCount') }}</th>
+            <th>{{ $t('org.role.table.permissions') }}</th>
+            <th>{{ $t('org.role.table.createdAt') }}</th>
+            <th>{{ $t('org.role.table.actions') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="r in roleList" :key="r.id">
             <td><b>{{ r.name }}</b></td>
-            <td>{{ r.userCount }} 人</td>
+            <td>{{ r.userCount }} {{ $t('org.role.membersUnit') }}</td>
             <td>
               <span v-for="perm in r.permissions" :key="perm" class="perm-tag">{{ perm }}</span>
-              <span v-if="!r.permissions || r.permissions.length === 0" class="muted">暂未分配</span>
+              <span v-if="!r.permissions || r.permissions.length === 0" class="muted">{{ $t('org.role.unassigned') }}</span>
             </td>
             <td class="muted">{{ formatTime(r.createdAt) }}</td>
             <td>
               <div class="ops">
-                <button class="btn btn-sm" @click="openEditModal(r)">编辑</button>
-                <button class="btn btn-sm" @click="openAuthModal(r)">权限</button>
-                <button class="btn btn-sm btn-danger" @click="deleteRole(r)">删除</button>
+                <button class="btn btn-sm" @click="openEditModal(r)">{{ $t('org.role.edit') }}</button>
+                <button class="btn btn-sm" @click="openAuthModal(r)">{{ $t('org.role.permissions') }}</button>
+                <button class="btn btn-sm btn-danger" @click="deleteRole(r)">{{ $t('org.role.delete') }}</button>
               </div>
             </td>
           </tr>
           <tr v-if="!loading && roleList.length === 0">
-            <td colspan="5" class="empty-row">暂无角色数据，请点击"新增角色"添加</td>
+            <td colspan="5" class="empty-row">{{ $t('org.role.empty') }}</td>
           </tr>
           <tr v-if="loading">
-            <td colspan="5" class="empty-row">加载中...</td>
+            <td colspan="5" class="empty-row">{{ $t('org.role.loading') }}</td>
           </tr>
         </tbody>
       </table>
@@ -55,25 +55,25 @@
     <div v-if="modalVisible" class="modal-mask" @click.self="closeModal">
       <div class="modal">
         <div class="modal-header">
-          <h3>{{ isEdit ? '编辑角色' : '新增角色' }}</h3>
+          <h3>{{ isEdit ? $t('org.role.modal.editTitle') : $t('org.role.modal.createTitle') }}</h3>
           <span class="modal-close" @click="closeModal">×</span>
         </div>
         <div class="modal-body">
           <div class="form-item">
-            <label class="form-label required">角色名称</label>
+            <label class="form-label required">{{ $t('org.role.modal.name') }}</label>
             <input
               v-model="form.name"
               class="form-input"
-              placeholder="请输入角色名称"
+              :placeholder="$t('org.role.modal.namePlaceholder')"
               maxlength="30"
             />
             <span v-if="errors.name" class="form-error">{{ errors.name }}</span>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn" @click="closeModal" :disabled="saving">取消</button>
+          <button class="btn" @click="closeModal" :disabled="saving">{{ $t('org.role.modal.cancel') }}</button>
           <button class="btn btn-primary" @click="saveRole" :disabled="saving">
-            {{ saving ? '保存中...' : '保存' }}
+            {{ saving ? $t('org.role.modal.saving') : $t('org.role.modal.save') }}
           </button>
         </div>
       </div>
@@ -83,12 +83,12 @@
     <div v-if="authModalVisible" class="modal-mask" @click.self="closeAuthModal">
       <div class="modal modal-large">
         <div class="modal-header">
-          <h3>权限分配 - {{ currentRole?.name }}</h3>
+          <h3>{{ $t('org.role.authModal.titlePrefix') }}{{ currentRole?.name }}</h3>
           <span class="modal-close" @click="closeAuthModal">×</span>
         </div>
         <div class="modal-body">
-          <div v-if="loadingAuths" class="muted">加载权限列表中...</div>
-          <div v-else-if="authList.length === 0" class="muted">暂无权限数据</div>
+          <div v-if="loadingAuths" class="muted">{{ $t('org.role.authModal.loadingAuths') }}</div>
+          <div v-else-if="authList.length === 0" class="muted">{{ $t('org.role.authModal.emptyAuths') }}</div>
           <div v-else class="auth-grid">
             <label v-for="auth in authList" :key="auth.id" class="auth-item">
               <input
@@ -101,9 +101,9 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn" @click="closeAuthModal" :disabled="authSaving">取消</button>
+          <button class="btn" @click="closeAuthModal" :disabled="authSaving">{{ $t('org.role.modal.cancel') }}</button>
           <button class="btn btn-primary" @click="saveAuths" :disabled="authSaving">
-            {{ authSaving ? '保存中...' : '保存' }}
+            {{ authSaving ? $t('org.role.modal.saving') : $t('org.role.modal.save') }}
           </button>
         </div>
       </div>
@@ -113,8 +113,11 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../../components/PageHeader.vue'
 import { roleApi } from '../../api/role.js'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 数据
 const roleList = ref([])
@@ -150,7 +153,7 @@ async function loadData() {
   try {
     roleList.value = await roleApi.list() || []
   } catch (err) {
-    alert('加载角色列表失败：' + err.message)
+    alert(t('org.role.loadFailed') + err.message)
     roleList.value = []
   } finally {
     loading.value = false
@@ -192,10 +195,10 @@ function validateForm() {
   let valid = true
 
   if (!form.name.trim()) {
-    errors.name = '请输入角色名称'
+    errors.name = t('org.role.validation.nameRequired')
     valid = false
   } else if (form.name.length > 30) {
-    errors.name = '角色名称最长 30 个字符'
+    errors.name = t('org.role.validation.nameMax')
     valid = false
   }
 
@@ -217,7 +220,7 @@ async function saveRole() {
     modalVisible.value = false
     await loadData()
   } catch (err) {
-    alert('保存失败：' + err.message)
+    alert(t('org.role.saveFailed') + err.message)
   } finally {
     saving.value = false
   }
@@ -225,14 +228,14 @@ async function saveRole() {
 
 // 删除角色
 async function deleteRole(r) {
-  if (!confirm(`确定要删除角色「${r.name}」吗？`)) return
+  if (!confirm(t('org.role.deleteConfirm', { name: r.name }))) return
 
   try {
     await roleApi.remove(r.id)
-    alert('删除成功')
+    alert(t('org.role.deleteSuccess'))
     await loadData()
   } catch (err) {
-    alert('删除失败：' + err.message)
+    alert(t('org.role.deleteFailed') + err.message)
   }
 }
 
@@ -253,7 +256,7 @@ async function openAuthModal(r) {
     authList.value = allAuths || []
     selectedAuthIds.value = roleDetail?.authIds || []
   } catch (err) {
-    alert('加载权限数据失败：' + err.message)
+    alert(t('org.role.loadAuthsFailed') + err.message)
     authModalVisible.value = false
   } finally {
     loadingAuths.value = false
@@ -270,12 +273,12 @@ async function saveAuths() {
   authSaving.value = true
   try {
     await roleApi.setAuths(currentRole.value.id, selectedAuthIds.value)
-    alert('权限设置成功')
+    alert(t('org.role.saveAuthsSuccess'))
     authSaving.value = false
     authModalVisible.value = false
     await loadData()
   } catch (err) {
-    alert('保存失败：' + err.message)
+    alert(t('org.role.saveFailed') + err.message)
   } finally {
     authSaving.value = false
   }

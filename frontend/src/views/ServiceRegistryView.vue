@@ -1,39 +1,39 @@
 <template>
   <div>
-    <PageHeader title="服务注册" desc="注册业务服务及其关联的日志 / 指标 / 性能剖析数据源">
-      <button class="btn btn-primary" @click="openCreateModal" :disabled="loading">+ 新增服务</button>
+    <PageHeader :title="$t('service.header.title')" :desc="$t('service.header.desc')">
+      <button class="btn btn-primary" @click="openCreateModal" :disabled="loading">{{ $t('service.header.addService') }}</button>
     </PageHeader>
 
     <div class="card">
       <div class="card-head-flex">
         <div>
-          <h3 class="card-title">服务列表</h3>
-          <p class="card-sub">已注册的服务及数据源关联配置</p>
+          <h3 class="card-title">{{ $t('service.list.title') }}</h3>
+          <p class="card-sub">{{ $t('service.list.sub') }}</p>
         </div>
         <div class="search-bar">
-          <input v-model="keyword" class="form-input search-input" placeholder="搜索名称 / 编码 / 负责人" @keyup.enter="handleSearch" />
+          <input v-model="keyword" class="form-input search-input" :placeholder="$t('service.list.searchPlaceholder')" @keyup.enter="handleSearch" />
           <select v-model="statusFilter" class="form-input search-select" @change="handleSearch">
-            <option value="">全部状态</option>
-            <option value="1">已启用</option>
-            <option value="0">已禁用</option>
+            <option value="">{{ $t('service.list.allStatus') }}</option>
+            <option value="1">{{ $t('service.list.enabled') }}</option>
+            <option value="0">{{ $t('service.list.disabled') }}</option>
           </select>
-          <button class="btn btn-sm" @click="handleSearch" :disabled="loading">搜索</button>
-          <button class="btn btn-sm" @click="handleReset">重置</button>
+          <button class="btn btn-sm" @click="handleSearch" :disabled="loading">{{ $t('service.list.search') }}</button>
+          <button class="btn btn-sm" @click="handleReset">{{ $t('service.list.reset') }}</button>
         </div>
       </div>
 
       <table class="table">
         <thead>
           <tr>
-            <th>名称</th>
-            <th>编码</th>
-            <th>父服务</th>
-            <th>ES 索引模式</th>
-            <th>Prom 标签</th>
-            <th>负责人</th>
-            <th>已验证</th>
-            <th>状态</th>
-            <th>操作</th>
+            <th>{{ $t('service.table.name') }}</th>
+            <th>{{ $t('service.table.code') }}</th>
+            <th>{{ $t('service.table.parent') }}</th>
+            <th>{{ $t('service.table.esPatterns') }}</th>
+            <th>{{ $t('service.table.promLabels') }}</th>
+            <th>{{ $t('service.table.owner') }}</th>
+            <th>{{ $t('service.table.verified') }}</th>
+            <th>{{ $t('service.table.status') }}</th>
+            <th>{{ $t('service.table.actions') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -52,9 +52,9 @@
             <td class="muted mono">{{ promLabelsText(svc) }}</td>
             <td>{{ svc.owner || '-' }}</td>
             <td>
-              <LevelTag v-if="isVerified(svc) === true" level="online">是</LevelTag>
-              <LevelTag v-else-if="isVerified(svc) === false" level="error">否</LevelTag>
-              <LevelTag v-else level="info">未验证</LevelTag>
+              <LevelTag v-if="isVerified(svc) === true" level="online">{{ $t('service.table.yes') }}</LevelTag>
+              <LevelTag v-else-if="isVerified(svc) === false" level="error">{{ $t('service.table.no') }}</LevelTag>
+              <LevelTag v-else level="info">{{ $t('service.table.notVerified') }}</LevelTag>
             </td>
             <td>
               <label class="switch">
@@ -64,29 +64,29 @@
             </td>
             <td>
               <div class="ops">
-                <button class="btn btn-sm" @click="openEditModal(svc)">编辑</button>
+                <button class="btn btn-sm" @click="openEditModal(svc)">{{ $t('service.table.edit') }}</button>
                 <button class="btn btn-sm" @click="verifyService(svc)" :disabled="verifyingId === svc.id">
-                  {{ verifyingId === svc.id ? '验证中...' : '验证' }}
+                  {{ verifyingId === svc.id ? $t('service.table.verifying') : $t('service.table.verify') }}
                 </button>
-                <button class="btn btn-sm btn-danger" @click="deleteService(svc)">删除</button>
+                <button class="btn btn-sm btn-danger" @click="deleteService(svc)">{{ $t('service.table.delete') }}</button>
               </div>
             </td>
           </tr>
           <tr v-if="!loading && services.length === 0">
-            <td colspan="9" class="empty-row">暂无数据，请点击"新增服务"添加配置</td>
+            <td colspan="9" class="empty-row">{{ $t('service.table.empty') }}</td>
           </tr>
           <tr v-if="loading">
-            <td colspan="9" class="empty-row">加载中...</td>
+            <td colspan="9" class="empty-row">{{ $t('service.table.loading') }}</td>
           </tr>
         </tbody>
       </table>
 
       <div class="pagination" v-if="total > 0">
-        <span class="muted">共 {{ total }} 条</span>
+        <span class="muted">{{ $t('service.table.total', { total }) }}</span>
         <div class="page-ops">
-          <button class="btn btn-sm" :disabled="page === 1 || loading" @click="changePage(page - 1)">上一页</button>
-          <span class="page-info">第 {{ page }} 页</span>
-          <button class="btn btn-sm" :disabled="page * pageSize >= total || loading" @click="changePage(page + 1)">下一页</button>
+          <button class="btn btn-sm" :disabled="page === 1 || loading" @click="changePage(page - 1)">{{ $t('service.table.prev') }}</button>
+          <span class="page-info">{{ $t('service.table.page', { page }) }}</span>
+          <button class="btn btn-sm" :disabled="page * pageSize >= total || loading" @click="changePage(page + 1)">{{ $t('service.table.next') }}</button>
         </div>
       </div>
     </div>
@@ -95,41 +95,41 @@
     <div v-if="modalVisible" class="modal-mask" @click.self="closeModal">
       <div class="modal">
         <div class="modal-header">
-          <h3>{{ isEdit ? '编辑服务' : '新增服务' }}</h3>
+          <h3>{{ isEdit ? $t('service.modal.editTitle') : $t('service.modal.createTitle') }}</h3>
           <span class="modal-close" @click="closeModal">×</span>
         </div>
         <div class="modal-body">
           <div class="form-row">
             <div class="form-item form-item-half">
-              <label class="form-label required">名称</label>
-              <input v-model="form.name" class="form-input" placeholder="请输入服务名称" />
+              <label class="form-label required">{{ $t('service.modal.name') }}</label>
+              <input v-model="form.name" class="form-input" :placeholder="$t('service.modal.namePlaceholder')" />
               <span v-if="errors.name" class="form-error">{{ errors.name }}</span>
             </div>
             <div class="form-item form-item-half">
-              <label class="form-label required">服务编码</label>
-              <input v-model="form.code" class="form-input" placeholder="唯一标识，例如：order-service" />
+              <label class="form-label required">{{ $t('service.modal.code') }}</label>
+              <input v-model="form.code" class="form-input" :placeholder="$t('service.modal.codePlaceholder')" />
               <span v-if="errors.code" class="form-error">{{ errors.code }}</span>
             </div>
           </div>
 
           <div class="form-item">
-            <label class="form-label">父服务</label>
+            <label class="form-label">{{ $t('service.modal.parent') }}</label>
             <select v-model="form.parent_id" class="form-input">
-              <option value="">无（顶级服务）</option>
+              <option value="">{{ $t('service.modal.noParent') }}</option>
               <option v-for="opt in parentOptions" :key="opt.id" :value="opt.id">{{ opt.name }}</option>
             </select>
           </div>
 
           <div class="form-item">
-            <label class="form-label">ES 数据源</label>
+            <label class="form-label">{{ $t('service.modal.esDatasource') }}</label>
             <select v-model="form.es_datasource_id" class="form-input">
-              <option value="">请选择数据源</option>
+              <option value="">{{ $t('service.modal.selectDatasource') }}</option>
               <option v-for="ds in esOptions" :key="ds.id" :value="ds.id">{{ ds.name }}</option>
             </select>
           </div>
 
           <div class="form-item">
-            <label class="form-label">ES 索引模式</label>
+            <label class="form-label">{{ $t('service.modal.esPatternsLabel') }}</label>
             <div class="tag-input">
               <span v-for="(p, i) in form.es_index_patterns" :key="p + i" class="tag-chip">
                 {{ p }}
@@ -138,7 +138,7 @@
               <input
                 v-model="patternInput"
                 class="tag-text-input"
-                placeholder="输入索引模式，回车添加，例如：app-log-*"
+                :placeholder="$t('service.modal.patternPlaceholder')"
                 @keyup.enter="addPattern"
                 @blur="addPattern"
               />
@@ -147,57 +147,57 @@
 
           <div class="form-row">
             <div class="form-item form-item-half">
-              <label class="form-label">Pyroscope 应用名</label>
-              <input v-model="form.pyroscope_app" class="form-input" placeholder="选填" />
+              <label class="form-label">{{ $t('service.modal.pyroscopeApp') }}</label>
+              <input v-model="form.pyroscope_app" class="form-input" :placeholder="$t('service.modal.optional')" />
             </div>
           </div>
 
           <div class="form-item">
-            <label class="form-label">Prometheus 数据源</label>
+            <label class="form-label">{{ $t('service.modal.promDatasource') }}</label>
             <select v-model="form.prom_datasource_id" class="form-input">
-              <option value="">请选择数据源</option>
+              <option value="">{{ $t('service.modal.selectDatasource') }}</option>
               <option v-for="ds in promOptions" :key="ds.id" :value="ds.id">{{ ds.name }}</option>
             </select>
           </div>
 
           <div class="form-item">
-            <label class="form-label">Prom 标签（键值对）</label>
+            <label class="form-label">{{ $t('service.modal.promLabelsLabel') }}</label>
             <div v-for="(label, i) in form.prom_labels" :key="i" class="kv-row">
-              <input v-model="label.key" class="form-input kv-key" placeholder="标签键，例如：namespace" />
-              <input v-model="label.value" class="form-input kv-value" placeholder="标签值" />
-              <button class="btn btn-sm" @click="removeLabel(i)">移除</button>
+              <input v-model="label.key" class="form-input kv-key" :placeholder="$t('service.modal.labelKeyPlaceholder')" />
+              <input v-model="label.value" class="form-input kv-value" :placeholder="$t('service.modal.labelValuePlaceholder')" />
+              <button class="btn btn-sm" @click="removeLabel(i)">{{ $t('service.modal.remove') }}</button>
             </div>
             <div class="label-actions">
-              <button class="btn btn-sm" @click="addLabel">+ 添加标签</button>
+              <button class="btn btn-sm" @click="addLabel">{{ $t('service.modal.addLabel') }}</button>
               <span v-if="previewError" class="form-error preview-error-inline">{{ previewError }}</span>
             </div>
             <div class="preview-action">
               <button class="btn btn-sm btn-primary" @click="previewMatchedJobs" :disabled="previewLoading">
-                {{ previewLoading ? '预览中...' : '预览 job' }}
+                {{ previewLoading ? $t('service.modal.previewLoading') : $t('service.modal.preview') }}
               </button>
             </div>
             <div v-if="previewVisible" class="preview-result">
-              <span v-if="previewLoading" class="muted">正在查询匹配的 job...</span>
+              <span v-if="previewLoading" class="muted">{{ $t('service.modal.querying') }}</span>
               <span v-else-if="previewFailed" class="form-error">{{ previewMessage }}</span>
               <template v-else>
-                <span v-if="!previewJobs.length" class="muted">无匹配的 job</span>
+                <span v-if="!previewJobs.length" class="muted">{{ $t('service.modal.noMatch') }}</span>
                 <span v-for="job in previewJobs" :key="job" class="tag-chip">{{ job }}</span>
               </template>
             </div>
           </div>
 
           <div class="form-item">
-            <label class="form-label">负责人</label>
-            <input v-model="form.owner" class="form-input" placeholder="选填" />
+            <label class="form-label">{{ $t('service.modal.owner') }}</label>
+            <input v-model="form.owner" class="form-input" :placeholder="$t('service.modal.optional')" />
           </div>
 
           <div class="form-item">
-            <label class="form-label">描述</label>
-            <textarea v-model="form.description" class="form-input form-textarea" placeholder="选填" rows="2"></textarea>
+            <label class="form-label">{{ $t('service.modal.description') }}</label>
+            <textarea v-model="form.description" class="form-input form-textarea" :placeholder="$t('service.modal.optional')" rows="2"></textarea>
           </div>
 
           <div class="form-item form-item-toggle">
-            <label class="form-label">启用</label>
+            <label class="form-label">{{ $t('service.modal.enabledLabel') }}</label>
             <label class="switch">
               <input type="checkbox" v-model="form.status" :true-value="1" :false-value="0" />
               <span class="slider"></span>
@@ -205,9 +205,9 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn" @click="closeModal" :disabled="saving">取消</button>
+          <button class="btn" @click="closeModal" :disabled="saving">{{ $t('service.modal.cancel') }}</button>
           <button class="btn btn-primary" @click="saveService" :disabled="saving">
-            {{ saving ? '保存中...' : '保存' }}
+            {{ saving ? $t('service.modal.saving') : $t('service.modal.save') }}
           </button>
         </div>
       </div>
@@ -217,30 +217,30 @@
     <div v-if="verifyVisible" class="modal-mask" @click.self="verifyVisible = false">
       <div class="modal verify-modal">
         <div class="modal-header">
-          <h3>验证结果 - {{ verifyingName }}</h3>
+          <h3>{{ $t('service.verify.title', { name: verifyingName }) }}</h3>
           <span class="modal-close" @click="verifyVisible = false">×</span>
         </div>
         <div class="modal-body">
           <div class="verify-item">
             <span class="verify-label">ElasticSearch</span>
             <span class="verify-status" :class="verifyResult.es_ok ? 'ok' : 'fail'">
-              {{ verifyResult.es_ok ? '连接正常' : '连接失败' }}
+              {{ verifyResult.es_ok ? $t('service.verify.ok') : $t('service.verify.fail') }}
             </span>
             <p v-if="verifyResult.es_message" class="verify-message">{{ verifyResult.es_message }}</p>
           </div>
           <div class="verify-item">
             <span class="verify-label">Prometheus</span>
             <span class="verify-status" :class="verifyResult.prom_ok ? 'ok' : 'fail'">
-              {{ verifyResult.prom_ok ? '连接正常' : '连接失败' }}
+              {{ verifyResult.prom_ok ? $t('service.verify.ok') : $t('service.verify.fail') }}
             </span>
             <p v-if="verifyResult.prom_message" class="verify-message">{{ verifyResult.prom_message }}</p>
           </div>
           <div class="verify-summary">
-            综合结果：<b :class="verifyResult.verified ? 'ok' : 'fail'">{{ verifyResult.verified ? '验证通过' : '验证未通过' }}</b>
+            {{ $t('service.verify.summary') }}<b :class="verifyResult.verified ? 'ok' : 'fail'">{{ verifyResult.verified ? $t('service.verify.passed') : $t('service.verify.notPassed') }}</b>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-primary" @click="verifyVisible = false">知道了</button>
+          <button class="btn btn-primary" @click="verifyVisible = false">{{ $t('service.verify.gotIt') }}</button>
         </div>
       </div>
     </div>
@@ -250,10 +250,13 @@
 <script setup>
 import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../components/PageHeader.vue'
 import LevelTag from '../components/LevelTag.vue'
 import { serviceApi } from '../api/service.js'
 import { datasourceApi } from '../api/datasource.js'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const route = useRoute()
 const router = useRouter()
@@ -359,7 +362,7 @@ async function loadData() {
     services.value = data?.list || []
     total.value = data?.total || 0
   } catch (err) {
-    alert('加载服务列表失败：' + err.message)
+    alert(t('service.message.loadFailed', { msg: err.message }))
     services.value = []
     total.value = 0
   } finally {
@@ -495,7 +498,7 @@ async function previewMatchedJobs() {
     form.prom_labels.filter(l => l.key.trim()).map(l => [l.key.trim(), l.value])
   )
   if (!form.prom_datasource_id || Object.keys(labels).length === 0) {
-    previewError.value = '请先选择 Prometheus 数据源并添加标签'
+    previewError.value = t('service.message.previewNeedDatasource')
     return
   }
   previewVisible.value = true
@@ -525,11 +528,11 @@ function validateForm() {
   let valid = true
 
   if (!form.name.trim()) {
-    errors.name = '请输入名称'
+    errors.name = t('service.message.nameRequired')
     valid = false
   }
   if (!form.code.trim()) {
-    errors.code = '请输入服务编码'
+    errors.code = t('service.message.codeRequired')
     valid = false
   }
 
@@ -568,7 +571,7 @@ async function saveService() {
     await loadData()
     loadServiceOptions()
   } catch (err) {
-    alert((isEdit.value ? '更新' : '新建') + '失败：' + err.message)
+    alert(t('service.message.saveFailed', { action: isEdit.value ? t('service.message.update') : t('service.message.create'), msg: err.message }))
     saving.value = false
   }
 }
@@ -583,18 +586,18 @@ async function toggleStatus(svc) {
       services.value[idx].status = svc.status === 1 ? 0 : 1
     }
   } catch (err) {
-    alert('切换状态失败：' + err.message)
+    alert(t('service.message.toggleFailed', { msg: err.message }))
   }
 }
 
 async function deleteService(svc) {
-  if (!confirm(`确定要删除服务"${svc.name}"吗？`)) return
+  if (!confirm(t('service.message.deleteConfirm', { name: svc.name }))) return
   try {
     await serviceApi.remove(svc.id)
     await loadData()
     loadServiceOptions()
   } catch (err) {
-    alert('删除失败：' + err.message)
+    alert(t('service.message.deleteFailed', { msg: err.message }))
   }
 }
 
@@ -613,7 +616,7 @@ async function verifyService(svc) {
     verifyVisible.value = true
     await loadData()
   } catch (err) {
-    alert('验证失败：' + err.message)
+    alert(t('service.message.verifyFailed', { msg: err.message }))
   } finally {
     verifyingId.value = ''
   }

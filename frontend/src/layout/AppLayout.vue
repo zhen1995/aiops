@@ -9,12 +9,12 @@
         </span>
         <div class="logo-text">
           <b>AIOPS</b>
-          <span>智能运维平台</span>
+          <span>{{ $t('layout.platformName') }}</span>
         </div>
       </div>
 
       <nav class="menu">
-        <template v-for="m in menus" :key="m.path || m.title">
+        <template v-for="m in menus" :key="m.path || m.tkey">
           <RouterLink
             v-if="!m.children"
             :to="m.path"
@@ -22,23 +22,23 @@
             :class="{ active: isActive(m.path) }"
           >
             <span class="menu-icon" v-html="m.icon"></span>
-            <span>{{ m.title }}</span>
+            <span>{{ $t(m.tkey) }}</span>
             <em v-if="m.badge" class="menu-badge">{{ m.badge }}</em>
           </RouterLink>
 
           <div v-else class="menu-group">
             <button
               class="menu-item menu-group-title"
-              :class="{ active: isGroupActive(m), expanded: expanded[m.title] }"
-              @click="toggle(m.title)"
+              :class="{ active: isGroupActive(m), expanded: expanded[m.tkey] }"
+              @click="toggle(m.tkey)"
             >
               <span class="menu-icon" v-html="m.icon"></span>
-              <span>{{ m.title }}</span>
+              <span>{{ $t(m.tkey) }}</span>
               <svg class="arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="6 9 12 15 18 9" />
               </svg>
             </button>
-            <div v-show="expanded[m.title]" class="submenu">
+            <div v-show="expanded[m.tkey]" class="submenu">
               <RouterLink
                 v-for="c in m.children"
                 :key="c.path"
@@ -46,7 +46,7 @@
                 class="submenu-item"
                 :class="{ active: isActive(c.path) }"
               >
-                <span>{{ c.title }}</span>
+                <span>{{ $t(c.tkey) }}</span>
                 <em v-if="c.badge" class="menu-badge">{{ c.badge }}</em>
               </RouterLink>
             </div>
@@ -55,19 +55,20 @@
       </nav>
 
       <div class="sidebar-foot">
-        <div class="ver muted">智能运维平台</div>
+        <div class="ver muted">{{ $t('layout.platformName') }}</div>
       </div>
     </aside>
 
     <div class="main">
       <header class="topbar">
-        <h1 class="page-title">{{ route.meta.title || 'AIOPS' }}</h1>
+        <h1 class="page-title">{{ $t(route.meta.title || 'layout.platformName') }}</h1>
         <div class="topbar-right">
           <GlobalSearchBox class="topbar-search" />
+          <LangSwitch />
           <div class="user" @click="toggleUserMenu">
             <span class="avatar">{{ avatarText }}</span>
             <div class="user-info">
-              <b>{{ currentUser?.name || currentUser?.username || '用户' }}</b>
+              <b>{{ currentUser?.name || currentUser?.username || $t('layout.user') }}</b>
               <span>{{ currentUser?.username || '' }}</span>
             </div>
             <div v-if="showUserMenu" class="user-dropdown" @click.stop>
@@ -75,7 +76,7 @@
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
                 </svg>
-                退出登录
+                {{ $t('layout.logout') }}
               </div>
             </div>
           </div>
@@ -92,11 +93,14 @@
 <script setup>
 import { reactive, ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { getUser, clearAuth, getPermissions } from '../utils/auth.js'
 import GlobalSearchBox from '../components/GlobalSearchBox.vue'
+import LangSwitch from '../components/LangSwitch.vue'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n({ useScope: 'global' })
 
 const showUserMenu = ref(false)
 const currentUser = ref(getUser())
@@ -109,7 +113,7 @@ const avatarText = computed(() => {
 
 function handleLogout() {
   showUserMenu.value = false
-  if (confirm('确定要退出登录吗？')) {
+  if (confirm(t('layout.logoutConfirm'))) {
     clearAuth()
     router.push('/login')
   }
@@ -139,67 +143,67 @@ const isActive = (p) => (p === '/' ? route.path === '/' : route.path.startsWith(
 const isGroupActive = (m) => m.children?.some((c) => isActive(c.path))
 
 const expanded = reactive({
-  '告警管理': true,
-  '夜莺': false,
-  'AI 配置': false,
-  '人员组织': false,
-  '巡检管理': false
+  'layout.menu.alertGroup': true,
+  'layout.menu.n9eGroup': false,
+  'layout.menu.inspectionGroup': false,
+  'layout.menu.orgGroup': false
 })
 
-const toggle = (title) => {
-  expanded[title] = !expanded[title]
+const toggle = (tkey) => {
+  expanded[tkey] = !expanded[tkey]
 }
 
 const ic = (d) =>
   `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`
 
-// 菜单定义，auth 字段对应 sys_auth 表中的 name
+// 菜单定义，tkey 为 i18n 键（layout.menu.*），auth 字段对应 sys_auth 表中的 name
 const allMenus = [
-  { path: '/chat', title: '对话', auth: '对话', icon: ic('<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>') },
-  { path: '/dashboard', title: '总览大盘', auth: '总览大盘', icon: ic('<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>') },
-  { path: '/services', title: '服务注册', auth: '服务注册', icon: ic('<rect x="2" y="3" width="20" height="7" rx="2"/><rect x="2" y="14" width="20" height="7" rx="2"/><path d="M6 6.5h.01M6 17.5h.01"/>') },
+  { path: '/chat', tkey: 'layout.menu.chat', auth: '对话', icon: ic('<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>') },
+  { path: '/dashboard', tkey: 'layout.menu.dashboard', auth: '总览大盘', icon: ic('<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>') },
+  { path: '/services', tkey: 'layout.menu.serviceRegistry', auth: '服务注册', icon: ic('<rect x="2" y="3" width="20" height="7" rx="2"/><rect x="2" y="14" width="20" height="7" rx="2"/><path d="M6 6.5h.01M6 17.5h.01"/>') },
   {
-    title: '告警管理',
+    tkey: 'layout.menu.alertGroup',
     icon: ic('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>'),
     children: [
-      { path: '/alerts/denoise', title: '告警降噪', auth: '告警降噪' },
-      { path: '/alerts/events', title: '告警事件', auth: '告警事件' },
-      { path: '/alert-rules', title: '告警规则', auth: '告警规则' },
-      { path: '/notify/templates', title: '消息模板', auth: '消息模板' },
-      { path: '/notify/rules', title: '通知规则', auth: '通知规则' }
+      { path: '/alerts/denoise', tkey: 'layout.menu.alertDenoise', auth: '告警降噪' },
+      { path: '/alerts/events', tkey: 'layout.menu.alertEvents', auth: '告警事件' },
+      { path: '/notify/records', tkey: 'layout.menu.notifyRecords', auth: '通知记录' },
+      { path: '/alert-rules', tkey: 'layout.menu.alertRules', auth: '告警规则' },
+      { path: '/notify/templates', tkey: 'layout.menu.notifyTemplates', auth: '消息模板' },
+      { path: '/notify/rules', tkey: 'layout.menu.notifyRules', auth: '通知规则' }
     ]
   },
   {
-    title: '夜莺',
+    tkey: 'layout.menu.n9eGroup',
     icon: ic('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>'),
     children: [
-      { path: '/n9e/config', title: '引擎配置', auth: '夜莺引擎配置' },
-      { path: '/n9e/alert-rules', title: '告警规则', auth: '夜莺告警规则' },
-      { path: '/n9e/alert-events', title: '告警事件', auth: '夜莺告警事件' }
+      { path: '/n9e/config', tkey: 'layout.menu.n9eConfig', auth: '夜莺引擎配置' },
+      { path: '/n9e/alert-rules', tkey: 'layout.menu.n9eAlertRules', auth: '夜莺告警规则' },
+      { path: '/n9e/alert-events', tkey: 'layout.menu.n9eAlertEvents', auth: '夜莺告警事件' }
     ]
   },
-  { path: '/rca', title: '根因分析', auth: '根因分析', icon: ic('<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>') },
-  { path: '/logs', title: '日志分析', auth: '日志分析', icon: ic('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>') },
-  { path: '/ai-config/llm', title: 'LLM配置', auth: 'LLM 管理', icon: ic('<path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 2a10 10 0 0 1 10 10"/><path d="M12 12l7-7"/>') },
-  { path: '/knowledge-base', title: '运维知识库', auth: '运维知识库', icon: ic('<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>') },
+  { path: '/rca', tkey: 'layout.menu.rca', auth: '根因分析', icon: ic('<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>') },
+  { path: '/logs', tkey: 'layout.menu.logs', auth: '日志分析', icon: ic('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>') },
+  { path: '/ai-config/llm', tkey: 'layout.menu.llmMgmt', auth: 'LLM 管理', icon: ic('<path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M12 2a10 10 0 0 1 10 10"/><path d="M12 12l7-7"/>') },
+  { path: '/knowledge-base', tkey: 'layout.menu.knowledge', auth: '运维知识库', icon: ic('<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>') },
   {
-    title: '巡检管理',
+    tkey: 'layout.menu.inspectionGroup',
     icon: ic('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>'),
     children: [
-      { path: '/inspection/tasks', title: '巡检任务', auth: '巡检任务' },
-      { path: '/inspection/reports', title: '巡检报告', auth: '巡检报告' }
+      { path: '/inspection/tasks', tkey: 'layout.menu.inspectionTasks', auth: '巡检任务' },
+      { path: '/inspection/reports', tkey: 'layout.menu.inspectionReports', auth: '巡检报告' }
     ]
   },
-  { path: '/notification/medium', title: '通知媒介', auth: '通知媒介', icon: ic('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M2 8c0-2.2 1.8-4 4-4h12a4 4 0 0 1 4 4"/>') },
+  { path: '/notification/medium', tkey: 'layout.menu.notifyMedium', auth: '通知媒介', icon: ic('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M2 8c0-2.2 1.8-4 4-4h12a4 4 0 0 1 4 4"/>') },
   {
-    title: '人员组织',
+    tkey: 'layout.menu.orgGroup',
     icon: ic('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
     children: [
-      { path: '/org/user', title: '用户管理', auth: '用户管理' },
-      { path: '/org/role', title: '角色管理', auth: '角色管理' }
+      { path: '/org/user', tkey: 'layout.menu.userMgmt', auth: '用户管理' },
+      { path: '/org/role', tkey: 'layout.menu.roleMgmt', auth: '角色管理' }
     ]
   },
-  { path: '/datasource', title: '数据源接入', auth: '数据源接入', icon: ic('<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>') }
+  { path: '/datasource', tkey: 'layout.menu.datasource', auth: '数据源接入', icon: ic('<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>') }
 ]
 
 // 根据用户权限过滤菜单

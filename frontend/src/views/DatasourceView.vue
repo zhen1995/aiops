@@ -1,28 +1,28 @@
 <template>
   <div>
-    <PageHeader title="数据源接入" desc="管理 Prometheus / ElasticSearch / Pyroscope 等数据源接入配置">
-      <button class="btn btn-primary" @click="openCreateModal" :disabled="loading">+ 新增数据源</button>
+    <PageHeader :title="$t('datasource.header.title')" :desc="$t('datasource.header.desc')">
+      <button class="btn btn-primary" @click="openCreateModal" :disabled="loading">+ {{ $t('datasource.header.add') }}</button>
     </PageHeader>
 
     <div class="card">
       <div class="card-head-flex">
         <div>
-          <h3 class="card-title">数据源列表</h3>
-          <p class="card-sub">已配置的数据源及运行状态</p>
+          <h3 class="card-title">{{ $t('datasource.list.title') }}</h3>
+          <p class="card-sub">{{ $t('datasource.list.sub') }}</p>
         </div>
         <button class="btn btn-sm" @click="loadData" :disabled="loading">
-          {{ loading ? '加载中...' : '刷新' }}
+          {{ loading ? $t('datasource.list.loading') : $t('datasource.list.refresh') }}
         </button>
       </div>
       <table class="table">
         <thead>
           <tr>
-            <th>名称</th>
-            <th>类型</th>
-            <th>接入地址</th>
-            <th>超时(ms)</th>
-            <th>状态</th>
-            <th>操作</th>
+            <th>{{ $t('datasource.list.columns.name') }}</th>
+            <th>{{ $t('datasource.list.columns.type') }}</th>
+            <th>{{ $t('datasource.list.columns.url') }}</th>
+            <th>{{ $t('datasource.list.columns.timeout') }}</th>
+            <th>{{ $t('datasource.list.columns.status') }}</th>
+            <th>{{ $t('datasource.list.columns.actions') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -35,24 +35,24 @@
             <td>{{ ds.timeout }}</td>
             <td>
               <LevelTag :level="ds.is_enabled === 1 ? 'running' : 'info'">
-                {{ ds.is_enabled === 1 ? '已启用' : '已禁用' }}
+                {{ ds.is_enabled === 1 ? $t('datasource.status.enabled') : $t('datasource.status.disabled') }}
               </LevelTag>
             </td>
             <td>
               <div class="ops">
-                <button class="btn btn-sm" @click="openEditModal(ds)">编辑</button>
+                <button class="btn btn-sm" @click="openEditModal(ds)">{{ $t('datasource.actions.edit') }}</button>
                 <button class="btn btn-sm" :class="ds.is_enabled === 1 ? '' : 'btn-primary'" @click="toggleEnabled(ds)">
-                  {{ ds.is_enabled === 1 ? '禁用' : '启用' }}
+                  {{ ds.is_enabled === 1 ? $t('datasource.actions.disable') : $t('datasource.actions.enable') }}
                 </button>
-                <button class="btn btn-sm btn-danger" @click="deleteDatasource(ds)">删除</button>
+                <button class="btn btn-sm btn-danger" @click="deleteDatasource(ds)">{{ $t('datasource.actions.delete') }}</button>
               </div>
             </td>
           </tr>
           <tr v-if="!loading && datasources.length === 0">
-            <td colspan="6" class="empty-row">暂无数据，请点击"新增数据源"添加配置</td>
+            <td colspan="6" class="empty-row">{{ $t('datasource.list.empty') }}</td>
           </tr>
           <tr v-if="loading">
-            <td colspan="6" class="empty-row">加载中...</td>
+            <td colspan="6" class="empty-row">{{ $t('datasource.list.loading') }}</td>
           </tr>
         </tbody>
       </table>
@@ -62,20 +62,20 @@
     <div v-if="modalVisible" class="modal-mask" @click.self="closeModal">
       <div class="modal">
         <div class="modal-header">
-          <h3>{{ isEdit ? '编辑数据源' : '新增数据源' }}</h3>
+          <h3>{{ isEdit ? $t('datasource.modal.editTitle') : $t('datasource.modal.createTitle') }}</h3>
           <span class="modal-close" @click="closeModal">×</span>
         </div>
         <div class="modal-body">
           <div class="form-row">
             <div class="form-item form-item-half">
-              <label class="form-label required">名称</label>
-              <input v-model="form.name" class="form-input" placeholder="请输入数据源名称" />
+              <label class="form-label required">{{ $t('datasource.modal.form.name') }}</label>
+              <input v-model="form.name" class="form-input" :placeholder="$t('datasource.modal.form.namePlaceholder')" />
               <span v-if="errors.name" class="form-error">{{ errors.name }}</span>
             </div>
             <div class="form-item form-item-half">
-              <label class="form-label required">类型</label>
+              <label class="form-label required">{{ $t('datasource.modal.form.type') }}</label>
               <select v-model="form.type" class="form-input">
-                <option value="">请选择类型</option>
+                <option value="">{{ $t('datasource.modal.form.typePlaceholder') }}</option>
                 <option v-for="t in typeOptions" :key="t" :value="t">{{ t }}</option>
               </select>
               <span v-if="errors.type" class="form-error">{{ errors.type }}</span>
@@ -83,18 +83,18 @@
           </div>
 
           <div class="form-item">
-            <label class="form-label required">接入地址</label>
-            <input v-model="form.url" class="form-input" placeholder="请输入 HTTP 地址，例如：http://localhost:9090" />
+            <label class="form-label required">{{ $t('datasource.modal.form.url') }}</label>
+            <input v-model="form.url" class="form-input" :placeholder="$t('datasource.modal.form.urlPlaceholder')" />
             <span v-if="errors.url" class="form-error">{{ errors.url }}</span>
           </div>
 
           <div class="form-row">
             <div class="form-item form-item-half">
-              <label class="form-label">超时(ms)</label>
-              <input v-model.number="form.timeout" type="number" class="form-input" placeholder="默认 5000" />
+              <label class="form-label">{{ $t('datasource.modal.form.timeout') }}</label>
+              <input v-model.number="form.timeout" type="number" class="form-input" :placeholder="$t('datasource.modal.form.timeoutPlaceholder')" />
             </div>
             <div class="form-item form-item-half form-item-toggle">
-              <label class="form-label">跳过 SSL 验证</label>
+              <label class="form-label">{{ $t('datasource.modal.form.skipSsl') }}</label>
               <label class="switch">
                 <input type="checkbox" v-model="form.is_skip_ssl" :true-value="1" :false-value="0" />
                 <span class="slider"></span>
@@ -104,32 +104,32 @@
 
           <div class="form-row">
             <div class="form-item form-item-half">
-              <label class="form-label">用户名</label>
-              <input v-model="form.username" class="form-input" placeholder="选填" />
+              <label class="form-label">{{ $t('datasource.modal.form.username') }}</label>
+              <input v-model="form.username" class="form-input" :placeholder="$t('datasource.modal.form.optional')" />
             </div>
             <div class="form-item form-item-half">
-              <label class="form-label">密码</label>
+              <label class="form-label">{{ $t('datasource.modal.form.password') }}</label>
               <div class="input-with-action">
                 <input
                   v-model="form.password"
                   class="form-input"
                   :type="showPassword ? 'text' : 'password'"
-                  placeholder="选填"
+                  :placeholder="$t('datasource.modal.form.optional')"
                 />
                 <span class="input-action" @click="showPassword = !showPassword">
-                  {{ showPassword ? '隐藏' : '显示' }}
+                  {{ showPassword ? $t('datasource.modal.form.hide') : $t('datasource.modal.form.show') }}
                 </span>
               </div>
             </div>
           </div>
 
           <div class="form-item">
-            <label class="form-label">备注</label>
-            <textarea v-model="form.remark" class="form-input form-textarea" placeholder="选填" rows="2"></textarea>
+            <label class="form-label">{{ $t('datasource.modal.form.remark') }}</label>
+            <textarea v-model="form.remark" class="form-input form-textarea" :placeholder="$t('datasource.modal.form.optional')" rows="2"></textarea>
           </div>
 
           <div class="form-item form-item-toggle">
-            <label class="form-label">启用</label>
+            <label class="form-label">{{ $t('datasource.modal.form.enabled') }}</label>
             <label class="switch">
               <input type="checkbox" v-model="form.is_enabled" :true-value="1" :false-value="0" />
               <span class="slider"></span>
@@ -137,9 +137,9 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn" @click="closeModal" :disabled="saving">取消</button>
+          <button class="btn" @click="closeModal" :disabled="saving">{{ $t('datasource.modal.cancel') }}</button>
           <button class="btn btn-primary" @click="saveDatasource" :disabled="saving">
-            {{ saving ? '保存中...' : '保存' }}
+            {{ saving ? $t('datasource.modal.saving') : $t('datasource.modal.save') }}
           </button>
         </div>
       </div>
@@ -149,9 +149,12 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../components/PageHeader.vue'
 import LevelTag from '../components/LevelTag.vue'
 import { datasourceApi } from '../api/datasource.js'
+
+const { t } = useI18n({ useScope: 'global' })
 
 // 类型徽章颜色
 const typeClass = (type) => {
@@ -197,7 +200,7 @@ async function loadData() {
     const data = await datasourceApi.list()
     datasources.value = data || []
   } catch (err) {
-    alert('加载数据源列表失败：' + err.message)
+    alert(t('datasource.messages.loadFailed', { message: err.message }))
     datasources.value = []
   } finally {
     loading.value = false
@@ -264,15 +267,15 @@ function validateForm() {
   let valid = true
 
   if (!form.name.trim()) {
-    errors.name = '请输入名称'
+    errors.name = t('datasource.messages.nameRequired')
     valid = false
   }
   if (!form.type) {
-    errors.type = '请选择类型'
+    errors.type = t('datasource.messages.typeRequired')
     valid = false
   }
   if (!form.url.trim()) {
-    errors.url = '请输入接入地址'
+    errors.url = t('datasource.messages.urlRequired')
     valid = false
   }
 
@@ -306,7 +309,7 @@ async function saveDatasource() {
     closeModal()
     await loadData()
   } catch (err) {
-    alert((isEdit.value ? '更新' : '新建') + '失败：' + err.message)
+    alert(t(isEdit.value ? 'datasource.messages.updateFailed' : 'datasource.messages.createFailed', { message: err.message }))
     saving.value = false
   }
 }
@@ -319,17 +322,17 @@ async function toggleEnabled(ds) {
       datasources.value[idx] = result
     }
   } catch (err) {
-    alert('切换状态失败：' + err.message)
+    alert(t('datasource.messages.toggleFailed', { message: err.message }))
   }
 }
 
 async function deleteDatasource(ds) {
-  if (!confirm(`确定要删除数据源"${ds.name}"吗？`)) return
+  if (!confirm(t('datasource.messages.deleteConfirm', { name: ds.name }))) return
   try {
     await datasourceApi.remove(ds.id)
     await loadData()
   } catch (err) {
-    alert('删除失败：' + err.message)
+    alert(t('datasource.messages.deleteFailed', { message: err.message }))
   }
 }
 

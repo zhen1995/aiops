@@ -1,14 +1,14 @@
 <template>
   <div>
-    <PageHeader title="日志分析" desc="非结构化日志智能解析 · Drain 模板提取 · 日志聚类与异常检测">
-      <button class="btn">近 24 小时</button>
-      <button class="btn btn-primary">查询日志</button>
+    <PageHeader :title="$t('log.header.title')" :desc="$t('log.header.desc')">
+      <button class="btn">{{ $t('log.header.last24h') }}</button>
+      <button class="btn btn-primary">{{ $t('log.header.query') }}</button>
     </PageHeader>
 
     <!-- 日志处理流水线 -->
     <div class="card pipeline-card">
-      <h3 class="card-title">日志处理流水线</h3>
-      <p class="card-sub">原始日志经六环节实时处理，最终输出异常事件与告警</p>
+      <h3 class="card-title">{{ $t('log.pipeline.title') }}</h3>
+      <p class="card-sub">{{ $t('log.pipeline.sub') }}</p>
       <div class="pipeline">
         <template v-for="(step, i) in logPipeline" :key="step">
           <div class="pipe-step">
@@ -23,8 +23,8 @@
 
     <!-- 日志量趋势 -->
     <div class="card chart-card">
-      <h3 class="card-title">日志量趋势</h3>
-      <p class="card-sub">日志总量与 ERROR 日志量（条/小时）· 13:00 后 ERROR 出现明显激增</p>
+      <h3 class="card-title">{{ $t('log.trend.title') }}</h3>
+      <p class="card-sub">{{ $t('log.trend.sub') }}</p>
       <ChartBox :option="seriesOption" height="300px" />
     </div>
 
@@ -33,14 +33,22 @@
       <div class="card">
         <div class="card-head-flex">
           <div>
-            <h3 class="card-title">日志聚类</h3>
-            <p class="card-sub">相似日志自动聚合为模式簇，按出现频次与趋势排序</p>
+            <h3 class="card-title">{{ $t('log.cluster.title') }}</h3>
+            <p class="card-sub">{{ $t('log.cluster.sub') }}</p>
           </div>
-          <span class="cluster-total muted">共 {{ logClusters.length }} 个活跃聚类</span>
+          <span class="cluster-total muted">{{ $t('log.cluster.total', { count: logClusters.length }) }}</span>
         </div>
         <table class="table">
           <thead>
-            <tr><th>聚类 ID</th><th>日志模式</th><th>数量</th><th>级别</th><th>关联服务</th><th>趋势</th><th>首次出现</th></tr>
+            <tr>
+              <th>{{ $t('log.cluster.colId') }}</th>
+              <th>{{ $t('log.cluster.colPattern') }}</th>
+              <th>{{ $t('log.cluster.colCount') }}</th>
+              <th>{{ $t('log.cluster.colLevel') }}</th>
+              <th>{{ $t('log.cluster.colServices') }}</th>
+              <th>{{ $t('log.cluster.colTrend') }}</th>
+              <th>{{ $t('log.cluster.colFirstSeen') }}</th>
+            </tr>
           </thead>
           <tbody>
             <tr v-for="c in logClusters" :key="c.id">
@@ -58,16 +66,16 @@
 
       <!-- Drain 模板提取 -->
       <div class="card">
-        <h3 class="card-title">Drain 模板提取</h3>
-        <p class="card-sub">原始日志 → 常量模板 + 变量参数，在线学习实时更新</p>
+        <h3 class="card-title">{{ $t('log.template.title') }}</h3>
+        <p class="card-sub">{{ $t('log.template.sub') }}</p>
         <div class="tpl-list">
           <div v-for="(t, i) in logTemplates" :key="i" class="tpl-item">
             <div class="tpl-row">
-              <span class="tpl-label">原始日志</span>
+              <span class="tpl-label">{{ $t('log.template.raw') }}</span>
               <span class="mono tpl-raw">{{ t.raw }}</span>
             </div>
             <div class="tpl-row">
-              <span class="tpl-label">模板</span>
+              <span class="tpl-label">{{ $t('log.template.tpl') }}</span>
               <span class="mono tpl-tpl">
                 <template v-for="(seg, j) in splitTemplate(t.template)" :key="j">
                   <em v-if="seg.ph" class="tpl-ph">&lt;*&gt;</em>
@@ -76,7 +84,7 @@
               </span>
             </div>
             <div class="tpl-row">
-              <span class="tpl-label">参数</span>
+              <span class="tpl-label">{{ $t('log.template.params') }}</span>
               <span class="tpl-params">
                 <span v-for="(p, j) in t.params" :key="j" class="mono param-badge">{{ p }}</span>
               </span>
@@ -90,14 +98,28 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../components/PageHeader.vue'
 import ChartBox from '../components/ChartBox.vue'
 import LevelTag from '../components/LevelTag.vue'
 import { logPipeline, logClusters, logTemplates, logSeries } from '../mock/data'
 
-const pipeDescs = ['格式识别与字段抽取', '在线聚类生成日志模板', '常量模板与变量参数拆分', '日志序列转为特征向量', '相似模式聚合为簇', '频次/新模板异常识别']
+const { t } = useI18n({ useScope: 'global' })
 
-const trendText = { spike: '激增', rising: '上升', flat: '平稳' }
+const pipeDescs = computed(() => [
+  t('log.pipeline.desc1'),
+  t('log.pipeline.desc2'),
+  t('log.pipeline.desc3'),
+  t('log.pipeline.desc4'),
+  t('log.pipeline.desc5'),
+  t('log.pipeline.desc6')
+])
+
+const trendText = computed(() => ({
+  spike: t('log.cluster.trendSpike'),
+  rising: t('log.cluster.trendRising'),
+  flat: t('log.cluster.trendFlat')
+}))
 
 // 将模板字符串按 <*> 占位符切分，用于高亮渲染
 const splitTemplate = (tpl) => {
@@ -112,17 +134,17 @@ const splitTemplate = (tpl) => {
 
 const seriesOption = computed(() => ({
   tooltip: { trigger: 'axis' },
-  legend: { data: ['日志总量', 'ERROR 日志'], top: 0, textStyle: { color: '#5c6b68' } },
+  legend: { data: [t('log.chart.total'), t('log.chart.error')], top: 0, textStyle: { color: '#5c6b68' } },
   grid: { left: 60, right: 16, top: 36, bottom: 24 },
   xAxis: { type: 'category', data: logSeries.labels, axisLine: { lineStyle: { color: '#e4e9e7' } }, axisLabel: { color: '#93a19d' } },
   yAxis: { type: 'value', splitLine: { lineStyle: { color: '#eef2f0' } }, axisLabel: { color: '#93a19d' } },
   series: [
     {
-      name: '日志总量', type: 'line', smooth: true, data: logSeries.total, showSymbol: false,
+      name: t('log.chart.total'), type: 'line', smooth: true, data: logSeries.total, showSymbol: false,
       lineStyle: { color: '#0e7c72', width: 2.5 }, itemStyle: { color: '#0e7c72' },
       areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(14,124,114,0.14)' }, { offset: 1, color: 'rgba(14,124,114,0)' }] } }
     },
-    { name: 'ERROR 日志', type: 'line', smooth: true, data: logSeries.error, showSymbol: false, lineStyle: { color: '#c93b3b', width: 2 }, itemStyle: { color: '#c93b3b' } }
+    { name: t('log.chart.error'), type: 'line', smooth: true, data: logSeries.error, showSymbol: false, lineStyle: { color: '#c93b3b', width: 2 }, itemStyle: { color: '#c93b3b' } }
   ]
 }))
 </script>

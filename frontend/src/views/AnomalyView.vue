@@ -1,13 +1,6 @@
 <template>
   <div>
-    <PageHeader title="告警事件" desc="由系统按告警规则自动探测生成的活跃与历史告警事件" />
-
-    <div class="kpi-grid">
-      <StatCard label="活跃告警数" :value="activeCount" deltaType="flat" hint="当前列表" />
-      <StatCard label="历史告警数（今日）" :value="historyCount" deltaType="flat" hint="当前列表" />
-      <StatCard label="P1 告警数" :value="p1Count" deltaType="down" hint="当前列表" />
-      <StatCard label="P2 告警数" :value="p2Count" deltaType="up" hint="当前列表" />
-    </div>
+    <PageHeader :title="$t('alert.events.title')" :desc="$t('alert.events.desc')" />
 
     <div class="card">
       <div class="card-head-flex">
@@ -24,34 +17,34 @@
         </div>
         <div class="filters">
           <div class="filter-group">
-            <label>时间窗口</label>
+            <label>{{ $t('alert.events.filters.timeWindow') }}</label>
             <select v-model.number="hours" @change="loadData">
-              <option :value="24">最近 24 小时</option>
-              <option :value="168">最近 7 天</option>
-              <option :value="720">最近 30 天</option>
+              <option :value="24">{{ $t('alert.events.filters.last24h') }}</option>
+              <option :value="168">{{ $t('alert.events.filters.last7d') }}</option>
+              <option :value="720">{{ $t('alert.events.filters.last30d') }}</option>
             </select>
           </div>
           <div class="filter-group">
-            <label>级别</label>
+            <label>{{ $t('alert.events.filters.severity') }}</label>
             <select v-model="severity" @change="loadData">
-              <option value="">全部</option>
-              <option value="1">P1-紧急</option>
-              <option value="2">P2-警告</option>
-              <option value="3">P3-提醒</option>
+              <option value="">{{ $t('alert.events.filters.all') }}</option>
+              <option value="1">{{ $t('alert.severity.p1') }}</option>
+              <option value="2">{{ $t('alert.severity.p2') }}</option>
+              <option value="3">{{ $t('alert.severity.p3') }}</option>
             </select>
           </div>
           <div class="search-box">
             <input
               v-model="query"
               type="text"
-              placeholder="搜索规则名称或告警对象"
+              :placeholder="$t('alert.events.filters.searchPlaceholder')"
               @keyup.enter="search"
             />
             <button v-if="query" class="clear-btn" @click="clearQuery">×</button>
           </div>
-          <button class="btn btn-sm btn-primary" @click="search" :disabled="loading">查询</button>
+          <button class="btn btn-sm btn-primary" @click="search" :disabled="loading">{{ $t('alert.events.filters.query') }}</button>
           <button class="btn btn-sm" @click="loadData" :disabled="loading">
-            {{ loading ? '加载中...' : '刷新' }}
+            {{ loading ? $t('alert.events.filters.loading') : $t('alert.events.filters.refresh') }}
           </button>
         </div>
       </div>
@@ -60,12 +53,12 @@
       <div v-if="selectedIds.size > 0" class="batch-bar">
         <label class="batch-check">
           <input type="checkbox" :checked="isAllSelected" :indeterminate="isIndeterminate" @change="toggleSelectAll" />
-          <span>全选本页</span>
+          <span>{{ $t('alert.events.batch.selectAll') }}</span>
         </label>
-        <span class="batch-info">已选 <b>{{ selectedIds.size }}</b> 条</span>
-        <button class="btn btn-sm" @click="clearSelection">取消选择</button>
+        <span class="batch-info">{{ $t('alert.events.batch.selected', { count: selectedIds.size }) }}</span>
+        <button class="btn btn-sm" @click="clearSelection">{{ $t('alert.events.batch.cancelSelection') }}</button>
         <button class="btn btn-sm btn-danger" @click="batchRemove" :disabled="batchLoading">
-          {{ batchLoading ? '删除中...' : '批量删除' }}
+          {{ batchLoading ? $t('alert.events.batch.deleting') : $t('alert.events.batch.batchDelete') }}
         </button>
       </div>
 
@@ -75,18 +68,17 @@
             <th class="col-check">
               <input type="checkbox" :checked="isAllSelected" :indeterminate="isIndeterminate" @change="toggleSelectAll" />
             </th>
-            <th>规则名称</th>
-            <th>级别</th>
-            <th>状态</th>
-            <th>告警对象</th>
-            <th>触发时间</th>
-            <th>标签</th>
-            <th>触发值</th>
-            <th>操作</th>
+            <th>{{ $t('alert.events.table.ruleName') }}</th>
+            <th>{{ $t('alert.events.table.severity') }}</th>
+            <th>{{ $t('alert.events.table.target') }}</th>
+            <th>{{ $t('alert.events.table.triggerTime') }}</th>
+            <th>{{ $t('alert.events.table.tags') }}</th>
+            <th>{{ $t('alert.events.table.triggerValue') }}</th>
+            <th>{{ $t('alert.events.table.actions') }}</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="ev in events" :key="ev.id" :class="{ selected: selectedIds.has(ev.id) }">
+          <tr v-for="ev in events" :key="ev.id" :class="['ev-row', barClass(ev), { selected: selectedIds.has(ev.id) }]">
             <td class="col-check">
               <input type="checkbox" :checked="selectedIds.has(ev.id)" @change="toggleOne(ev.id)" />
             </td>
@@ -96,37 +88,32 @@
                 {{ severityText[ev.severity] || ev.severity }}
               </LevelTag>
             </td>
-            <td>
-              <LevelTag :level="statusMap(ev)">
-                {{ statusText(ev) }}
-              </LevelTag>
-            </td>
             <td class="mono">{{ ev.target_ident || '-' }}</td>
             <td class="muted">{{ fmtTime(ev.trigger_time) }}</td>
             <td class="muted mono tags-cell" :title="ev.tags">{{ ev.tags || '-' }}</td>
             <td class="mono">{{ ev.trigger_value || '-' }}</td>
             <td>
               <div class="ops">
-                <button class="btn btn-sm" @click="goToRca(ev)">根因分析</button>
-                <button class="btn btn-sm btn-danger" @click="removeEvent(ev)">删除</button>
+                <button class="btn btn-sm" @click="goToRca(ev)">{{ $t('alert.events.table.rca') }}</button>
+                <button class="btn btn-sm btn-danger" @click="removeEvent(ev)">{{ $t('alert.events.table.delete') }}</button>
               </div>
             </td>
           </tr>
           <tr v-if="!loading && events.length === 0">
-            <td colspan="9" class="empty-row">暂无告警事件数据</td>
+            <td colspan="8" class="empty-row">{{ $t('alert.events.table.empty') }}</td>
           </tr>
           <tr v-if="loading">
-            <td colspan="9" class="empty-row">加载中...</td>
+            <td colspan="8" class="empty-row">{{ $t('alert.events.table.loading') }}</td>
           </tr>
         </tbody>
       </table>
 
       <div class="pagination" v-if="total > 0">
-        <span class="muted">共 {{ total }} 条</span>
+        <span class="muted">{{ $t('alert.events.table.total', { total }) }}</span>
         <div class="page-ops">
-          <button class="btn btn-sm" :disabled="page === 1 || loading" @click="changePage(page - 1)">上一页</button>
-          <span class="page-info">第 {{ page }} 页</span>
-          <button class="btn btn-sm" :disabled="page * limit >= total || loading" @click="changePage(page + 1)">下一页</button>
+          <button class="btn btn-sm" :disabled="page === 1 || loading" @click="changePage(page - 1)">{{ $t('alert.events.table.prev') }}</button>
+          <span class="page-info">{{ $t('alert.events.table.page', { page }) }}</span>
+          <button class="btn btn-sm" :disabled="page * limit >= total || loading" @click="changePage(page + 1)">{{ $t('alert.events.table.next') }}</button>
         </div>
       </div>
     </div>
@@ -136,19 +123,20 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../components/PageHeader.vue'
-import StatCard from '../components/StatCard.vue'
 import LevelTag from '../components/LevelTag.vue'
 import { alertEventApi } from '../api/alertEvent.js'
 import { rcaApi } from '../api/rca.js'
 
+const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
 const router = useRouter()
 
-const tabs = [
-  { label: '活跃告警', value: 'active' },
-  { label: '历史告警', value: 'history' }
-]
+const tabs = computed(() => [
+  { label: t('alert.events.tabs.active'), value: 'active' },
+  { label: t('alert.events.tabs.history'), value: 'history' }
+])
 
 const scope = ref('active')
 const hours = ref(24)
@@ -165,20 +153,22 @@ const batchLoading = ref(false)
 // 选中的告警事件 ID 集合
 const selectedIds = ref(new Set())
 
-const severityText = { 1: 'P1-紧急', 2: 'P2-警告', 3: 'P3-提醒' }
+const severityText = computed(() => ({
+  1: t('alert.severity.p1'),
+  2: t('alert.severity.p2'),
+  3: t('alert.severity.p3')
+}))
 
 const severityMap = (s) => {
   if (s === 1) return 'critical'
-  if (s === 2) return 'warning'
-  return 'info'
+  if (s === 2) return 'major'
+  return 'warning'
 }
 
-const statusMap = (ev) => ev.status === 'firing' ? 'active' : 'resolved'
-
-// 状态文案：告警中 / 已恢复（恢复事件单独标注）
-const statusText = (ev) => {
-  if (ev.status === 'firing') return '告警中'
-  return ev.type === 'recovery' ? '已恢复(恢复事件)' : '已恢复'
+// 行左侧状态颜色条：恢复事件为绿色；告警事件（含历史已恢复）保持其告警级别色 红/橙/黄
+const barClass = (ev) => {
+  if (ev.type === 'recovery') return 'bar-recovery'
+  return { 1: 'bar-p1', 2: 'bar-p2', 3: 'bar-p3' }[ev.severity] || 'bar-none'
 }
 
 // 兼容数字（旧 unix 秒时间戳）与字符串两种时间格式
@@ -194,14 +184,9 @@ async function goToRca(event) {
     await rcaApi.trigger(event.id)
     router.push({ path: '/rca', query: { event: event.id } })
   } catch (err) {
-    alert('触发根因分析失败：' + err.message)
+    alert(t('alert.events.msg.rcaFailed', { msg: err.message }))
   }
 }
-
-const activeCount = computed(() => scope.value === 'active' ? events.value.length : 0)
-const historyCount = computed(() => scope.value === 'history' ? events.value.length : 0)
-const p1Count = computed(() => events.value.filter(e => e.severity === 1).length)
-const p2Count = computed(() => events.value.filter(e => e.severity === 2).length)
 
 // 全选状态
 const isAllSelected = computed(() => events.value.length > 0 && events.value.every(ev => selectedIds.value.has(ev.id)))
@@ -268,7 +253,7 @@ async function loadData() {
     events.value = result?.list || []
     total.value = result?.total || 0
   } catch (err) {
-    alert('加载告警事件失败：' + err.message)
+    alert(t('alert.events.msg.loadFailed', { msg: err.message }))
     events.value = []
     total.value = 0
   } finally {
@@ -295,13 +280,13 @@ function search() {
 // 删除告警事件（单条）
 async function removeEvent(ev) {
   const label = `${ev.rule_name}${ev.target_ident ? '（' + ev.target_ident + '）' : ''}`
-  if (!window.confirm(`确认删除告警事件「${label}」？`)) return
+  if (!window.confirm(t('alert.events.msg.confirmDelete', { label }))) return
   try {
     await alertEventApi.remove(ev.id)
     clearSelection()
     loadData()
   } catch (err) {
-    alert('删除告警事件失败：' + err.message)
+    alert(t('alert.events.msg.deleteFailed', { msg: err.message }))
   }
 }
 
@@ -309,7 +294,7 @@ async function removeEvent(ev) {
 async function batchRemove() {
   const ids = Array.from(selectedIds.value)
   if (ids.length === 0) return
-  if (!window.confirm(`确认删除选中的 ${ids.length} 条告警事件？`)) return
+  if (!window.confirm(t('alert.events.msg.confirmBatchDelete', { count: ids.length }))) return
 
   batchLoading.value = true
   try {
@@ -317,7 +302,7 @@ async function batchRemove() {
     clearSelection()
     loadData()
   } catch (err) {
-    alert('批量删除失败：' + err.message)
+    alert(t('alert.events.msg.batchDeleteFailed', { msg: err.message }))
   } finally {
     batchLoading.value = false
   }
@@ -336,13 +321,6 @@ watch(events, (list) => {
 </script>
 
 <style scoped>
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 18px;
-}
-
 .card-head-flex {
   display: flex;
   align-items: center;
@@ -471,6 +449,13 @@ watch(events, (list) => {
 .col-check { width: 42px; text-align: center; }
 .col-check input { width: 15px; height: 15px; cursor: pointer; }
 
+/* 行左侧状态颜色条：告警事件按级别 红/橙/黄，恢复事件绿色 */
+.ev-row td:first-child { box-shadow: inset 8px 0 0 0 var(--row-bar, var(--c-p4)); }
+.ev-row.bar-p1 { --row-bar: var(--c-p0); }
+.ev-row.bar-p2 { --row-bar: var(--c-p1); }
+.ev-row.bar-p3 { --row-bar: var(--c-p2); }
+.ev-row.bar-recovery { --row-bar: var(--c-success); }
+
 .table tr.selected td { background: var(--c-primary-soft, rgba(22,119,255,0.05)); }
 
 .empty-row {
@@ -521,7 +506,6 @@ watch(events, (list) => {
 }
 
 @media (max-width: 1200px) {
-  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .card-head-flex { flex-direction: column; align-items: flex-start; }
 }
 </style>

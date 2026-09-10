@@ -1,37 +1,37 @@
 <template>
   <div>
-    <PageHeader title="LLM 管理" desc="管理大语言模型接入配置，支持多厂商、多模型切换">
-      <button class="btn btn-primary" @click="openCreateModal" :disabled="loading">+ 新增模型</button>
+    <PageHeader :title="$t('llm.header.title')" :desc="$t('llm.header.desc')">
+      <button class="btn btn-primary" @click="openCreateModal" :disabled="loading">+ {{ $t('llm.header.add') }}</button>
     </PageHeader>
 
     <div class="card">
       <div class="card-head-flex">
         <div>
-          <h3 class="card-title">模型列表</h3>
-          <p class="card-sub">已接入的 LLM 服务与运行状态</p>
+          <h3 class="card-title">{{ $t('llm.list.title') }}</h3>
+          <p class="card-sub">{{ $t('llm.list.sub') }}</p>
         </div>
         <button class="btn btn-sm" @click="loadData" :disabled="loading">
-          {{ loading ? '加载中...' : '刷新' }}
+          {{ loading ? $t('llm.list.loading') : $t('llm.list.refresh') }}
         </button>
       </div>
       <table class="table">
         <thead>
           <tr>
-            <th>名称</th>
-            <th>模型类型</th>
-            <th>提供商类型</th>
-            <th>模型</th>
-            <th>接入端点</th>
-            <th>API Key</th>
-            <th>状态</th>
-            <th>操作</th>
+            <th>{{ $t('llm.table.name') }}</th>
+            <th>{{ $t('llm.table.modelType') }}</th>
+            <th>{{ $t('llm.table.supplierCategory') }}</th>
+            <th>{{ $t('llm.table.model') }}</th>
+            <th>{{ $t('llm.table.endpoint') }}</th>
+            <th>{{ $t('llm.table.apiKey') }}</th>
+            <th>{{ $t('llm.table.status') }}</th>
+            <th>{{ $t('llm.table.actions') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="m in llmConfigs" :key="m.id">
             <td>
               <b>{{ m.name }}</b>
-              <span v-if="m.is_default === 1" class="default-tag">默认</span>
+              <span v-if="m.is_default === 1" class="default-tag">{{ $t('llm.table.default') }}</span>
             </td>
             <td>{{ modelTypeLabel(m.model_type) }}</td>
             <td>{{ supplierLabel(m.supplier_category) }}</td>
@@ -40,24 +40,24 @@
             <td class="mono">{{ maskApiKey(m.api_key) }}</td>
             <td>
               <LevelTag :level="m.is_enabled === 1 ? 'running' : 'info'">
-                {{ m.is_enabled === 1 ? '运行中' : '已停用' }}
+                {{ m.is_enabled === 1 ? $t('llm.table.statusRunning') : $t('llm.table.statusStopped') }}
               </LevelTag>
             </td>
             <td>
               <div class="ops">
-                <button class="btn btn-sm" @click="openEditModal(m)">编辑</button>
+                <button class="btn btn-sm" @click="openEditModal(m)">{{ $t('llm.table.edit') }}</button>
                 <button class="btn btn-sm" :class="m.is_enabled === 1 ? '' : 'btn-primary'" @click="toggleEnabled(m)">
-                  {{ m.is_enabled === 1 ? '停用' : '启用' }}
+                  {{ m.is_enabled === 1 ? $t('llm.table.disable') : $t('llm.table.enable') }}
                 </button>
-                <button class="btn btn-sm btn-danger" @click="deleteConfig(m)">删除</button>
+                <button class="btn btn-sm btn-danger" @click="deleteConfig(m)">{{ $t('llm.table.delete') }}</button>
               </div>
             </td>
           </tr>
           <tr v-if="!loading && llmConfigs.length === 0">
-            <td colspan="8" class="empty-row">暂无数据，请点击"新增模型"添加配置</td>
+            <td colspan="8" class="empty-row">{{ $t('llm.table.empty') }}</td>
           </tr>
           <tr v-if="loading">
-            <td colspan="8" class="empty-row">加载中...</td>
+            <td colspan="8" class="empty-row">{{ $t('llm.list.loading') }}</td>
           </tr>
         </tbody>
       </table>
@@ -67,26 +67,26 @@
     <div v-if="modalVisible" class="modal-mask" @click.self="closeModal">
       <div class="modal">
         <div class="modal-header">
-          <h3>{{ isEdit ? '编辑 LLM 配置' : '新建 LLM 配置' }}</h3>
+          <h3>{{ isEdit ? $t('llm.modal.editTitle') : $t('llm.modal.createTitle') }}</h3>
           <span class="modal-close" @click="closeModal">×</span>
         </div>
         <div class="modal-body">
           <div class="form-row">
             <div class="form-item">
-              <label class="form-label required">名称</label>
-              <input v-model="form.name" class="form-input" placeholder="请输入 LLM 配置的名称" />
+              <label class="form-label required">{{ $t('llm.modal.name') }}</label>
+              <input v-model="form.name" class="form-input" :placeholder="$t('llm.modal.namePlaceholder')" />
               <span v-if="errors.name" class="form-error">{{ errors.name }}</span>
             </div>
             <div class="form-toggles">
               <div class="toggle-item">
-                <span class="toggle-label">启用</span>
+                <span class="toggle-label">{{ $t('llm.modal.enabled') }}</span>
                 <label class="switch">
                   <input type="checkbox" v-model="form.is_enabled" :true-value="1" :false-value="0" />
                   <span class="slider"></span>
                 </label>
               </div>
               <div class="toggle-item">
-                <span class="toggle-label">默认</span>
+                <span class="toggle-label">{{ $t('llm.modal.isDefault') }}</span>
                 <label class="switch">
                   <input type="checkbox" v-model="form.is_default" :true-value="1" :false-value="0" />
                   <span class="slider"></span>
@@ -96,23 +96,23 @@
           </div>
 
           <div class="form-item">
-            <label class="form-label">描述</label>
-            <textarea v-model="form.description" class="form-input form-textarea" placeholder="请输入 LLM 配置的描述信息" rows="3"></textarea>
+            <label class="form-label">{{ $t('llm.modal.description') }}</label>
+            <textarea v-model="form.description" class="form-input form-textarea" :placeholder="$t('llm.modal.descriptionPlaceholder')" rows="3"></textarea>
           </div>
 
           <div class="form-row">
             <div class="form-item form-item-half">
-              <label class="form-label required">模型类型</label>
+              <label class="form-label required">{{ $t('llm.modal.modelType') }}</label>
               <select v-model="form.model_type" class="form-input">
-                <option value="chat">对话模型</option>
-                <option value="embedding">向量化模型</option>
+                <option value="chat">{{ $t('llm.modal.typeChat') }}</option>
+                <option value="embedding">{{ $t('llm.modal.typeEmbedding') }}</option>
               </select>
               <span v-if="errors.model_type" class="form-error">{{ errors.model_type }}</span>
             </div>
             <div class="form-item form-item-half">
-              <label class="form-label required">提供商类型</label>
+              <label class="form-label required">{{ $t('llm.modal.supplierCategory') }}</label>
               <select v-model="form.supplier_category" class="form-input">
-                <option value="">请选择提供商类型</option>
+                <option value="">{{ $t('llm.modal.supplierPlaceholder') }}</option>
                 <option v-for="s in supplierOptions" :key="s" :value="s">{{ supplierLabel(s) }}</option>
               </select>
               <span v-if="errors.supplier_category" class="form-error">{{ errors.supplier_category }}</span>
@@ -120,14 +120,14 @@
           </div>
 
           <div class="form-item">
-            <label class="form-label required">模型</label>
-            <input v-model="form.model" class="form-input" placeholder="请输入模型名称，例如：gpt-4o" />
+            <label class="form-label required">{{ $t('llm.modal.model') }}</label>
+            <input v-model="form.model" class="form-input" :placeholder="$t('llm.modal.modelPlaceholder')" />
             <span v-if="errors.model" class="form-error">{{ errors.model }}</span>
           </div>
 
           <div class="form-item">
             <label class="form-label required">API URL</label>
-            <input v-model="form.base_url" class="form-input" placeholder="请输入接口地址，例如：https://api.openai.com/v1" />
+            <input v-model="form.base_url" class="form-input" :placeholder="$t('llm.modal.apiUrlPlaceholder')" />
             <span v-if="errors.base_url" class="form-error">{{ errors.base_url }}</span>
           </div>
 
@@ -138,19 +138,19 @@
                 v-model="form.api_key"
                 class="form-input"
                 :type="showApiKey ? 'text' : 'password'"
-                placeholder="请输入 API Key"
+                :placeholder="$t('llm.modal.apiKeyPlaceholder')"
               />
               <span class="input-action" @click="showApiKey = !showApiKey">
-                {{ showApiKey ? '隐藏' : '显示' }}
+                {{ showApiKey ? $t('llm.modal.hide') : $t('llm.modal.show') }}
               </span>
             </div>
             <span v-if="errors.api_key" class="form-error">{{ errors.api_key }}</span>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn" @click="closeModal" :disabled="saving">取消</button>
+          <button class="btn" @click="closeModal" :disabled="saving">{{ $t('llm.modal.cancel') }}</button>
           <button class="btn btn-primary" @click="saveConfig" :disabled="saving">
-            {{ saving ? '保存中...' : '保存' }}
+            {{ saving ? $t('llm.modal.saving') : $t('llm.modal.save') }}
           </button>
         </div>
       </div>
@@ -160,32 +160,28 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../../components/PageHeader.vue'
 import LevelTag from '../../components/LevelTag.vue'
 import { llmConfigApi } from '../../api/llmConfig.js'
 
-// 供应商类型映射（key -> 中文标签）
-const supplierMap = {
-  openai: 'OpenAI 兼容',
-  claude: 'Claude',
-  gemini: 'Gemini',
-  qwen: '阿里云千问',
-  deepseek: 'DeepSeek',
-  kimi: 'Kimi',
-  other: '其他'
+const { t } = useI18n({ useScope: 'global' })
+
+// 供应商类型列表（key -> i18n 键，未知 key 原样展示）
+const supplierKeys = ['openai', 'claude', 'gemini', 'qwen', 'deepseek', 'kimi', 'other']
+
+const supplierOptions = ref([...supplierKeys])
+
+const supplierLabel = (key) => {
+  const label = t(`llm.supplier.${key}`)
+  return label === `llm.supplier.${key}` ? key : label
 }
 
-const supplierOptions = ref(Object.keys(supplierMap))
-
-const supplierLabel = (key) => supplierMap[key] || key
-
-// 模型类型映射（key -> 中文标签）
-const modelTypeMap = {
-  chat: '对话模型',
-  embedding: '向量化模型'
+// 模型类型映射（key -> i18n 键，未知 key 原样展示）
+const modelTypeLabel = (key) => {
+  const label = t(`llm.modelTypeOption.${key}`)
+  return label === `llm.modelTypeOption.${key}` ? key : label
 }
-
-const modelTypeLabel = (key) => modelTypeMap[key] || key
 
 // 数据状态
 const llmConfigs = ref([])
@@ -218,7 +214,7 @@ async function loadData() {
     const data = await llmConfigApi.list()
     llmConfigs.value = data || []
   } catch (err) {
-    alert('加载 LLM 配置列表失败：' + err.message)
+    alert(t('llm.message.loadFailed', { msg: err.message }))
     llmConfigs.value = []
   } finally {
     loading.value = false
@@ -230,14 +226,8 @@ async function loadSuppliers() {
   try {
     const data = await llmConfigApi.suppliers()
     if (data && data.length > 0) {
-      // 合并后端返回的和前端映射的，优先使用后端的
-      const merged = [...new Set([...data, ...Object.keys(supplierMap)])]
-      // 确保映射表中有对应标签
-      merged.forEach(key => {
-        if (!supplierMap[key]) {
-          supplierMap[key] = key
-        }
-      })
+      // 合并后端返回的和前端默认的，优先使用后端的
+      const merged = [...new Set([...data, ...supplierKeys])]
       supplierOptions.value = merged
     }
   } catch (e) {
@@ -299,27 +289,27 @@ function validateForm() {
   let valid = true
 
   if (!form.name.trim()) {
-    errors.name = '请输入名称'
+    errors.name = t('llm.validation.nameRequired')
     valid = false
   }
   if (!form.model_type) {
-    errors.model_type = '请选择模型类型'
+    errors.model_type = t('llm.validation.modelTypeRequired')
     valid = false
   }
   if (!form.supplier_category) {
-    errors.supplier_category = '请选择提供商类型'
+    errors.supplier_category = t('llm.validation.supplierRequired')
     valid = false
   }
   if (!form.model.trim()) {
-    errors.model = '请输入模型名称'
+    errors.model = t('llm.validation.modelRequired')
     valid = false
   }
   if (!form.base_url.trim()) {
-    errors.base_url = '请输入 API URL'
+    errors.base_url = t('llm.validation.apiUrlRequired')
     valid = false
   }
   if (!form.api_key.trim()) {
-    errors.api_key = '请输入 API Key'
+    errors.api_key = t('llm.validation.apiKeyRequired')
     valid = false
   }
 
@@ -353,7 +343,7 @@ async function saveConfig() {
     closeModal()
     await loadData()
   } catch (err) {
-    alert((isEdit.value ? '更新' : '新建') + '失败：' + err.message)
+    alert(isEdit.value ? t('llm.message.updateFailed', { msg: err.message }) : t('llm.message.createFailed', { msg: err.message }))
   } finally {
     saving.value = false
   }
@@ -368,17 +358,17 @@ async function toggleEnabled(m) {
       llmConfigs.value[idx] = result
     }
   } catch (err) {
-    alert('切换状态失败：' + err.message)
+    alert(t('llm.message.toggleFailed', { msg: err.message }))
   }
 }
 
 async function deleteConfig(m) {
-  if (!confirm(`确定要删除配置"${m.name}"吗？`)) return
+  if (!confirm(t('llm.message.deleteConfirm', { name: m.name }))) return
   try {
     await llmConfigApi.remove(m.id)
     await loadData()
   } catch (err) {
-    alert('删除失败：' + err.message)
+    alert(t('llm.message.deleteFailed', { msg: err.message }))
   }
 }
 

@@ -293,14 +293,24 @@ func (e *Engine) fireLocked(rule models.AlertRule, sample datasource.InstantSamp
 
 	// 降噪：时间窗口聚合 → 拓扑抑制（均为独立 db 查询，不会与 e.mu 死锁）
 	if e.denoise != nil {
-		if e.denoise.SuppressWindow(rule.ID, tags, now) {
+		if ok, reason := e.denoise.SuppressWindow(rule.ID, tags, now); ok {
 			e.denoise.Record(models.DenoiseStrategyWindowAggregation, rule.ID, rule.Name, rule.Severity, targetIdent, tags)
 			fmt.Printf("[告警降噪] 规则 %s (%s) 命中时间窗口聚合，已拦截\n", rule.Name, targetIdent)
+			rec := e.newNotifyRecord(rule, nil, &sample, now)
+			rec.Status = models.NotifyRecordStatusIntercepted
+			rec.Strategy = models.DenoiseStrategyWindowAggregation
+			rec.Reason = reason
+			e.recordNotify(rec)
 			return "", nil
 		}
-		if e.denoise.SuppressTopology(tags) {
+		if ok, reason := e.denoise.SuppressTopology(tags); ok {
 			e.denoise.Record(models.DenoiseStrategyTopologySuppression, rule.ID, rule.Name, rule.Severity, targetIdent, tags)
 			fmt.Printf("[告警降噪] 规则 %s (%s) 命中拓扑抑制，已拦截\n", rule.Name, targetIdent)
+			rec := e.newNotifyRecord(rule, nil, &sample, now)
+			rec.Status = models.NotifyRecordStatusIntercepted
+			rec.Strategy = models.DenoiseStrategyTopologySuppression
+			rec.Reason = reason
+			e.recordNotify(rec)
 			return "", nil
 		}
 	}
@@ -325,8 +335,44 @@ func (e *Engine) fireLocked(rule models.AlertRule, sample datasource.InstantSamp
 	if rule.NotifyRuleID != "" {
 		evtCopy := event
 		go e.dispatch(evtCopy, rule)
+	} else {
+		rec := e.newNotifyRecord(rule, &event, nil, now)
+		rec.Status = models.NotifyRecordStatusSkipped
+		rec.Reason = "告警规则未配置通知规则"
+		e.recordNotify(rec)
 	}
 	return event.ID, nil
+}
+
+// newNotifyRecord 构造通知记录基础体：告警内容字段优先取自 event，其次取自本次命中的 sample（被拦截时事件尚未创建）
+func (e *Engine) newNotifyRecord(rule models.AlertRule, ev *models.AlertEvent, sample *datasource.InstantSample, now time.Time) models.NotifyRecord {
+	rec := models.NotifyRecord{
+		RuleID:   rule.ID,
+		RuleName: rule.Name,
+		Severity: rule.Severity,
+	}
+	if ev != nil {
+		rec.EventID = ev.ID
+		rec.EventType = ev.Type
+		rec.TargetIdent = ev.TargetIdent
+		rec.Tags = ev.Tags
+		rec.TriggerValue = ev.TriggerValue
+		rec.TriggerTime = ev.TriggerTime
+	} else if sample != nil {
+		rec.EventType = models.AlertEventTypeAlert
+		rec.TargetIdent = targetIdent(sample.Labels)
+		rec.Tags = serializeTags(sample.Labels)
+		rec.TriggerValue = fmt.Sprintf("%g", sample.Value)
+		rec.TriggerTime = now
+	}
+	return rec
+}
+
+// recordNotify 写入一条通知记录；写库失败仅打印日志，不影响主流程
+func (e *Engine) recordNotify(rec models.NotifyRecord) {
+	if err := e.db.Create(&rec).Error; err != nil {
+		fmt.Printf("[通知记录] 写入失败(规则 %s): %v\n", rec.RuleName, err)
+	}
 }
 
 // recoverLocked 把指定未恢复事件置为已恢复，并创建告警恢复事件（调用方需已持有 e.mu）
@@ -452,15 +498,32 @@ func (e *Engine) maybeResend(eventID string, rule models.AlertRule) {
 // 必须在 goroutine 里调用（不持有 e.mu 锁）
 func (e *Engine) dispatch(event models.AlertEvent, rule models.AlertRule) {
 	logPrefix := fmt.Sprintf("[通知] 规则 %s 事件 %s", rule.Name, event.ID)
+	now := time.Now()
+
+	// 写一条 skipped/failed 记录并返回（reason 为原日志文案）
+	abort := func(reason string) {
+		rec := e.newNotifyRecord(rule, &event, nil, now)
+		rec.Status = models.NotifyRecordStatusSkipped
+		rec.Reason = reason
+		e.recordNotify(rec)
+	}
+	abortErr := func(reason string, err error) {
+		rec := e.newNotifyRecord(rule, &event, nil, now)
+		rec.Status = models.NotifyRecordStatusFailed
+		rec.Reason = fmt.Sprintf("%s: %v", reason, err)
+		e.recordNotify(rec)
+	}
 
 	// 1. 加载通知规则
 	var nr models.NotifyRule
 	if err := e.db.Where("id = ? AND is_enabled = ?", rule.NotifyRuleID, 1).First(&nr).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			fmt.Printf("%s 通知规则 %s 不存在或已停用，跳过\n", logPrefix, rule.NotifyRuleID)
+			abort(fmt.Sprintf("通知规则不存在或已停用（%s）", rule.NotifyRuleID))
 			return
 		}
 		fmt.Printf("%s 加载通知规则失败: %v\n", logPrefix, err)
+		abortErr("加载通知规则失败", err)
 		return
 	}
 
@@ -471,6 +534,7 @@ func (e *Engine) dispatch(event models.AlertEvent, rule models.AlertRule) {
 	}
 	if !triggerTypeMatches(nr.TriggerTypes, eventType) {
 		fmt.Printf("%s 通知规则触发类型=%s，事件类型=%s，跳过\n", logPrefix, nr.TriggerTypes, eventType)
+		abort(fmt.Sprintf("通知规则触发类型（%s）与事件类型（%s）不匹配", nr.TriggerTypes, eventType))
 		return
 	}
 
@@ -487,6 +551,7 @@ func (e *Engine) dispatch(event models.AlertEvent, rule models.AlertRule) {
 			}
 			if !matched {
 				fmt.Printf("%s 事件级别 %d 不在过滤列表 %v 中，跳过\n", logPrefix, event.Severity, filter)
+				abort(fmt.Sprintf("事件级别 P%d 不在通知规则的级别过滤列表中", event.Severity))
 				return
 			}
 		}
@@ -496,6 +561,7 @@ func (e *Engine) dispatch(event models.AlertEvent, rule models.AlertRule) {
 	var media models.NotifyMedia
 	if err := e.db.Where("id = ? AND is_enabled = ?", nr.MediaID, 1).First(&media).Error; err != nil {
 		fmt.Printf("%s 加载媒介 %s 失败: %v\n", logPrefix, nr.MediaID, err)
+		abortErr(fmt.Sprintf("加载通知媒介（%s）失败", nr.MediaID), err)
 		return
 	}
 
@@ -504,16 +570,19 @@ func (e *Engine) dispatch(event models.AlertEvent, rule models.AlertRule) {
 	tplQuery := e.db.Where("id = ?", nr.TemplateID)
 	if err := tplQuery.First(&tpl).Error; err != nil {
 		fmt.Printf("%s 加载模板 %s 失败: %v\n", logPrefix, nr.TemplateID, err)
+		abortErr(fmt.Sprintf("加载消息模板（%s）失败", nr.TemplateID), err)
 		return
 	}
 	// 模板停用时也跳过
 	if tpl.IsEnabled != 1 {
 		fmt.Printf("%s 模板 %s 已停用，跳过\n", logPrefix, tpl.ID)
+		abort(fmt.Sprintf("消息模板已停用（%s）", tpl.Name))
 		return
 	}
 	// 模板 Type 匹配检查：firing 模板只给 firing 事件，recovered 模板只给 recovered，all 通用
 	if tpl.Type != "all" && tpl.Type != eventType {
 		fmt.Printf("%s 模板类型=%s 事件类型=%s，跳过\n", logPrefix, tpl.Type, eventType)
+		abort(fmt.Sprintf("模板类型（%s）与事件类型（%s）不匹配", tpl.Type, eventType))
 		return
 	}
 
@@ -522,6 +591,7 @@ func (e *Engine) dispatch(event models.AlertEvent, rule models.AlertRule) {
 	content, err := notify.RenderTemplate(tpl.Content, evt, e.domain)
 	if err != nil {
 		fmt.Printf("%s 模板渲染失败: %v\n", logPrefix, err)
+		abortErr("模板渲染失败", err)
 		return
 	}
 
@@ -534,12 +604,30 @@ func (e *Engine) dispatch(event models.AlertEvent, rule models.AlertRule) {
 	// 8. 发送
 	if err := notify.SendTyped(media.Type, media.Config, content, msgType); err != nil {
 		fmt.Printf("%s 发送失败（媒介=%s 模板=%s 媒介名=%s）: %v\n", logPrefix, media.Type, tpl.Name, media.Name, err)
+		rec := e.newNotifyRecord(rule, &event, nil, now)
+		rec.Status = models.NotifyRecordStatusFailed
+		rec.Reason = fmt.Sprintf("发送失败（媒介=%s）: %v", media.Name, err)
+		rec.NotifyRuleName = nr.Name
+		rec.MediaName = media.Name
+		rec.MediaType = media.Type
+		rec.TemplateName = tpl.Name
+		rec.Content = content
+		e.recordNotify(rec)
 		return
 	}
 	fmt.Printf("%s ✅ 发送成功（媒介=%s 模板=%s 媒介名=%s msgtype=%s）\n", logPrefix, media.Type, tpl.Name, media.Name, msgType)
 
+	// 写通知记录（成功）
+	rec := e.newNotifyRecord(rule, &event, nil, now)
+	rec.Status = models.NotifyRecordStatusSuccess
+	rec.NotifyRuleName = nr.Name
+	rec.MediaName = media.Name
+	rec.MediaType = media.Type
+	rec.TemplateName = tpl.Name
+	rec.Content = content
+	e.recordNotify(rec)
+
 	// 9. 更新事件的通知次数和时间（频控）
-	now := time.Now()
 	if err := e.db.Model(&models.AlertEvent{}).Where("id = ?", event.ID).Updates(map[string]interface{}{
 		"notify_count":      gorm.Expr("notify_count + 1"),
 		"last_notified_at":  now,

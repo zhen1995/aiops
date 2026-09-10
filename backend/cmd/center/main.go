@@ -70,6 +70,7 @@ func main() {
 		&models.NotifyMedia{},
 		&models.NotifyTemplate{},
 		&models.NotifyRule{},
+		&models.NotifyRecord{},
 		// 知识库
 		&models.KBDocument{},
 		&models.KBChunk{},
@@ -317,6 +318,11 @@ func main() {
 		notifyRuleGroup.DELETE("/:id", notifyRuleCtrl.Delete)
 		notifyRuleGroup.PATCH("/:id/toggle", notifyRuleCtrl.Toggle)
 	}
+
+	// 通知记录相关路由
+	notifyRecordCtrl := controllers.NewNotifyRecordController(db)
+	api.GET("/notify-records", notifyRecordCtrl.List)
+	api.GET("/notify-records/:id", notifyRecordCtrl.Detail)
 
 	// 运维知识库
 	kbCtrl := controllers.NewKnowledgeController(db, kbSvc)

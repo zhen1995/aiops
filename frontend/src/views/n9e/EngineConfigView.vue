@@ -1,7 +1,7 @@
 <template>
   <div>
-    <PageHeader title="夜莺引擎配置" desc="配置夜莺服务的连接地址和 Token，用于查询告警规则与告警事件">
-      <button class="btn btn-primary" @click="openForm(null)">+ 新建引擎</button>
+    <PageHeader :title="$t('n9e.engine.title')" :desc="$t('n9e.engine.desc')">
+      <button class="btn btn-primary" @click="openForm(null)">{{ $t('n9e.engine.create') }}</button>
     </PageHeader>
 
     <div class="card">
@@ -11,29 +11,29 @@
             <div class="cfg-title">
               <b>{{ c.name }}</b>
               <span class="tag" :class="c.is_enabled === 1 ? 'ok' : 'off'">
-                {{ c.is_enabled === 1 ? '已启用' : '未启用' }}
+                {{ $t(c.is_enabled === 1 ? 'n9e.engine.enabled' : 'n9e.engine.disabled') }}
               </span>
             </div>
             <div class="cfg-row">
-              <span class="cfg-label">地址</span>
+              <span class="cfg-label">{{ $t('n9e.engine.address') }}</span>
               <code>{{ c.address }}</code>
             </div>
             <div class="cfg-row">
               <span class="cfg-label">Token</span>
-              <code>{{ c.token || '未配置' }}</code>
+              <code>{{ c.token || $t('n9e.engine.notConfigured') }}</code>
             </div>
           </div>
           <div class="cfg-actions">
-            <button class="btn btn-sm" @click="openForm(c)">编辑</button>
-            <button class="btn btn-sm" @click="test(c)">测试连接</button>
-            <button class="btn btn-sm" @click="toggle(c)">{{ c.is_enabled === 1 ? '停用' : '启用' }}</button>
-            <button class="btn btn-sm btn-danger-link" @click="remove(c)">删除</button>
+            <button class="btn btn-sm" @click="openForm(c)">{{ $t('n9e.engine.edit') }}</button>
+            <button class="btn btn-sm" @click="test(c)">{{ $t('n9e.engine.testConnection') }}</button>
+            <button class="btn btn-sm" @click="toggle(c)">{{ $t(c.is_enabled === 1 ? 'n9e.engine.disable' : 'n9e.engine.enable') }}</button>
+            <button class="btn btn-sm btn-danger-link" @click="remove(c)">{{ $t('n9e.engine.delete') }}</button>
           </div>
         </div>
         <div v-if="configs.length === 0 && !loading" class="empty">
-          暂无引擎配置，请点击右上角新建
+          {{ $t('n9e.engine.empty') }}
         </div>
-        <div v-if="loading" class="empty">加载中...</div>
+        <div v-if="loading" class="empty">{{ $t('n9e.engine.loading') }}</div>
       </div>
     </div>
 
@@ -41,24 +41,24 @@
     <div v-if="showForm" class="modal-mask" @click.self="showForm = false">
       <div class="modal">
         <div class="modal-head">
-          <h3>{{ editing ? '编辑引擎' : '新建引擎' }}</h3>
+          <h3>{{ $t(editing ? 'n9e.engine.modalEditTitle' : 'n9e.engine.modalCreateTitle') }}</h3>
           <button class="close" @click="showForm = false">×</button>
         </div>
         <div class="modal-body">
           <div class="form-item">
-            <label>名称</label>
-            <input v-model="form.name" placeholder="例如：生产夜莺" maxlength="64" />
+            <label>{{ $t('n9e.engine.name') }}</label>
+            <input v-model="form.name" :placeholder="$t('n9e.engine.namePlaceholder')" maxlength="64" />
           </div>
           <div class="form-item">
-            <label>服务地址</label>
-            <input v-model="form.address" placeholder="例如：http://10.2.209.145:17000" />
+            <label>{{ $t('n9e.engine.addressLabel') }}</label>
+            <input v-model="form.address" :placeholder="$t('n9e.engine.addressPlaceholder')" />
           </div>
           <div class="form-item">
-            <label>X-User-Token</label>
-            <input v-model="form.token" placeholder="夜莺用户 Token" />
+            <label>{{ $t('n9e.engine.tokenLabel') }}</label>
+            <input v-model="form.token" :placeholder="$t('n9e.engine.tokenPlaceholder')" />
           </div>
           <div class="form-item switch-item">
-            <label>启用状态</label>
+            <label>{{ $t('n9e.engine.enabledLabel') }}</label>
             <label class="switch">
               <input type="checkbox" v-model.number="form.is_enabled" true-value="1" false-value="0" />
               <span class="slider"></span>
@@ -66,9 +66,9 @@
           </div>
         </div>
         <div class="modal-foot">
-          <button class="btn" @click="showForm = false">取消</button>
+          <button class="btn" @click="showForm = false">{{ $t('n9e.engine.cancel') }}</button>
           <button class="btn btn-primary" :disabled="saving" @click="save">
-            {{ saving ? '保存中...' : '保存' }}
+            {{ $t(saving ? 'n9e.engine.saving' : 'n9e.engine.save') }}
           </button>
         </div>
       </div>
@@ -78,8 +78,11 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../../components/PageHeader.vue'
 import { n9eApi } from '../../api/n9e.js'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const configs = ref([])
 const loading = ref(false)
@@ -87,7 +90,7 @@ const saving = ref(false)
 const showForm = ref(false)
 const editing = ref(null)
 
-const defaultForm = () => ({ name: '夜莺', address: '', token: '', is_enabled: 1 })
+const defaultForm = () => ({ name: t('n9e.engine.defaultName'), address: '', token: '', is_enabled: 1 })
 const form = ref(defaultForm())
 
 onMounted(load)
@@ -97,7 +100,7 @@ async function load() {
   try {
     configs.value = await n9eApi.listConfigs() || []
   } catch (e) {
-    alert('加载失败: ' + e.message)
+    alert(t('n9e.engine.loadFailed', { message: e.message }))
   } finally {
     loading.value = false
   }
@@ -113,7 +116,7 @@ function openForm(c) {
 
 async function save() {
   if (!form.value.name.trim() || !form.value.address.trim() || !form.value.token.trim()) {
-    return alert('请填写完整的名称、地址、Token')
+    return alert(t('n9e.engine.fillAll'))
   }
   saving.value = true
   try {
@@ -121,7 +124,7 @@ async function save() {
     showForm.value = false
     await load()
   } catch (e) {
-    alert('保存失败: ' + e.message)
+    alert(t('n9e.engine.saveFailed', { message: e.message }))
   } finally {
     saving.value = false
   }
@@ -131,12 +134,12 @@ async function test(cfg) {
   try {
     const data = await n9eApi.testConfig({ address: cfg.address, token: cfg.token })
     if (data.ok) {
-      alert('✅ 连接成功！HTTP ' + data.status)
+      alert(t('n9e.engine.testSuccess', { status: data.status }))
     } else {
-      alert('❌ 连接失败：' + (data.message || '状态码 ' + data.status))
+      alert(t('n9e.engine.testFailed', { message: data.message || t('n9e.engine.statusCode', { status: data.status }) }))
     }
   } catch (e) {
-    alert('❌ 测试失败: ' + e.message)
+    alert(t('n9e.engine.testError', { message: e.message }))
   }
 }
 
@@ -146,17 +149,17 @@ async function toggle(c) {
     await n9eApi.saveConfig(payload)
     await load()
   } catch (e) {
-    alert('操作失败: ' + e.message)
+    alert(t('n9e.engine.operateFailed', { message: e.message }))
   }
 }
 
 async function remove(c) {
-  if (!confirm(`确认删除引擎配置 "${c.name}"？`)) return
+  if (!confirm(t('n9e.engine.confirmDelete', { name: c.name }))) return
   try {
     await n9eApi.deleteConfig(c.id)
     await load()
   } catch (e) {
-    alert('删除失败: ' + e.message)
+    alert(t('n9e.engine.deleteFailed', { message: e.message }))
   }
 }
 </script>

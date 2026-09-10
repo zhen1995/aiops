@@ -36,7 +36,13 @@ class VectorStore:
             )
             for i, (c, v) in enumerate(zip(chunks, vectors))
         ]
-        self.client.upsert(collection_name=self.collection, points=points)
+        # Qdrant REST 单请求体上限 32MB，大批量分片 upsert 避免 400
+        batch_size = 256
+        for i in range(0, len(points), batch_size):
+            self.client.upsert(
+                collection_name=self.collection,
+                points=points[i:i + batch_size],
+            )
         return len(points)
 
     def search(self, vector: list[float], top_k: int) -> list[dict]:

@@ -1,20 +1,20 @@
 <template>
   <div>
-    <PageHeader title="巡检任务" desc="配置定时巡检任务，服务会按 Cron 表达式自动执行并生成报告">
-      <button class="btn btn-primary" @click="openDialog()">+ 新建任务</button>
+    <PageHeader :title="$t('inspection.task.title')" :desc="$t('inspection.task.desc')">
+      <button class="btn btn-primary" @click="openDialog()">{{ $t('inspection.task.newBtn') }}</button>
     </PageHeader>
 
     <div class="card">
       <table class="table">
         <thead>
           <tr>
-            <th style="width: 44px">启用</th>
-            <th>任务名称</th>
-            <th style="width: 180px">Cron 表达式</th>
-            <th>任务提示词</th>
-            <th style="width: 170px">上次执行</th>
-            <th style="width: 170px">预计下次</th>
-            <th style="width: 170px">操作</th>
+            <th style="width: 44px">{{ $t('inspection.task.table.enabled') }}</th>
+            <th>{{ $t('inspection.task.table.name') }}</th>
+            <th style="width: 180px">{{ $t('inspection.task.table.cron') }}</th>
+            <th>{{ $t('inspection.task.table.prompt') }}</th>
+            <th style="width: 170px">{{ $t('inspection.task.table.lastRun') }}</th>
+            <th style="width: 170px">{{ $t('inspection.task.table.nextRun') }}</th>
+            <th style="width: 170px">{{ $t('inspection.task.table.actions') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -31,13 +31,13 @@
             <td class="muted">{{ fmtTime(t.last_run_at) || '-' }}</td>
             <td class="muted">{{ fmtTime(t.next_run_at) || '-' }}</td>
             <td>
-              <button class="btn btn-sm" @click="openDialog(t)">编辑</button>
-              <button class="btn btn-sm btn-outline" @click="runNow(t)">立即执行</button>
-              <button class="btn btn-sm btn-danger-link" @click="remove(t)">删除</button>
+              <button class="btn btn-sm" @click="openDialog(t)">{{ $t('inspection.task.table.edit') }}</button>
+              <button class="btn btn-sm btn-outline" @click="runNow(t)">{{ $t('inspection.task.table.runNow') }}</button>
+              <button class="btn btn-sm btn-danger-link" @click="remove(t)">{{ $t('inspection.task.table.remove') }}</button>
             </td>
           </tr>
           <tr v-if="tasks.length === 0">
-            <td colspan="7" class="empty">暂无巡检任务，点击右上角新建</td>
+            <td colspan="7" class="empty">{{ $t('inspection.task.table.empty') }}</td>
           </tr>
         </tbody>
       </table>
@@ -47,26 +47,26 @@
     <div v-if="showDialog" class="modal-mask" @click.self="closeDialog">
       <div class="modal">
         <div class="modal-head">
-          <h3>{{ editingTask ? '编辑巡检任务' : '新建巡检任务' }}</h3>
+          <h3>{{ editingTask ? $t('inspection.task.modal.editTitle') : $t('inspection.task.modal.createTitle') }}</h3>
           <button class="close" @click="closeDialog">×</button>
         </div>
         <div class="modal-body">
           <div class="form-item">
-            <label>任务名称</label>
-            <input v-model="form.name" placeholder="例如：每日系统巡检" maxlength="128" />
+            <label>{{ $t('inspection.task.modal.name') }}</label>
+            <input v-model="form.name" :placeholder="$t('inspection.task.modal.namePlaceholder')" maxlength="128" />
           </div>
 
           <div class="form-item">
             <label class="row-label">
-              Cron 表达式
-              <span class="hint">支持 5 段（分 时 日 月 周）或 6 段（秒 分 时 日 月 周）</span>
+              {{ $t('inspection.task.modal.cronExpr') }}
+              <span class="hint">{{ $t('inspection.task.modal.cronHint') }}</span>
             </label>
             <div class="cron-row">
-              <input v-model="form.cron_expr" placeholder="点击右侧「配置」生成表达式" readonly />
+              <input v-model="form.cron_expr" :placeholder="$t('inspection.task.modal.cronPlaceholder')" readonly />
               <button class="btn btn-sm" @click="showCronBuilder = !showCronBuilder">
-                {{ showCronBuilder ? '收起' : '配置' }}
+                {{ showCronBuilder ? $t('inspection.task.modal.collapse') : $t('inspection.task.modal.expand') }}
               </button>
-              <button class="btn btn-sm" @click="previewCron" :disabled="!form.cron_expr">预览</button>
+              <button class="btn btn-sm" @click="previewCron" :disabled="!form.cron_expr">{{ $t('inspection.task.modal.preview') }}</button>
             </div>
 
             <!-- Cron 可视化选择器（内联展开） -->
@@ -78,7 +78,7 @@
             />
 
             <div v-if="cronPreview.length > 0" class="cron-preview">
-              <div class="cron-preview-title">预计下次执行时间：</div>
+              <div class="cron-preview-title">{{ $t('inspection.task.modal.nextRuns') }}</div>
               <ul>
                 <li v-for="(t, i) in cronPreview" :key="i">{{ t }}</li>
               </ul>
@@ -87,33 +87,33 @@
           </div>
 
           <div class="form-item">
-            <label>任务提示词</label>
+            <label>{{ $t('inspection.task.modal.promptLabel') }}</label>
             <textarea
               v-model="form.prompt"
               rows="6"
-              placeholder="描述你希望巡检任务分析的内容，例如：检查过去 24 小时内的异常告警、错误日志和服务健康状态..."
+              :placeholder="$t('inspection.task.modal.promptPlaceholder')"
             />
           </div>
 
           <div class="form-item">
             <label class="row-label">
-              通知媒介
-              <span class="hint">报告生成后自动推送，可多选</span>
+              {{ $t('inspection.task.modal.media') }}
+              <span class="hint">{{ $t('inspection.task.modal.mediaHint') }}</span>
             </label>
             <div v-if="mediaOptions.length === 0" class="media-empty">
-              暂无启用的通知媒介，请先在「通知媒介」菜单中创建
+              {{ $t('inspection.task.modal.mediaEmpty') }}
             </div>
             <div v-else class="media-options">
               <label v-for="m in mediaOptions" :key="m.id" class="media-option">
                 <input type="checkbox" :value="m.id" v-model="form.notify_media_ids" />
                 <span>{{ m.name }}</span>
-                <em class="media-type">{{ m.type === 'dingtalk' ? '钉钉' : 'Webhook' }}</em>
+                <em class="media-type">{{ m.type === 'dingtalk' ? $t('inspection.task.modal.dingtalk') : 'Webhook' }}</em>
               </label>
             </div>
           </div>
 
           <div class="form-item switch-item">
-            <label>启用任务</label>
+            <label>{{ $t('inspection.task.modal.enabledSwitch') }}</label>
             <label class="switch">
               <input type="checkbox" v-model="form.enabled" />
               <span class="slider"></span>
@@ -121,9 +121,9 @@
           </div>
         </div>
         <div class="modal-foot">
-          <button class="btn" @click="closeDialog">取消</button>
+          <button class="btn" @click="closeDialog">{{ $t('inspection.task.modal.cancel') }}</button>
           <button class="btn btn-primary" :disabled="submitting" @click="save">
-            {{ submitting ? '保存中...' : '保存' }}
+            {{ submitting ? $t('inspection.task.modal.saving') : $t('inspection.task.modal.save') }}
           </button>
         </div>
       </div>
@@ -133,6 +133,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../components/PageHeader.vue'
 import CronBuilder from '../components/CronBuilder.vue'
 import {
@@ -149,6 +150,8 @@ const submitting = ref(false)
 const cronPreview = ref([])
 const cronError = ref('')
 const showCronBuilder = ref(false)
+
+const { t } = useI18n({ useScope: 'global' })
 
 const defaultForm = () => ({
   name: '',
@@ -177,7 +180,7 @@ async function load() {
   try {
     tasks.value = await listTasks()
   } catch (e) {
-    alert('加载任务失败: ' + e.message)
+    alert(t('inspection.task.messages.loadFailed') + e.message)
   }
 }
 
@@ -225,9 +228,9 @@ async function previewCron() {
 }
 
 async function save() {
-  if (!form.value.name.trim()) return alert('请填写任务名称')
-  if (!form.value.cron_expr.trim()) return alert('请填写 Cron 表达式')
-  if (!form.value.prompt.trim()) return alert('请填写任务提示词')
+  if (!form.value.name.trim()) return alert(t('inspection.task.messages.nameRequired'))
+  if (!form.value.cron_expr.trim()) return alert(t('inspection.task.messages.cronRequired'))
+  if (!form.value.prompt.trim()) return alert(t('inspection.task.messages.promptRequired'))
 
   submitting.value = true
   try {
@@ -247,7 +250,7 @@ async function save() {
     closeDialog()
     await load()
   } catch (e) {
-    alert('保存失败: ' + e.message)
+    alert(t('inspection.task.messages.saveFailed') + e.message)
   } finally {
     submitting.value = false
   }
@@ -258,28 +261,28 @@ async function toggleEnabled(task) {
     await toggleTask(task.id)
     await load()
   } catch (e) {
-    alert('操作失败: ' + e.message)
+    alert(t('inspection.task.messages.toggleFailed') + e.message)
   }
 }
 
 async function runNow(task) {
-  if (!confirm(`立即执行巡检任务 "${task.name}"？（调用 LLM 可能需要几十秒）`)) return
+  if (!confirm(t('inspection.task.messages.runNowConfirm', { name: task.name }))) return
   try {
     await triggerTask(task.id)
-    alert('执行完成，已生成巡检报告')
+    alert(t('inspection.task.messages.runSucceeded'))
     await load()
   } catch (e) {
-    alert('执行失败: ' + e.message)
+    alert(t('inspection.task.messages.runFailed') + e.message)
   }
 }
 
 async function remove(task) {
-  if (!confirm(`确认删除巡检任务 "${task.name}"？`)) return
+  if (!confirm(t('inspection.task.messages.deleteConfirm', { name: task.name }))) return
   try {
     await deleteTask(task.id)
     await load()
   } catch (e) {
-    alert('删除失败: ' + e.message)
+    alert(t('inspection.task.messages.deleteFailed') + e.message)
   }
 }
 

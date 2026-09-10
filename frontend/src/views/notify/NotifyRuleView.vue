@@ -1,56 +1,48 @@
 <template>
   <div>
-    <PageHeader title="通知规则" desc="配置通知媒介与消息模板的多对多关联，可绑定夜莺告警规则">
-      <button class="btn btn-primary" @click="openForm(null)">+ 新建通知规则</button>
+    <PageHeader :title="$t('notify.rule.pageTitle')" :desc="$t('notify.rule.pageDesc')">
+      <button class="btn btn-primary" @click="openForm(null)">{{ $t('notify.rule.create') }}</button>
     </PageHeader>
 
     <!-- 编辑弹窗 -->
     <div v-if="showForm" class="modal-mask" @click.self="close">
       <div class="modal modal-lg">
         <div class="modal-head">
-          <h3>{{ editing ? '编辑通知规则' : '新建通知规则' }}</h3>
+          <h3>{{ editing ? $t('notify.rule.modal.editTitle') : $t('notify.rule.modal.createTitle') }}</h3>
           <button class="close" @click="close">×</button>
         </div>
         <div class="modal-body">
           <div class="form-row">
             <div class="form-item">
-              <label>规则名称 <span class="req">*</span></label>
-              <input v-model="form.name" placeholder="例如：告警触发-钉钉" />
-            </div>
-            <div class="form-item">
-              <label>触发场景</label>
-              <select v-model="form.trigger_types">
-                <option value="all">告警触发 + 恢复</option>
-                <option value="firing">仅告警触发</option>
-                <option value="recovered">仅告警恢复</option>
-              </select>
+              <label>{{ $t('notify.rule.modal.name') }} <span class="req">*</span></label>
+              <input v-model="form.name" :placeholder="$t('notify.rule.modal.namePlaceholder')" />
             </div>
           </div>
           <div class="form-item">
-            <label>备注</label>
-            <input v-model="form.remark" placeholder="选填，说明这条规则的用途" />
+            <label>{{ $t('notify.rule.modal.remark') }}</label>
+            <input v-model="form.remark" :placeholder="$t('notify.rule.modal.remarkPlaceholder')" />
           </div>
 
           <div class="form-section">
-            <label class="section-label">通知媒介 <span class="hint">选一个</span></label>
-            <div v-if="medias.length === 0" class="hint-tip">暂无通知媒介，请到「通知媒介」菜单新增</div>
+            <label class="section-label">{{ $t('notify.rule.modal.media') }} <span class="hint">{{ $t('notify.rule.modal.pickOne') }}</span></label>
+            <div v-if="medias.length === 0" class="hint-tip">{{ $t('notify.rule.modal.mediaEmpty') }}</div>
             <select v-model="form.media_id" class="form-input" v-if="medias.length > 0">
-              <option value="">请选择通知媒介</option>
+              <option value="">{{ $t('notify.rule.modal.selectMedia') }}</option>
               <option v-for="m in medias" :key="m.id" :value="m.id">{{ m.name }}（{{ mediaTypeLabel(m.type) }}）</option>
             </select>
           </div>
 
           <div class="form-section">
-            <label class="section-label">消息模板 <span class="hint">选一个</span></label>
-            <div v-if="templates.length === 0" class="hint-tip">暂无消息模板，请到「消息模板」菜单新增</div>
+            <label class="section-label">{{ $t('notify.rule.modal.template') }} <span class="hint">{{ $t('notify.rule.modal.pickOne') }}</span></label>
+            <div v-if="templates.length === 0" class="hint-tip">{{ $t('notify.rule.modal.templateEmpty') }}</div>
             <select v-model="form.template_id" class="form-input" v-if="templates.length > 0">
-              <option value="">请选择消息模板</option>
+              <option value="">{{ $t('notify.rule.modal.selectTemplate') }}</option>
               <option v-for="t in templates" :key="t.id" :value="t.id">{{ t.name }}（{{ mediaTypeLabel(t.media_type) || t.media_type }}）</option>
             </select>
           </div>
 
           <div class="form-item form-item-toggle" style="margin-top: 14px;">
-            <label class="form-label">启用状态</label>
+            <label class="form-label">{{ $t('notify.rule.modal.enabled') }}</label>
             <label class="switch">
               <input type="checkbox" v-model="form.is_enabled" :true-value="1" :false-value="0" />
               <span></span>
@@ -58,9 +50,9 @@
           </div>
         </div>
         <div class="modal-foot">
-          <button class="btn" @click="close">取消</button>
+          <button class="btn" @click="close">{{ $t('notify.rule.modal.cancel') }}</button>
           <button class="btn btn-primary" :disabled="saving" @click="save">
-            {{ saving ? '保存中...' : '保存' }}
+            {{ saving ? $t('notify.rule.modal.saving') : $t('notify.rule.modal.save') }}
           </button>
         </div>
       </div>
@@ -69,18 +61,18 @@
     <!-- 列表 -->
     <div class="card">
       <div class="tb-head">
-        <span class="tb-count">共 {{ rules.length }} 条规则</span>
+        <span class="tb-count">{{ $t('notify.rule.list.total', { count: rules.length }) }}</span>
       </div>
       <div class="tb-wrap">
         <table class="tb">
           <thead>
             <tr>
-              <th style="width:20%">规则名称</th>
-              <th style="width:14%">触发场景</th>
-              <th style="width:22%">通知媒介</th>
-              <th style="width:22%">消息模板</th>
-              <th style="width:8%">状态</th>
-              <th style="width:14%">操作</th>
+              <th style="width:20%">{{ $t('notify.rule.list.name') }}</th>
+              <th style="width:14%">{{ $t('notify.rule.list.triggerScene') }}</th>
+              <th style="width:22%">{{ $t('notify.rule.list.media') }}</th>
+              <th style="width:22%">{{ $t('notify.rule.list.template') }}</th>
+              <th style="width:8%">{{ $t('notify.rule.list.status') }}</th>
+              <th style="width:14%">{{ $t('notify.rule.list.actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -111,14 +103,14 @@
                 </label>
               </td>
               <td class="op-col">
-                <button class="btn-tiny" @click="openForm(r)">编辑</button>
-                <button class="btn-tiny danger" @click="remove(r)">删除</button>
+                <button class="btn-tiny" @click="openForm(r)">{{ $t('notify.rule.list.edit') }}</button>
+                <button class="btn-tiny danger" @click="remove(r)">{{ $t('notify.rule.list.delete') }}</button>
               </td>
             </tr>
             <tr v-if="rules.length === 0 && !loading">
-              <td colspan="6" class="tb-empty">暂无通知规则</td>
+              <td colspan="6" class="tb-empty">{{ $t('notify.rule.list.empty') }}</td>
             </tr>
-            <tr v-if="loading"><td colspan="6" class="tb-empty">加载中...</td></tr>
+            <tr v-if="loading"><td colspan="6" class="tb-empty">{{ $t('notify.rule.list.loading') }}</td></tr>
           </tbody>
         </table>
       </div>
@@ -128,8 +120,11 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../../components/PageHeader.vue'
 import { notifyApi } from '../../api/notify.js'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const rules = ref([])
 const templates = ref([])
@@ -178,7 +173,7 @@ function openForm(r) {
 function close() { showForm.value = false; editing.value = null }
 
 async function save() {
-  if (!form.value.name.trim()) return alert('请填写规则名称')
+  if (!form.value.name.trim()) return alert(t('notify.rule.error.nameRequired'))
   saving.value = true
   const payload = {
     name: form.value.name,
@@ -197,26 +192,37 @@ async function save() {
     showForm.value = false
     await loadAll()
   } catch (e) {
-    alert('保存失败: ' + e.message)
+    alert(t('notify.rule.error.saveFailed') + e.message)
   } finally { saving.value = false }
 }
 
 async function remove(r) {
-  if (!confirm(`确认删除通知规则「${r.name}」？`)) return
-  try { await notifyApi.deleteRule(r.id); await loadAll() } catch (e) { alert('删除失败: ' + e.message) }
+  if (!confirm(t('notify.rule.error.confirmDelete', { name: r.name }))) return
+  try { await notifyApi.deleteRule(r.id); await loadAll() } catch (e) { alert(t('notify.rule.error.deleteFailed') + e.message) }
 }
 
 async function toggleEnabled(r) {
   try {
     const updated = await notifyApi.toggleRule(r.id)
     r.is_enabled = updated.is_enabled
-  } catch (e) { alert('切换失败: ' + e.message) }
+  } catch (e) { alert(t('notify.rule.error.toggleFailed') + e.message) }
 }
 
-function mediaTypeLabel(t) {
-  return { dingtalk: '钉钉', webhook: 'Webhook', email: '邮件', wecom: '企微' }[t] || t
+function mediaTypeLabel(type) {
+  return {
+    dingtalk: t('notify.rule.mediaType.dingtalk'),
+    webhook: t('notify.rule.mediaType.webhook'),
+    email: t('notify.rule.mediaType.email'),
+    wecom: t('notify.rule.mediaType.wecom')
+  }[type] || type
 }
-function triggerLabel(v) { return { all: '触发+恢复', firing: '仅触发', recovered: '仅恢复' }[v] || v }
+function triggerLabel(v) {
+  return {
+    all: t('notify.rule.trigger.all'),
+    firing: t('notify.rule.trigger.firing'),
+    recovered: t('notify.rule.trigger.recovered')
+  }[v] || v
+}
 
 onMounted(loadAll)
 </script>

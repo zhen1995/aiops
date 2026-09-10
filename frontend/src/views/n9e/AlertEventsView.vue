@@ -1,27 +1,27 @@
 <template>
   <div>
-    <PageHeader title="夜莺告警事件" desc="活跃告警与历史告警事件查询">
-      <button class="btn btn-sm" @click="load" :disabled="loading">刷新</button>
+    <PageHeader :title="$t('n9e.events.title')" :desc="$t('n9e.events.desc')">
+      <button class="btn btn-sm" @click="load" :disabled="loading">{{ $t('n9e.events.refresh') }}</button>
     </PageHeader>
 
     <div class="card-filter">
       <div class="filter-tabs">
         <button :class="['tab', { active: tab === 'cur' }]" @click="switchTab('cur')">
-          活跃告警
+          {{ $t('n9e.events.tabCur') }}
           <span v-if="curCount > 0" class="tab-badge">{{ curCount }}</span>
         </button>
-        <button :class="['tab', { active: tab === 'his' }]" @click="switchTab('his')">历史告警</button>
+        <button :class="['tab', { active: tab === 'his' }]" @click="switchTab('his')">{{ $t('n9e.events.tabHis') }}</button>
       </div>
 
       <template v-if="tab === 'his'">
         <div class="filter-row">
-          <label>起始时间</label>
+          <label>{{ $t('n9e.events.startTime') }}</label>
           <input type="datetime-local" v-model="hisStart" />
-          <label>结束时间</label>
+          <label>{{ $t('n9e.events.endTime') }}</label>
           <input type="datetime-local" v-model="hisEnd" />
-          <button class="btn btn-sm btn-primary" @click="loadHis">查询</button>
-          <button class="btn btn-sm" @click="presetRange(7)">近 7 天</button>
-          <button class="btn btn-sm" @click="presetRange(30)">近 30 天</button>
+          <button class="btn btn-sm btn-primary" @click="loadHis">{{ $t('n9e.events.query') }}</button>
+          <button class="btn btn-sm" @click="presetRange(7)">{{ $t('n9e.events.last7Days') }}</button>
+          <button class="btn btn-sm" @click="presetRange(30)">{{ $t('n9e.events.last30Days') }}</button>
         </div>
       </template>
 
@@ -33,11 +33,11 @@
       <table class="table">
         <thead>
           <tr>
-            <th style="width:90px">级别</th>
-            <th style="width:160px">告警名称</th>
-            <th>标签</th>
-            <th style="width:180px">触发时间</th>
-            <th style="width:120px">业务组</th>
+            <th style="width:90px">{{ $t('n9e.events.colLevel') }}</th>
+            <th style="width:160px">{{ $t('n9e.events.colName') }}</th>
+            <th>{{ $t('n9e.events.colTags') }}</th>
+            <th style="width:180px">{{ $t('n9e.events.colTriggerTime') }}</th>
+            <th style="width:120px">{{ $t('n9e.events.colGroup') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -54,8 +54,8 @@
       </table>
     </div>
     <div v-else-if="tab === 'cur' && !loading" class="empty-card">
-      <p class="empty-title">🎉 当前没有活跃告警</p>
-      <p class="empty-sub">夜莺引擎运行正常</p>
+      <p class="empty-title">{{ $t('n9e.events.curEmptyTitle') }}</p>
+      <p class="empty-sub">{{ $t('n9e.events.curEmptySub') }}</p>
     </div>
 
     <!-- 历史告警 -->
@@ -63,13 +63,13 @@
       <table class="table">
         <thead>
           <tr>
-            <th style="width:90px">级别</th>
-            <th style="width:160px">告警名称</th>
-            <th>标签</th>
-            <th style="width:170px">触发时间</th>
-            <th style="width:170px">恢复时间</th>
-            <th style="width:80px">持续</th>
-            <th style="width:120px">业务组</th>
+            <th style="width:90px">{{ $t('n9e.events.colLevel') }}</th>
+            <th style="width:160px">{{ $t('n9e.events.colName') }}</th>
+            <th>{{ $t('n9e.events.colTags') }}</th>
+            <th style="width:170px">{{ $t('n9e.events.colTriggerTime') }}</th>
+            <th style="width:170px">{{ $t('n9e.events.colRecoverTime') }}</th>
+            <th style="width:80px">{{ $t('n9e.events.colDuration') }}</th>
+            <th style="width:120px">{{ $t('n9e.events.colGroup') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -88,16 +88,19 @@
       </table>
     </div>
     <div v-else-if="tab === 'his' && !loading" class="empty-card">
-      <p class="empty-title">该时间段内无历史告警</p>
-      <p class="empty-sub">调整时间范围或刷新重试</p>
+      <p class="empty-title">{{ $t('n9e.events.hisEmptyTitle') }}</p>
+      <p class="empty-sub">{{ $t('n9e.events.hisEmptySub') }}</p>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../../components/PageHeader.vue'
 import { n9eApi } from '../../api/n9e.js'
+
+const { t } = useI18n({ useScope: 'global' })
 
 const tab = ref('cur')
 const loading = ref(false)
@@ -291,10 +294,10 @@ function durationOf(e) {
   const startSec = typeof start === 'number' && start > 1e12 ? start / 1000 : start
   const endSec = typeof end === 'number' && end > 1e12 ? end / 1000 : end
   const secs = Math.max(0, Number(endSec) - Number(startSec))
-  if (secs < 60) return secs + '秒'
-  if (secs < 3600) return Math.round(secs / 60) + '分'
-  if (secs < 86400) return (secs / 3600).toFixed(1) + '时'
-  return (secs / 86400).toFixed(1) + '天'
+  if (secs < 60) return t('n9e.events.durationSec', { n: secs })
+  if (secs < 3600) return t('n9e.events.durationMin', { n: Math.round(secs / 60) })
+  if (secs < 86400) return t('n9e.events.durationHour', { n: (secs / 3600).toFixed(1) })
+  return t('n9e.events.durationDay', { n: (secs / 86400).toFixed(1) })
 }
 </script>
 

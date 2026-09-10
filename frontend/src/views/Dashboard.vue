@@ -1,27 +1,27 @@
 <template>
   <div>
-    <PageHeader title="运维总览大盘" desc="多源监控数据融合 · 异常检测 / 根因分析 / 告警降噪 实时概览">
+    <PageHeader :title="$t('dashboard.header.title')" :desc="$t('dashboard.header.desc')">
       <div class="range-switch">
         <button class="btn btn-sm" :class="{ 'btn-primary': rangeMode === '24h' }" @click="switchMode('24h')">
-          近 24 小时
+          {{ $t('dashboard.header.range24h') }}
         </button>
         <button class="btn btn-sm" :class="{ 'btn-primary': rangeMode === 'custom' }" @click="switchMode('custom')">
-          自定义范围
+          {{ $t('dashboard.header.rangeCustom') }}
         </button>
       </div>
       <div v-if="rangeMode === 'custom'" class="custom-range">
         <input v-model="customStart" type="datetime-local" />
-        <span>至</span>
+        <span>{{ $t('dashboard.header.to') }}</span>
         <input v-model="customEnd" type="datetime-local" />
         <button class="btn btn-sm btn-primary" :disabled="loading || !customStart || !customEnd" @click="applyCustom">
-          确定
+          {{ $t('dashboard.header.confirm') }}
         </button>
       </div>
     </PageHeader>
 
     <div v-if="error" class="card error-bar">
       <span>{{ error }}</span>
-      <button class="btn btn-sm" @click="loadData">重试</button>
+      <button class="btn btn-sm" @click="loadData">{{ $t('dashboard.header.retry') }}</button>
     </div>
 
     <div class="kpi-grid">
@@ -30,23 +30,23 @@
 
     <div class="row-2">
       <div class="card">
-        <h3 class="card-title">告警趋势（原始 vs 降噪后）</h3>
-        <p class="card-sub">智能降噪实时生效，压缩率 {{ trendRate }}%</p>
+        <h3 class="card-title">{{ $t('dashboard.trend.title') }}</h3>
+        <p class="card-sub">{{ $t('dashboard.trend.sub', { rate: trendRate }) }}</p>
         <ChartBox v-if="hasTrend" :option="trendOption" height="280px" />
-        <div v-else class="chart-empty">暂无数据</div>
+        <div v-else class="chart-empty">{{ $t('dashboard.header.noData') }}</div>
       </div>
       <div class="card">
-        <h3 class="card-title">告警级别分布</h3>
-        <p class="card-sub">范围内全部告警按级别分级</p>
+        <h3 class="card-title">{{ $t('dashboard.severity.title') }}</h3>
+        <p class="card-sub">{{ $t('dashboard.severity.sub') }}</p>
         <ChartBox v-if="severityDist.length" :option="pieOption" height="280px" />
-        <div v-else class="chart-empty">暂无数据</div>
+        <div v-else class="chart-empty">{{ $t('dashboard.header.noData') }}</div>
       </div>
     </div>
 
     <div class="row-2b">
       <div class="card">
-        <h3 class="card-title">服务健康度</h3>
-        <p class="card-sub">基于多指标关联检测综合评分</p>
+        <h3 class="card-title">{{ $t('dashboard.health.title') }}</h3>
+        <p class="card-sub">{{ $t('dashboard.health.sub') }}</p>
         <div v-if="serviceHealth.length" class="health-list">
           <div v-for="s in serviceHealth" :key="s.service" class="health-item">
             <div class="health-head">
@@ -55,25 +55,30 @@
             </div>
             <div class="progress"><i :style="{ width: s.score + '%', background: barColor(s.score) }"></i></div>
             <div class="health-foot muted">
-              <span>异常指标 {{ s.abnormal_metrics }} 个</span>
+              <span>{{ $t('dashboard.health.abnormalMetrics', { count: s.abnormal_metrics }) }}</span>
               <span>{{ trendText(s.trend) }}</span>
             </div>
           </div>
         </div>
-        <div v-else class="chart-empty">暂无数据</div>
+        <div v-else class="chart-empty">{{ $t('dashboard.header.noData') }}</div>
       </div>
 
       <div class="card">
         <div class="card-head-flex">
           <div>
-            <h3 class="card-title">最新高危告警</h3>
-            <p class="card-sub">范围内最新告警事件（按级别排序）</p>
+            <h3 class="card-title">{{ $t('dashboard.alerts.title') }}</h3>
+            <p class="card-sub">{{ $t('dashboard.alerts.sub') }}</p>
           </div>
-          <button class="btn btn-sm" @click="goAlertEvents">查看告警事件</button>
+          <button class="btn btn-sm" @click="goAlertEvents">{{ $t('dashboard.alerts.view') }}</button>
         </div>
         <table v-if="latestAlerts.length" class="table">
           <thead>
-            <tr><th>级别</th><th>告警内容</th><th>服务</th><th>时间</th></tr>
+            <tr>
+              <th>{{ $t('dashboard.alerts.colLevel') }}</th>
+              <th>{{ $t('dashboard.alerts.colContent') }}</th>
+              <th>{{ $t('dashboard.alerts.colService') }}</th>
+              <th>{{ $t('dashboard.alerts.colTime') }}</th>
+            </tr>
           </thead>
           <tbody>
             <tr v-for="a in latestAlerts" :key="a.id">
@@ -86,7 +91,7 @@
             </tr>
           </tbody>
         </table>
-        <div v-else class="chart-empty">暂无数据</div>
+        <div v-else class="chart-empty">{{ $t('dashboard.header.noData') }}</div>
       </div>
     </div>
   </div>
@@ -95,6 +100,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import PageHeader from '../components/PageHeader.vue'
 import StatCard from '../components/StatCard.vue'
 import ChartBox from '../components/ChartBox.vue'
@@ -102,6 +108,7 @@ import LevelTag from '../components/LevelTag.vue'
 import { dashboardApi } from '../api/dashboard.js'
 
 const router = useRouter()
+const { t } = useI18n({ useScope: 'global' })
 
 const rangeMode = ref('24h')
 const customStart = ref('')
@@ -126,22 +133,26 @@ const kpiStats = computed(() => {
   const k = kpi.value || {}
   return [
     {
-      label: '活动告警', value: k.active_alerts ?? '-',
-      ...deltaConf(k.active_alerts_delta_pct, true), hint: '较昨日变化'
+      label: t('dashboard.kpi.activeAlerts.label'), value: k.active_alerts ?? '-',
+      ...deltaConf(k.active_alerts_delta_pct, true), hint: t('dashboard.kpi.activeAlerts.hint'),
+      help: t('dashboard.kpi.activeAlerts.help')
     },
     {
-      label: '今日异常检测', value: k.anomaly_today ?? '-',
+      label: t('dashboard.kpi.anomalyToday.label'), value: k.anomaly_today ?? '-',
       delta: k.anomaly_delta != null ? ((k.anomaly_delta > 0 ? '+' : '') + k.anomaly_delta) : '',
       deltaType: k.anomaly_delta > 0 ? 'down' : (k.anomaly_delta < 0 ? 'up' : 'flat'),
-      hint: '命中异常点'
+      hint: t('dashboard.kpi.anomalyToday.hint'),
+      help: t('dashboard.kpi.anomalyToday.help')
     },
     {
-      label: '告警压缩率', value: k.compression_rate ?? '-', unit: '%',
-      ...deltaConf(k.compression_delta_pct, false), hint: '目标 ≥80%'
+      label: t('dashboard.kpi.compressionRate.label'), value: k.compression_rate ?? '-', unit: '%',
+      ...deltaConf(k.compression_delta_pct, false), hint: t('dashboard.kpi.compressionRate.hint'),
+      help: t('dashboard.kpi.compressionRate.help')
     },
     {
-      label: '平均 MTTR', value: k.mttr_minutes ?? '-', unit: 'min',
-      ...deltaConf(k.mttr_delta_pct, true), hint: '目标 <12min'
+      label: t('dashboard.kpi.mttr.label'), value: k.mttr_minutes ?? '-', unit: 'min',
+      ...deltaConf(k.mttr_delta_pct, true), hint: t('dashboard.kpi.mttr.hint'),
+      help: t('dashboard.kpi.mttr.help')
     }
   ]
 })
@@ -149,20 +160,24 @@ const kpiStats = computed(() => {
 const trendRate = computed(() => trend.value.compression_rate ?? '-')
 const hasTrend = computed(() => (trend.value.buckets || []).length > 0)
 
-const severityColor = { P1: '#c93b3b', P2: '#d97b29', P3: '#0e7c72' }
-const severityText = { 1: 'P1-紧急', 2: 'P2-警告', 3: 'P3-提醒' }
-const severityTag = (s) => (s === 1 ? 'critical' : s === 2 ? 'warning' : 'info')
+const severityColor = { P1: '#c93b3b', P2: '#d97b29', P3: '#d9a400' }
+const severityText = computed(() => ({
+  1: t('dashboard.alerts.p1'),
+  2: t('dashboard.alerts.p2'),
+  3: t('dashboard.alerts.p3')
+}))
+const severityTag = (s) => (s === 1 ? 'critical' : s === 2 ? 'major' : 'warning')
 
 const trendOption = computed(() => ({
   tooltip: { trigger: 'axis' },
-  legend: { data: ['原始告警', '降噪后告警'], top: 0, textStyle: { color: '#5c6b68' } },
+  legend: { data: [t('dashboard.trend.legendRaw'), t('dashboard.trend.legendDenoised')], top: 0, textStyle: { color: '#5c6b68' } },
   grid: { left: 40, right: 16, top: 36, bottom: 24 },
   xAxis: { type: 'category', data: trend.value.buckets || [], axisLine: { lineStyle: { color: '#e4e9e7' } }, axisLabel: { color: '#93a19d' } },
   yAxis: { type: 'value', splitLine: { lineStyle: { color: '#eef2f0' } }, axisLabel: { color: '#93a19d' } },
   series: [
-    { name: '原始告警', type: 'line', smooth: true, data: trend.value.raw || [], showSymbol: false, lineStyle: { color: '#c9d4d1', width: 2 }, itemStyle: { color: '#c9d4d1' } },
+    { name: t('dashboard.trend.legendRaw'), type: 'line', smooth: true, data: trend.value.raw || [], showSymbol: false, lineStyle: { color: '#c9d4d1', width: 2 }, itemStyle: { color: '#c9d4d1' } },
     {
-      name: '降噪后告警', type: 'line', smooth: true, data: trend.value.denoised || [], showSymbol: false,
+      name: t('dashboard.trend.legendDenoised'), type: 'line', smooth: true, data: trend.value.denoised || [], showSymbol: false,
       lineStyle: { color: '#0e7c72', width: 2.5 }, itemStyle: { color: '#0e7c72' },
       areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(14,124,114,0.16)' }, { offset: 1, color: 'rgba(14,124,114,0)' }] } }
     }
@@ -186,7 +201,7 @@ const pieOption = computed(() => ({
 
 const healthStatus = (score) => (score < 80 ? 'warning' : 'online')
 const barColor = (score) => (score < 80 ? 'var(--c-p1)' : 'var(--c-primary)')
-const trendText = (t) => (t === '恶化' ? '↓ 恶化' : t === '好转' ? '↑ 好转' : '→ 平稳')
+const trendText = (trend) => (trend === '恶化' ? t('dashboard.health.trendWorse') : trend === '好转' ? t('dashboard.health.trendBetter') : t('dashboard.health.trendStable'))
 
 async function loadData() {
   loading.value = true
@@ -202,7 +217,7 @@ async function loadData() {
     serviceHealth.value = data.service_health || []
     latestAlerts.value = (data.latest_alerts || []).slice(0, 10)
   } catch (e) {
-    error.value = e.message || '加载总览数据失败'
+    error.value = e.message || t('dashboard.error.loadFailed')
   } finally {
     loading.value = false
   }

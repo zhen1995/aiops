@@ -28,3 +28,16 @@ def test_delete_document():
     hits = store.search([1.0, 0, 0], top_k=10)
     assert all(h["document_id"] != "doc-1" for h in hits)
     assert any(h["document_id"] == "doc-2" for h in hits)
+
+
+def test_upsert_large_document_batched():
+    """超过单批 256 点的大文档分片 upsert 后全部可检索（防 Qdrant 32MB 请求体上限）"""
+    store = _store()
+    store.ensure_collection(3)
+    n = 600
+    chunks = [f"chunk-{i}" for i in range(n)]
+    vectors = [[1.0, 0, 0] if i % 2 == 0 else [0, 1.0, 0] for i in range(n)]
+    assert store.upsert_chunks("big-doc", chunks, vectors, "t") == n
+    hits = store.search([1.0, 0, 0], top_k=n)
+    assert len(hits) == n
+    assert all(h["document_id"] == "big-doc" for h in hits)
