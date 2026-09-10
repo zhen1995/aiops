@@ -1,6 +1,6 @@
 database:
-  #dsn: "root:Zhen1995@tcp(localhost:3306)/aiops?charset=utf8mb4&parseTime=True&loc=Local"
-  dsn: "root:a.123456R+=@tcp(10.2.216.92:3306)/aiops?charset=utf8mb4&parseTime=True&loc=Local"
+  # MySQL 连接串，请改成你的实际地址；生产环境建议通过环境变量 AIOPS_DATABASE_DSN 注入
+  dsn: "root:root@tcp(localhost:3306)/aiops?charset=utf8mb4&parseTime=True&loc=Local"
 server:
   port: ":8080"
 app:
