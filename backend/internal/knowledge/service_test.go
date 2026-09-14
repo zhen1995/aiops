@@ -24,7 +24,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&models.KBDocument{}, &models.KBChunk{}, &models.LLMConfig{}); err != nil {
+	if err := db.AutoMigrate(&models.KBDocument{}, &models.KBChunk{}, &models.LLMConfig{}, &models.SystemConfig{}); err != nil {
 		t.Fatal(err)
 	}
 	return db
@@ -79,6 +79,28 @@ func TestDelete(t *testing.T) {
 		t.Error("文件未删除")
 	}
 }
+
+// TestQdrantURLFallback 无 system_configs 记录时回退默认 Qdrant 地址
+func TestQdrantURLFallback(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewService(db, NewClient("http://unused"), t.TempDir())
+	if got := svc.qdrantURL(); got != models.DefaultQdrantURL {
+		t.Errorf("qdrantURL() = %q, want %q", got, models.DefaultQdrantURL)
+	}
+}
+
+// TestQdrantURLFromDB 有记录时按 system_configs 取值
+func TestQdrantURLFromDB(t *testing.T) {
+	db := setupTestDB(t)
+	svc := NewService(db, NewClient("http://unused"), t.TempDir())
+	if err := db.Create(&models.SystemConfig{Key: models.SystemConfigKeyQdrantURL, Value: "http://qdrant:6333"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got := svc.qdrantURL(); got != "http://qdrant:6333" {
+		t.Errorf("qdrantURL() = %q, want http://qdrant:6333", got)
+	}
+}
+
 
 // seedEmbeddingConfig 写入一条默认启用的向量化模型配置，让 IndexDocument 能走到 Client.Index
 func seedEmbeddingConfig(t *testing.T, db *gorm.DB) {

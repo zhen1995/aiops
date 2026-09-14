@@ -32,6 +32,7 @@ export default {
     orgGroup: 'Users & Roles',
     userMgmt: 'Users',
     roleMgmt: 'Roles',
-    datasource: 'Data Sources'
+    datasource: 'Data Sources',
+    systemConfig: 'System Config'
   }
 }

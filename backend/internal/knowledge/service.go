@@ -28,6 +28,15 @@ func NewService(db *gorm.DB, client *Client, uploadDir string) *Service {
 	return &Service{DB: db, Client: client, UploadDir: uploadDir}
 }
 
+// qdrantURL 从 system_configs 表读取 Qdrant 向量库地址，无记录或读错误时回退默认值
+func (s *Service) qdrantURL() string {
+	var cfg models.SystemConfig
+	if err := s.DB.Where("`key` = ?", models.SystemConfigKeyQdrantURL).First(&cfg).Error; err != nil {
+		return models.DefaultQdrantURL
+	}
+	return cfg.Value
+}
+
 // SaveUpload 保存上传文件并落库（pending），随后调用方启动 IndexDocument
 func (s *Service) SaveUpload(ctx context.Context, fileName string, size int64, data io.Reader, uploader string) (*models.KBDocument, error) {
 	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(fileName), "."))
@@ -77,7 +86,7 @@ func (s *Service) IndexDocument(docID string) {
 			return
 		}
 
-		if _, err := s.Client.Index(ctx, doc.ID, doc.Name, emb, doc.Name, bytes.NewReader(data)); err != nil {
+		if _, err := s.Client.Index(ctx, doc.ID, doc.Name, emb, doc.Name, bytes.NewReader(data), s.qdrantURL()); err != nil {
 			fail(err.Error())
 			return
 		}
@@ -85,7 +94,7 @@ func (s *Service) IndexDocument(docID string) {
 		// 索引期间文档可能已被删除：回滚刚写入的向量，避免 Qdrant 孤儿数据
 		var latest models.KBDocument
 		if err := s.DB.First(&latest, "id = ?", doc.ID).Error; err != nil {
-			s.Client.DeleteDocument(ctx, doc.ID)
+			s.Client.DeleteDocument(ctx, doc.ID, s.qdrantURL())
 			return
 		}
 
@@ -97,7 +106,7 @@ func (s *Service) IndexDocument(docID string) {
 
 // Reindex 删除旧向量后重新索引
 func (s *Service) Reindex(ctx context.Context, docID string) error {
-	if err := s.Client.DeleteDocument(ctx, docID); err != nil {
+	if err := s.Client.DeleteDocument(ctx, docID, s.qdrantURL()); err != nil {
 		return err
 	}
 	s.IndexDocument(docID)
@@ -110,7 +119,7 @@ func (s *Service) Delete(ctx context.Context, docID string) error {
 	if err := s.DB.First(&doc, "id = ?", docID).Error; err != nil {
 		return err
 	}
-	if err := s.Client.DeleteDocument(ctx, docID); err != nil {
+	if err := s.Client.DeleteDocument(ctx, docID, s.qdrantURL()); err != nil {
 		return err
 	}
 	if err := s.DB.Where("document_id = ?", docID).Delete(&models.KBChunk{}).Error; err != nil {
@@ -141,7 +150,7 @@ func (s *Service) Retrieve(ctx context.Context, query string, topK int) ([]Chunk
 	if err != nil {
 		return nil, err
 	}
-	hits, err := s.Client.Retrieve(ctx, query, topK, emb)
+	hits, err := s.Client.Retrieve(ctx, query, topK, emb, s.qdrantURL())
 	if err != nil {
 		return nil, err
 	}

@@ -26,13 +26,16 @@ func TestIndex(t *testing.T) {
 		if r.FormValue("document_id") != "doc-1" || r.FormValue("model") != "m" {
 			t.Errorf("missing form fields: %v", r.Form)
 		}
+		if r.FormValue("qdrant_url") != "http://qdrant:6333" {
+			t.Errorf("qdrant_url = %q, want http://qdrant:6333", r.FormValue("qdrant_url"))
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"document_id":"doc-1","chunks":3}`))
 	}))
 	defer srv.Close()
 
 	c := NewClient(srv.URL)
-	n, err := c.Index(context.Background(), "doc-1", "标题", testEmb(), "a.md", strings.NewReader("# hello"))
+	n, err := c.Index(context.Background(), "doc-1", "标题", testEmb(), "a.md", strings.NewReader("# hello"), "http://qdrant:6333")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +53,7 @@ func TestIndexUnsupportedType(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(srv.URL)
-	_, err := c.Index(context.Background(), "d", "t", testEmb(), "a.exe", strings.NewReader("MZ"))
+	_, err := c.Index(context.Background(), "d", "t", testEmb(), "a.exe", strings.NewReader("MZ"), "")
 	if err == nil || !strings.Contains(err.Error(), "不支持的文件类型") {
 		t.Errorf("err = %v, want 包含 不支持的文件类型", err)
 	}
@@ -58,13 +61,17 @@ func TestIndexUnsupportedType(t *testing.T) {
 
 func TestRetrieve(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if !strings.Contains(string(body), `"qdrant_url":"http://qdrant:6333"`) {
+			t.Errorf("retrieve payload 缺少 qdrant_url: %s", body)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"results":[{"chunk_id":"doc-1-0","document_id":"doc-1","chunk_index":0,"content":"MySQL 排查","title":"手册","score":0.91}]}`))
 	}))
 	defer srv.Close()
 
 	c := NewClient(srv.URL)
-	hits, err := c.Retrieve(context.Background(), "连接超时", 5, testEmb())
+	hits, err := c.Retrieve(context.Background(), "连接超时", 5, testEmb(), "http://qdrant:6333")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,11 +85,28 @@ func TestDeleteDocument(t *testing.T) {
 		if r.Method != http.MethodDelete || r.URL.Path != "/api/v1/knowledge/documents/doc-1" {
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
+		if r.URL.Query().Get("qdrant_url") != "http://qdrant:6333" {
+			t.Errorf("qdrant_url = %q, want http://qdrant:6333", r.URL.Query().Get("qdrant_url"))
+		}
 		w.Write([]byte(`{"deleted":true}`))
 	}))
 	defer srv.Close()
 
-	if err := NewClient(srv.URL).DeleteDocument(context.Background(), "doc-1"); err != nil {
+	if err := NewClient(srv.URL).DeleteDocument(context.Background(), "doc-1", "http://qdrant:6333"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDeleteDocumentEmptyQdrantURL(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := r.URL.Query()["qdrant_url"]; ok {
+			t.Error("qdrant_url 为空时不应附加 query 参数")
+		}
+		w.Write([]byte(`{"deleted":true}`))
+	}))
+	defer srv.Close()
+
+	if err := NewClient(srv.URL).DeleteDocument(context.Background(), "doc-1", ""); err != nil {
 		t.Fatal(err)
 	}
 }

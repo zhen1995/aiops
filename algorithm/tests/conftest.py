@@ -24,7 +24,7 @@ def memory_store():
 @pytest.fixture()
 def client(memory_store, monkeypatch):
     from app.routers import knowledge
-    monkeypatch.setattr(knowledge, "get_store", lambda: memory_store)
+    monkeypatch.setattr(knowledge, "get_store", lambda *a, **k: memory_store)
     monkeypatch.setattr(knowledge, "get_embedder", lambda cfg: FakeEmbedder())
     with TestClient(app) as c:
         yield c

@@ -14,7 +14,8 @@ router = APIRouter(prefix="/api/v1/knowledge", tags=["knowledge"])
 # 单个上传文件的大小上限（50MB）
 MAX_FILE_SIZE = 50 * 1024 * 1024
 
-_store: VectorStore | None = None
+# 按 Qdrant 地址缓存的 VectorStore（qdrant_url 由 Go 端按系统配置透传，测试通过 monkeypatch 替换）
+_stores: dict[str, VectorStore] = {}
 
 
 def _check_size(n: int) -> None:
@@ -40,14 +41,16 @@ def _embed_texts(embedder, texts: list[str]) -> list[list[float]]:
         raise HTTPException(status_code=502, detail=f"向量化服务调用失败：{e.message}")
 
 
-def get_store() -> VectorStore:
-    """单例 store（测试通过 monkeypatch 替换）"""
-    global _store
-    if _store is None:
-        s = get_settings()
+def get_store(qdrant_url: str | None = None) -> VectorStore:
+    """按 Qdrant 地址取缓存的 VectorStore；qdrant_url 为空时回退服务默认配置"""
+    s = get_settings()
+    url = qdrant_url or s.qdrant_url
+    store = _stores.get(url)
+    if store is None:
         # 大批量 upsert / 写负载下的 filter delete 可能超过客户端默认 5s 超时，放宽到 60s
-        _store = VectorStore(QdrantClient(url=s.qdrant_url, timeout=60), collection=s.collection)
-    return _store
+        store = VectorStore(QdrantClient(url=url, timeout=60), collection=s.collection)
+        _stores[url] = store
+    return store
 
 
 @router.post("/index")
@@ -58,6 +61,7 @@ async def index_document(
     base_url: str = Form(...),
     api_key: str = Form(...),
     model: str = Form(...),
+    qdrant_url: str = Form(""),
 ):
     data = await file.read()
     _check_size(len(data))
@@ -74,7 +78,7 @@ async def index_document(
     embedder = get_embedder(EmbedConfig(base_url=base_url, api_key=api_key, model=model))
     vectors = _embed_texts(embedder, chunks)
 
-    store = get_store()
+    store = get_store(qdrant_url)
     store.ensure_collection(len(vectors[0]))
     n = store.upsert_chunks(document_id, chunks, vectors, title)
     return {"document_id": document_id, "chunks": n}
@@ -84,11 +88,11 @@ async def index_document(
 def retrieve(req: RetrieveRequest):
     embedder = get_embedder(req.embedding)
     vector = _embed_texts(embedder, [req.query])[0]
-    results = get_store().search(vector, req.top_k)
+    results = get_store(req.qdrant_url).search(vector, req.top_k)
     return {"results": results}
 
 
 @router.delete("/documents/{document_id}")
-def delete_document(document_id: str):
-    get_store().delete_document(document_id)
+def delete_document(document_id: str, qdrant_url: str = ""):
+    get_store(qdrant_url).delete_document(document_id)
     return {"deleted": True}

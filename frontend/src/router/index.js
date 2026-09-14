@@ -39,6 +39,7 @@ const routes = [
   { path: '/org/role', name: 'org-role', component: () => import('../views/org/RoleManagementView.vue'), meta: { title: 'layout.menu.roleMgmt', auth: '角色管理' } },
   { path: '/services', name: 'services', component: () => import('../views/ServiceRegistryView.vue'), meta: { title: 'layout.menu.serviceRegistry', auth: '服务注册' } },
   { path: '/datasource', name: 'datasource', component: () => import('../views/DatasourceView.vue'), meta: { title: 'layout.menu.datasource', auth: '数据源接入' } },
+  { path: '/system-config', name: 'system-config', component: () => import('../views/SystemConfigView.vue'), meta: { title: 'layout.menu.systemConfig', auth: '系统配置' } },
   { path: '/:pathMatch(.*)*', redirect: '/chat' }
 ]
 

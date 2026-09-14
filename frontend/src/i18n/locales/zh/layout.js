@@ -32,6 +32,7 @@ export default {
     orgGroup: '人员组织',
     userMgmt: '用户管理',
     roleMgmt: '角色管理',
-    datasource: '数据源接入'
+    datasource: '数据源接入',
+    systemConfig: '系统配置'
   }
 }

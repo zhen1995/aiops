@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -34,7 +35,8 @@ func NewClient(baseURL string) *Client {
 }
 
 // Index 上传文档到 Python 服务解析、向量化并入 Qdrant，返回分块数
-func (c *Client) Index(ctx context.Context, documentID, title string, emb *models.LLMConfig, fileName string, file io.Reader) (int, error) {
+// qdrantURL 为 Qdrant 向量库地址，空字符串表示由 Python 端使用默认地址
+func (c *Client) Index(ctx context.Context, documentID, title string, emb *models.LLMConfig, fileName string, file io.Reader, qdrantURL string) (int, error) {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	_ = w.WriteField("document_id", documentID)
@@ -42,6 +44,7 @@ func (c *Client) Index(ctx context.Context, documentID, title string, emb *model
 	_ = w.WriteField("base_url", emb.BaseURL)
 	_ = w.WriteField("api_key", emb.APIKey)
 	_ = w.WriteField("model", emb.Model)
+	_ = w.WriteField("qdrant_url", qdrantURL)
 	part, err := w.CreateFormFile("file", fileName)
 	if err != nil {
 		return 0, err
@@ -78,10 +81,12 @@ func (c *Client) Index(ctx context.Context, documentID, title string, emb *model
 }
 
 // Retrieve 语义检索知识库
-func (c *Client) Retrieve(ctx context.Context, query string, topK int, emb *models.LLMConfig) ([]ChunkHit, error) {
+// qdrantURL 为 Qdrant 向量库地址，空字符串表示由 Python 端使用默认地址
+func (c *Client) Retrieve(ctx context.Context, query string, topK int, emb *models.LLMConfig, qdrantURL string) ([]ChunkHit, error) {
 	payload, _ := json.Marshal(map[string]interface{}{
-		"query": query,
-		"top_k": topK,
+		"query":      query,
+		"top_k":      topK,
+		"qdrant_url": qdrantURL,
 		"embedding": map[string]string{
 			"base_url": emb.BaseURL,
 			"api_key":  emb.APIKey,
@@ -113,8 +118,13 @@ func (c *Client) Retrieve(ctx context.Context, query string, topK int, emb *mode
 }
 
 // DeleteDocument 删除文档的全部向量
-func (c *Client) DeleteDocument(ctx context.Context, documentID string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.BaseURL+"/api/v1/knowledge/documents/"+documentID, nil)
+// qdrantURL 为 Qdrant 向量库地址，空字符串表示由 Python 端使用默认地址
+func (c *Client) DeleteDocument(ctx context.Context, documentID, qdrantURL string) error {
+	endpoint := c.BaseURL + "/api/v1/knowledge/documents/" + documentID
+	if qdrantURL != "" {
+		endpoint += "?qdrant_url=" + url.QueryEscape(qdrantURL)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
 	if err != nil {
 		return err
 	}

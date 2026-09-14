@@ -86,6 +86,8 @@ func main() {
 		&models.LogCluster{},
 		&models.LogClusterStat{},
 		&models.LogAnalysisCursor{},
+		// 系统配置
+		&models.SystemConfig{},
 	); err != nil {
 		panic("数据库自动迁移失败: " + err.Error())
 	}
@@ -101,6 +103,9 @@ func main() {
 	}
 	if err := controllers.EnsureDefaultTemplate(db); err != nil {
 		fmt.Println("初始化默认通知模板失败:", err)
+	}
+	if err := models.SeedSystemConfig(db, cfg.Knowledge.QdrantURL); err != nil {
+		fmt.Println("初始化系统配置失败:", err)
 	}
 
 	// 启动告警规则评估引擎
@@ -345,6 +350,12 @@ func main() {
 	notifyRecordCtrl := controllers.NewNotifyRecordController(db)
 	api.GET("/notify-records", notifyRecordCtrl.List)
 	api.GET("/notify-records/:id", notifyRecordCtrl.Detail)
+
+	// 系统配置相关路由（知识库 Qdrant 向量库地址）
+	sysCfgCtrl := controllers.NewSystemConfigController(db)
+	api.GET("/system-config", sysCfgCtrl.Get)
+	api.PUT("/system-config", sysCfgCtrl.Update)
+	api.POST("/system-config/qdrant/test", sysCfgCtrl.TestQdrant)
 
 	// 运维知识库
 	kbCtrl := controllers.NewKnowledgeController(db, kbSvc)

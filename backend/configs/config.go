@@ -16,6 +16,8 @@ type Config struct {
 	Knowledge struct {
 		PythonBaseURL string `mapstructure:"python_base_url" yaml:"python_base_url"`
 		UploadDir     string `mapstructure:"upload_dir" yaml:"upload_dir"`
+		// QdrantURL 知识库 Qdrant 向量库地址，也是 system_configs 中 qdrant_url 的种子默认值
+		QdrantURL string `mapstructure:"qdrant_url" yaml:"qdrant_url"`
 	} `mapstructure:"knowledge" yaml:"knowledge"`
 	// LogAnalysis 日志分析配置
 	LogAnalysis struct {
@@ -51,8 +53,10 @@ func LoadConfig(path string) (*Config, error) {
 	_ = v.BindEnv("server.port", "AIOPS_SERVER_PORT", "SERVER_PORT")
 	_ = v.BindEnv("app.frontend_base_url", "AIOPS_APP_FRONTEND_BASE_URL", "FRONTEND_BASE_URL")
 	_ = v.BindEnv("log_analysis.interval", "AIOPS_LOG_ANALYSIS_INTERVAL", "LOG_ANALYSIS_INTERVAL")
+	_ = v.BindEnv("knowledge.qdrant_url", "AIOPS_KNOWLEDGE_QDRANT_URL", "KNOWLEDGE_QDRANT_URL")
 	v.SetDefault("app.frontend_base_url", "http://localhost:5173")
 	v.SetDefault("log_analysis.interval", "5m")
+	v.SetDefault("knowledge.qdrant_url", "http://localhost:6333")
 
 	// 指定配置文件路径
 	v.SetConfigFile(path)

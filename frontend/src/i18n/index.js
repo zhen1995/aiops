@@ -17,6 +17,7 @@ import zhOrg from './locales/zh/org'
 import zhDatasource from './locales/zh/datasource'
 import zhN9e from './locales/zh/n9e'
 import zhGroup from './locales/zh/group'
+import zhSystem from './locales/zh/system'
 
 import enCommon from './locales/en/common'
 import enLayout from './locales/en/layout'
@@ -35,6 +36,7 @@ import enOrg from './locales/en/org'
 import enDatasource from './locales/en/datasource'
 import enN9e from './locales/en/n9e'
 import enGroup from './locales/en/group'
+import enSystem from './locales/en/system'
 
 export const SUPPORTED_LOCALES = [
   { value: 'zh', label: '简体中文' },
@@ -70,7 +72,8 @@ const i18n = createI18n({
       org: zhOrg,
       datasource: zhDatasource,
       n9e: zhN9e,
-      group: zhGroup
+      group: zhGroup,
+      system: zhSystem
     },
     en: {
       common: enCommon,
@@ -89,7 +92,8 @@ const i18n = createI18n({
       org: enOrg,
       datasource: enDatasource,
       n9e: enN9e,
-      group: enGroup
+      group: enGroup,
+      system: enSystem
     }
   }
 })

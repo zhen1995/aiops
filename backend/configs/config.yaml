@@ -11,6 +11,8 @@ knowledge:
   python_base_url: "http://localhost:9000"
   # 知识库上传文件的本地存储目录
   upload_dir: "./uploads/knowledge"
+  # 知识库 Qdrant 向量库地址，也是 system_configs 表中 qdrant_url 的种子默认值
+  qdrant_url: "http://localhost:6333"
 log_analysis:
   # 日志分析周期任务间隔（如 5m / 30s / 1h）
   interval: "5m"

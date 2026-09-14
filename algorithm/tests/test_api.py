@@ -96,3 +96,29 @@ def test_retrieve_embedding_auth_error_readable(client, monkeypatch):
         "embedding": {"base_url": "u", "api_key": "k", "model": "m"}})
     assert resp.status_code == 502
     assert "API Key" in resp.json()["detail"]
+
+
+def test_get_store_caches_by_url(monkeypatch):
+    """qdrant_url 为空时回退默认配置，且按地址缓存 VectorStore"""
+    from app.config import Settings
+    from app.routers import knowledge
+
+    monkeypatch.setattr(knowledge, "get_settings",
+                        lambda: Settings(qdrant_url="http://default:6333"))
+    created: list[tuple[str, int]] = []
+
+    class _FakeClient:
+        def __init__(self, url, timeout):
+            created.append((url, timeout))
+
+    monkeypatch.setattr(knowledge, "QdrantClient", _FakeClient)
+    knowledge._stores.clear()
+    try:
+        default_store = knowledge.get_store()
+        assert knowledge.get_store(None) is default_store  # 空值回退默认地址并复用缓存
+        other = knowledge.get_store("http://other:6333")
+        assert knowledge.get_store("http://other:6333") is other
+        assert default_store is not other
+        assert created == [("http://default:6333", 60), ("http://other:6333", 60)]
+    finally:
+        knowledge._stores.clear()
