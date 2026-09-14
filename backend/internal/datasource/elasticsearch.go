@@ -40,6 +40,16 @@ func NewElasticsearchClient(ds *models.Datasource) *ElasticsearchClient {
 
 // Search 执行日志检索，返回精简后的命中列表
 func (c *ElasticsearchClient) Search(ctx context.Context, indexPattern, queryString, start, end string, size int) (*ESQueryResult, error) {
+	return c.search(ctx, indexPattern, queryString, start, end, size, MaxESHits)
+}
+
+// SearchLogs 日志分析批量拉取：按时间范围增量拉取原始日志（命中上限放宽到 MaxLogAnalysisHits）
+func (c *ElasticsearchClient) SearchLogs(ctx context.Context, indexPattern, start, end string, size int) (*ESQueryResult, error) {
+	return c.search(ctx, indexPattern, "", start, end, size, MaxLogAnalysisHits)
+}
+
+// search 执行日志检索的公共实现（maxHits 控制单次的命中上限）
+func (c *ElasticsearchClient) search(ctx context.Context, indexPattern, queryString, start, end string, size, maxHits int) (*ESQueryResult, error) {
 	if indexPattern == "" {
 		return nil, fmt.Errorf("索引模式不能为空")
 	}
@@ -47,8 +57,8 @@ func (c *ElasticsearchClient) Search(ctx context.Context, indexPattern, queryStr
 		return nil, err
 	}
 
-	if size <= 0 || size > MaxESHits {
-		size = MaxESHits
+	if size <= 0 || size > maxHits {
+		size = maxHits
 	}
 
 	now := time.Now()

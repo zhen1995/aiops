@@ -63,6 +63,9 @@ export default {
     previewLoading: 'Previewing...',
     querying: 'Querying matched jobs...',
     noMatch: 'No matched jobs',
+    owner: 'Owner',
+    description: 'Description',
+    enabledLabel: 'Enabled',
     cancel: 'Cancel',
     save: 'Save',
     saving: 'Saving...'

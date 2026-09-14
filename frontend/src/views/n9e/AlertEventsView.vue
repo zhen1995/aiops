@@ -1,16 +1,17 @@
 <template>
   <div>
-    <PageHeader :title="$t('n9e.events.title')" :desc="$t('n9e.events.desc')">
-      <button class="btn btn-sm" @click="load" :disabled="loading">{{ $t('n9e.events.refresh') }}</button>
-    </PageHeader>
+    <PageHeader :title="$t('n9e.events.title')" :desc="$t('n9e.events.desc')" />
 
     <div class="card-filter">
-      <div class="filter-tabs">
-        <button :class="['tab', { active: tab === 'cur' }]" @click="switchTab('cur')">
-          {{ $t('n9e.events.tabCur') }}
-          <span v-if="curCount > 0" class="tab-badge">{{ curCount }}</span>
-        </button>
-        <button :class="['tab', { active: tab === 'his' }]" @click="switchTab('his')">{{ $t('n9e.events.tabHis') }}</button>
+      <div class="filter-tabs-row">
+        <div class="filter-tabs">
+          <button :class="['tab', { active: tab === 'cur' }]" @click="switchTab('cur')">
+            {{ $t('n9e.events.tabCur') }}
+            <span v-if="curCount > 0" class="tab-badge">{{ curCount }}</span>
+          </button>
+          <button :class="['tab', { active: tab === 'his' }]" @click="switchTab('his')">{{ $t('n9e.events.tabHis') }}</button>
+        </div>
+        <button class="btn btn-sm" @click="load" :disabled="loading">{{ $t('n9e.events.refresh') }}</button>
       </div>
 
       <template v-if="tab === 'his'">
@@ -310,6 +311,7 @@ function durationOf(e) {
   margin-bottom: 14px;
 }
 
+.filter-tabs-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .filter-tabs { display: flex; gap: 8px; }
 .tab {
   padding: 6px 18px;

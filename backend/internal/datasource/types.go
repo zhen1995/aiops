@@ -13,6 +13,8 @@ const (
 	MaxSeries          = 10
 	MaxPointsPerSeries = 100
 	MaxESHits          = 20
+	// MaxLogAnalysisHits 日志分析单服务单轮拉取上限
+	MaxLogAnalysisHits = 5000
 	MaxResultBytes     = 64 * 1024
 )
 

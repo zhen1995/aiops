@@ -41,7 +41,9 @@ func Specialists() []Specialist {
 			Key:   "logs",
 			Title: "日志专家",
 			Instructions: "你是日志分析专家，擅长 Elasticsearch 日志检索、错误模式聚类、调用链线索提取。" +
-				"只基于 query_elasticsearch 等工具返回的真实日志下结论，数据不足时明确说明，禁止编造日志内容。",
+				"只基于 query_elasticsearch 等工具返回的真实日志下结论，数据不足时明确说明，禁止编造日志内容。" +
+				"查询日志前先用 list_services 获取目标服务的 ES 数据源名称与索引模式，不要猜数据源名或索引名；" +
+				"用 query_elasticsearch 组合查询条件一次取足数据（limit 10~20），最多查询 2 次后必须给出结论。",
 			ToolFilter: append([]string{"query_elasticsearch"}, serviceTools...),
 		},
 		{
@@ -112,9 +114,10 @@ func SpecialistInfo(key string) (Specialist, bool) {
 }
 
 // Plan 让 Planner 判断问题是否需要专家会诊并拆分为子任务。
+// forcePanel 为 true 表示用户明确要求多 Agent 会诊：只要问题可拆分就必须拆（拆不了才回退单 Agent）。
 // 返回 nil 表示不需要会诊（调用方应回退到单 Agent 路径）；返回非空表示需要会诊。
 // 规划失败（LLM 调用失败/JSON 解析失败/非法子任务）一律视为不需要会诊，保证可用性优先。
-func Plan(ctx context.Context, factory ChatModelFactory, question string) []SubTask {
+func Plan(ctx context.Context, factory ChatModelFactory, question string, forcePanel bool) []SubTask {
 	cm, err := factory(ctx)
 	if err != nil {
 		return nil
@@ -127,7 +130,11 @@ func Plan(ctx context.Context, factory ChatModelFactory, question string) []SubT
 		fmt.Fprintf(&b, "%s(%s) ", s.Key, s.Title)
 	}
 	b.WriteString("\n输出严格 JSON（不要输出其他任何内容）：{\"need_panel\":true,\"subtasks\":[{\"specialist\":\"metrics\",\"question\":\"子问题\"}]}\n")
-	fmt.Fprintf(&b, "规则：need_panel 为 false 时 subtasks 为空数组；子任务最多 %d 个；specialist 只能取上述 key；简单问答、单一领域问题、纯知识性问题一律 need_panel=false。\n", maxSubTasks)
+	if forcePanel {
+		fmt.Fprintf(&b, "规则：用户已明确要求使用多专家会诊——只要问题涉及运维数据、可多角度分析或可跨领域拆分，need_panel 必须为 true 并拆分为 2~%d 个子任务；只有无法拆分的单一事实问答才允许 need_panel=false（此时 subtasks 为空数组）。specialist 只能取上述 key。\n", maxSubTasks)
+	} else {
+		fmt.Fprintf(&b, "规则：need_panel 为 false 时 subtasks 为空数组；子任务最多 %d 个；specialist 只能取上述 key；简单问答、单一领域问题、纯知识性问题一律 need_panel=false。\n", maxSubTasks)
+	}
 
 	messages := []*schema.Message{
 		schema.SystemMessage(b.String()),
@@ -236,7 +243,7 @@ func (p *Panel) runSpecialist(ctx context.Context, factory ChatModelFactory, st 
 		Instructions:      sp.Instructions,
 		EnforceDataSource: true,
 		ToolFilter:        sp.ToolFilter,
-		MaxIterations:     4,
+		MaxIterations:     6,
 	})
 
 	var innerErr error
@@ -259,7 +266,8 @@ func (p *Panel) runSpecialist(ctx context.Context, factory ChatModelFactory, st 
 
 	messages := []*schema.Message{
 		schema.SystemMessage(sp.Instructions),
-		schema.UserMessage(st.Question + "\n\n请给出分析结论（200 字以内），只基于工具返回的真实数据。"),
+		schema.UserMessage(st.Question + "\n\n请给出分析结论（200 字以内），只基于工具返回的真实数据。" +
+			"工具使用要高效：先用 list_services / get_service_info 定位数据源与索引，再用领域查询工具一次取足数据（返回条数 limit 10~20），最多 2 次数据查询后必须给出结论，不要反复试探。"),
 	}
 	resp, innerErr := ag.Run(ctx, messages, callbacks)
 	if innerErr != nil {

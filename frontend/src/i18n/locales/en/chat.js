@@ -37,7 +37,9 @@ export default {
   input: {
     placeholder: 'Ask a question, e.g.: How is the system doing today?',
     send: 'Send',
-    abort: 'Stop'
+    abort: 'Stop',
+    usePanel: 'Multi-Agent Panel',
+    usePanelHint: 'On: multiple specialists analyze in parallel (Planner splits the question); Off: single agent answers directly'
   },
   rca: {
     invalidParam: 'Invalid root cause analysis parameters',

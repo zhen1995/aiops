@@ -12,6 +12,7 @@ import (
 	"aiops/internal/denoise"
 	"aiops/internal/inspection"
 	"aiops/internal/knowledge"
+	"aiops/internal/loganalysis"
 	"aiops/middleware"
 	"aiops/models"
 
@@ -80,6 +81,11 @@ func main() {
 		// 告警降噪
 		&models.DenoisePolicy{},
 		&models.DenoiseRecord{},
+		// 日志分析
+		&models.LogTemplate{},
+		&models.LogCluster{},
+		&models.LogClusterStat{},
+		&models.LogAnalysisCursor{},
 	); err != nil {
 		panic("数据库自动迁移失败: " + err.Error())
 	}
@@ -117,6 +123,10 @@ func main() {
 		fmt.Println("启动巡检调度器失败:", err)
 	}
 	controllers.SetInspectionScheduler(sched)
+
+	// 启动日志分析器（按服务增量从 ES 拉取日志，经 Python Drain 解析后落库）
+	logAnalyzer := loganalysis.NewAnalyzer(db, cfg.Knowledge.PythonBaseURL, cfg.LogAnalysis.Interval)
+	logAnalyzer.Start()
 
 	router := gin.Default()
 
@@ -345,6 +355,15 @@ func main() {
 		kbGroup.POST("/retrieve", kbCtrl.Retrieve)
 		kbGroup.DELETE("/:id", kbCtrl.Delete)
 		kbGroup.POST("/:id/reindex", kbCtrl.Reindex)
+	}
+
+	// 日志分析相关路由（趋势 / 聚类 / Drain 模板）
+	logCtrl := controllers.NewLogAnalysisController(db)
+	logGroup := api.Group("/logs")
+	{
+		logGroup.GET("/trend", logCtrl.Trend)
+		logGroup.GET("/clusters", logCtrl.Clusters)
+		logGroup.GET("/templates", logCtrl.Templates)
 	}
 
 	// 用户管理相关路由

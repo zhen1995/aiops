@@ -63,6 +63,9 @@ export default {
     previewLoading: '预览中...',
     querying: '正在查询匹配的 job...',
     noMatch: '无匹配的 job',
+    owner: '负责人',
+    description: '描述',
+    enabledLabel: '启用',
     cancel: '取消',
     save: '保存',
     saving: '保存中...'

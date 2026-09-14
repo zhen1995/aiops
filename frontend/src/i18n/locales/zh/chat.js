@@ -37,7 +37,9 @@ export default {
   input: {
     placeholder: '输入问题，例如：今天系统状态如何？',
     send: '发送',
-    abort: '中止'
+    abort: '中止',
+    usePanel: '多Agent会诊',
+    usePanelHint: '开启：多位专科专家协同分析（Planner 自动拆题）；关闭：单 Agent 直接回答'
   },
   rca: {
     invalidParam: '根因分析参数无效',

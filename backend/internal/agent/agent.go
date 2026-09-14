@@ -98,7 +98,8 @@ func (a *Agent) Run(ctx context.Context, messages []*schema.Message, cb *Callbac
 	var invokedQueryTools []string
 	var reminderSent bool
 
-	for i := 0; i < a.opts.MaxIterations; i++ {
+	// used 记录真正执行过工具调用的迭代次数；防幻觉提醒通过 continue 重试，不消耗迭代次数
+	for used := 0; used < a.opts.MaxIterations; {
 		resp, err := a.cm.Generate(ctx, messages)
 		if err != nil {
 			return nil, fmt.Errorf("大模型调用失败: %w", err)
@@ -107,8 +108,8 @@ func (a *Agent) Run(ctx context.Context, messages []*schema.Message, cb *Callbac
 		if len(resp.ToolCalls) == 0 {
 			// 模型未调用工具直接给出答案
 			if requireData && len(invokedQueryTools) == 0 {
-				if !reminderSent && i < a.opts.MaxIterations-1 {
-					// 先追加一条强提醒，让模型重新决策
+				if !reminderSent {
+					// 先追加一条强提醒，让模型重新决策（不消耗迭代次数）
 					messages = append(messages, schema.SystemMessage(
 						"注意：该问题涉及具体运维数据，你必须先调用 query_prometheus / query_elasticsearch / query_pyroscope 获取真实数据，或调用 list_services / get_service_info 查询服务注册信息，禁止凭先验知识或编造数据回答。如果问题属于运维知识、故障处理经验、手册类，可调用 search_knowledge_base 检索知识库。如果工具调用失败，请向用户说明无法获取数据。",
 					))
@@ -129,6 +130,9 @@ func (a *Agent) Run(ctx context.Context, messages []*schema.Message, cb *Callbac
 			}
 			return resp, nil
 		}
+
+		// 模型发起了工具调用：计一次迭代，执行工具后将结果回填上下文
+		used++
 
 		// 记录本次 tool_calls 中是否有真正的查询工具
 		for _, tc := range resp.ToolCalls {

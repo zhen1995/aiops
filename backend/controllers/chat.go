@@ -271,8 +271,16 @@ func (c *ChatController) StreamChat(ctx *gin.Context) {
 	var promptTokens, completionTokens, totalTokens int
 	var resp *schema.Message
 
-	// 6.1 专家会诊：Planner 判断是否需要多专家会诊，不需要则透明走单 Agent
-	panelSubtasks := agent.Plan(cancelCtx, factory, question)
+	// 6.1 专家会诊：前端「多Agent会诊」开关控制。
+	// 开启（默认）：强制倾向多专家会诊（Planner 尽量拆题，拆不了才透明回退单 Agent）；
+	// 关闭：跳过 Planner，直接走单 Agent 路径。
+	panelParam := ctx.DefaultQuery("panel", "1")
+	usePanel := panelParam != "0" && panelParam != "false" && panelParam != "off"
+
+	var panelSubtasks []agent.SubTask
+	if usePanel {
+		panelSubtasks = agent.Plan(cancelCtx, factory, question, true)
+	}
 	if len(panelSubtasks) > 0 {
 		specialists := make([]gin.H, 0, len(panelSubtasks))
 		for _, st := range panelSubtasks {

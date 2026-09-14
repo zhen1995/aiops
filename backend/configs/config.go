@@ -17,6 +17,11 @@ type Config struct {
 		PythonBaseURL string `mapstructure:"python_base_url" yaml:"python_base_url"`
 		UploadDir     string `mapstructure:"upload_dir" yaml:"upload_dir"`
 	} `mapstructure:"knowledge" yaml:"knowledge"`
+	// LogAnalysis 日志分析配置
+	LogAnalysis struct {
+		// Interval 周期分析任务间隔（如 5m / 30s / 1h）
+		Interval string `mapstructure:"interval" yaml:"interval"`
+	} `mapstructure:"log_analysis" yaml:"log_analysis"`
 }
 
 type DatabaseConfig struct {
@@ -45,7 +50,9 @@ func LoadConfig(path string) (*Config, error) {
 	_ = v.BindEnv("database.dsn", "AIOPS_DATABASE_DSN", "DATABASE_DSN")
 	_ = v.BindEnv("server.port", "AIOPS_SERVER_PORT", "SERVER_PORT")
 	_ = v.BindEnv("app.frontend_base_url", "AIOPS_APP_FRONTEND_BASE_URL", "FRONTEND_BASE_URL")
+	_ = v.BindEnv("log_analysis.interval", "AIOPS_LOG_ANALYSIS_INTERVAL", "LOG_ANALYSIS_INTERVAL")
 	v.SetDefault("app.frontend_base_url", "http://localhost:5173")
+	v.SetDefault("log_analysis.interval", "5m")
 
 	// 指定配置文件路径
 	v.SetConfigFile(path)

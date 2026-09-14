@@ -110,6 +110,10 @@
             :placeholder="$t('chat.input.placeholder')"
             @keydown.enter.prevent="send"
           />
+          <label class="panel-toggle" :title="$t('chat.input.usePanelHint')">
+            <input type="checkbox" v-model="usePanel" :disabled="isStreaming" />
+            <span>{{ $t('chat.input.usePanel') }}</span>
+          </label>
           <button
             v-if="!isStreaming"
             class="btn btn-primary send-btn"
@@ -130,7 +134,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { fmtTime } from '../mock/data'
@@ -145,15 +149,43 @@ const router = useRouter()
 
 const sessions = ref([])
 const currentSessionId = ref('')
-const messages = ref([])
 const input = ref('')
-const isStreaming = ref(false)
-const isThinking = ref(false)
 const messagesRef = ref(null)
 const defaultModelName = ref(t('chat.header.defaultModel'))
-const currentAssistantIndex = ref(-1)
-const manuallyAborting = ref(false)
 const copyState = ref({})
+// 多Agent会诊开关：开启=多位专科专家协同分析（Planner 拆题），关闭=单 Agent 直答；选择持久化
+const usePanel = ref(localStorage.getItem('aiops_chat_panel') === '1')
+watch(usePanel, (v) => {
+  localStorage.setItem('aiops_chat_panel', v ? '1' : '0')
+})
+
+// 每个会话独立的运行时状态（消息、流式状态、SSE 连接）。
+// 切换/新建会话不再打断其他会话正在进行的流式输出，切回原会话可看到已完成/进行中的内容。
+const runtimes = {}
+function getRuntime(sessionId) {
+  if (!runtimes[sessionId]) {
+    runtimes[sessionId] = reactive({
+      messages: [],
+      loaded: false, // 历史消息是否已从后端加载
+      isStreaming: false,
+      isThinking: false,
+      eventSource: null,
+      assistantIndex: -1,
+      manuallyAborting: false
+    })
+  }
+  return runtimes[sessionId]
+}
+function destroyRuntime(sessionId) {
+  const rt = runtimes[sessionId]
+  if (!rt) return
+  if (rt.eventSource) rt.eventSource.close()
+  delete runtimes[sessionId]
+}
+const currentRuntime = computed(() => getRuntime(currentSessionId.value))
+const messages = computed(() => currentRuntime.value.messages)
+const isStreaming = computed(() => currentRuntime.value.isStreaming)
+const isThinking = computed(() => currentRuntime.value.isThinking)
 
 async function copyMessage(msg, idx) {
   try {
@@ -175,8 +207,6 @@ async function copyMessage(msg, idx) {
 function isThinkingMessage(msg) {
   return msg.role === 'assistant' && msg.content === '' && isThinking.value
 }
-
-let currentEventSource = null
 
 onMounted(() => {
   loadSessions()
@@ -200,20 +230,9 @@ async function loadDefaultModelName() {
 }
 
 onUnmounted(() => {
-  if (currentEventSource) {
-    currentEventSource.close()
-    currentEventSource = null
-  }
+  // 关闭所有会话的 SSE 连接（含后台仍在流式的会话）
+  Object.keys(runtimes).forEach(destroyRuntime)
 })
-
-function resetStreaming() {
-  if (currentEventSource) {
-    currentEventSource.close()
-    currentEventSource = null
-  }
-  isStreaming.value = false
-  isThinking.value = false
-}
 
 async function loadSessions() {
   try {
@@ -231,12 +250,13 @@ async function loadSessions() {
 }
 
 async function handleCreateSession() {
-  resetStreaming()
   try {
     const data = await createSession(t('chat.session.defaultTitle'))
     sessions.value.unshift(data)
     currentSessionId.value = data.id
-    messages.value = []
+    const rt = getRuntime(data.id)
+    rt.messages = []
+    rt.loaded = true
   } catch (e) {
     console.error('创建会话失败', e)
   }
@@ -247,16 +267,23 @@ function createNewSession() {
 }
 
 async function switchSession(id) {
-  resetStreaming()
   if (id === currentSessionId.value) return
   currentSessionId.value = id
-  await loadMessages(id)
+  const rt = getRuntime(id)
+  // 已加载过（含正在流式输出）的会话直接用内存状态，避免刷新打断或清空
+  if (!rt.loaded) {
+    await loadMessages(id)
+  } else {
+    scrollToBottom()
+  }
 }
 
 async function loadMessages(id) {
+  const rt = getRuntime(id)
   try {
     const data = await getMessages(id)
-    messages.value = data || []
+    rt.messages = data || []
+    rt.loaded = true
     scrollToBottom()
   } catch (e) {
     console.error('加载消息失败', e)
@@ -267,6 +294,7 @@ async function removeSession(id) {
   try {
     await deleteSession(id)
     sessions.value = sessions.value.filter(s => s.id !== id)
+    destroyRuntime(id)
     if (currentSessionId.value === id) {
       if (sessions.value.length > 0) {
         await switchSession(sessions.value[0].id)
@@ -359,14 +387,15 @@ async function send() {
       sessions.value.unshift(data)
       currentSessionId.value = data.id
       sessionId = data.id
-      messages.value = []
     } catch (e) {
       console.error('创建会话失败', e)
       return
     }
   }
+  // 捕获本会话运行时：SSE 回调按发送时的会话归属写数据，切换会话后不会串写
+  const rt = getRuntime(sessionId)
 
-  messages.value.push({
+  rt.messages.push({
     role: 'user',
     content: text,
     created_at: new Date().toISOString()
@@ -374,36 +403,38 @@ async function send() {
   input.value = ''
   scrollToBottom()
 
-  isStreaming.value = true
-  isThinking.value = true
-  manuallyAborting.value = false
-  currentAssistantIndex.value = messages.value.length
-  messages.value.push({
+  rt.isStreaming = true
+  rt.isThinking = true
+  rt.manuallyAborting = false
+  rt.assistantIndex = rt.messages.length
+  rt.messages.push({
     role: 'assistant',
     content: '',
     created_at: new Date().toISOString()
   })
 
-  currentEventSource = streamChat(sessionId, text, {
+  rt.eventSource = streamChat(sessionId, text, {
+    panel: usePanel.value,
     onChunk: (chunk) => {
-      isThinking.value = false
-      messages.value[currentAssistantIndex.value].content += chunk
-      scrollToBottom()
+      rt.isThinking = false
+      const msg = rt.messages[rt.assistantIndex]
+      if (msg) msg.content += chunk
+      if (sessionId === currentSessionId.value) scrollToBottom()
     },
     onPanelStart: (data) => {
       // 专家会诊开始：初始化会诊面板（专家名单 + 运行状态）
-      isThinking.value = false
-      const msg = messages.value[currentAssistantIndex.value]
+      rt.isThinking = false
+      const msg = rt.messages[rt.assistantIndex]
       if (msg) {
         msg.panel = {
           specialists: (data.specialists || []).map(s => ({ ...s, status: 'running', conclusion: '' }))
         }
       }
-      scrollToBottom()
+      if (sessionId === currentSessionId.value) scrollToBottom()
     },
     onSpecialist: (data) => {
       // 单个专家状态更新（running/completed/failed + 结论）
-      const msg = messages.value[currentAssistantIndex.value]
+      const msg = rt.messages[rt.assistantIndex]
       if (!msg || !msg.panel) return
       const sp = msg.panel.specialists.find(x => x.key === data.key)
       if (sp) {
@@ -412,42 +443,44 @@ async function send() {
       }
     },
     onDone: () => {
-      if (manuallyAborting.value) return
-      isStreaming.value = false
-      isThinking.value = false
-      currentEventSource = null
+      if (rt.manuallyAborting) return
+      rt.isStreaming = false
+      rt.isThinking = false
+      rt.eventSource = null
       loadSessions()
     },
     onError: (err) => {
-      if (manuallyAborting.value) {
+      if (rt.manuallyAborting) {
         // 用户主动中止，不显示错误
-        manuallyAborting.value = false
-        isStreaming.value = false
-        isThinking.value = false
-        currentEventSource = null
+        rt.manuallyAborting = false
+        rt.isStreaming = false
+        rt.isThinking = false
+        rt.eventSource = null
         return
       }
-      isStreaming.value = false
-      isThinking.value = false
-      currentEventSource = null
-      messages.value[currentAssistantIndex.value].content += t('chat.message.error', { err })
-      scrollToBottom()
+      rt.isStreaming = false
+      rt.isThinking = false
+      rt.eventSource = null
+      const msg = rt.messages[rt.assistantIndex]
+      if (msg) msg.content += t('chat.message.error', { err })
+      if (sessionId === currentSessionId.value) scrollToBottom()
     }
   })
 }
 
 function abortStreaming() {
-  manuallyAborting.value = true
-  if (currentEventSource) {
-    currentEventSource.close()
-    currentEventSource = null
+  const rt = currentRuntime.value
+  rt.manuallyAborting = true
+  if (rt.eventSource) {
+    rt.eventSource.close()
+    rt.eventSource = null
   }
-  isStreaming.value = false
-  isThinking.value = false
+  rt.isStreaming = false
+  rt.isThinking = false
 
   // 在当前助手消息末尾追加中止标记
-  if (currentAssistantIndex.value >= 0 && messages.value[currentAssistantIndex.value]) {
-    const msg = messages.value[currentAssistantIndex.value]
+  if (rt.assistantIndex >= 0 && rt.messages[rt.assistantIndex]) {
+    const msg = rt.messages[rt.assistantIndex]
     msg.content += (msg.content ? '\n\n' : '') + t('chat.message.aborted')
     scrollToBottom()
   }
@@ -833,6 +866,21 @@ function abortStreaming() {
   align-self: flex-end;
   padding: 10px 18px;
 }
+
+.panel-toggle {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  color: var(--c-text-2);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.panel-toggle input { accent-color: var(--c-primary); cursor: pointer; }
+.panel-toggle input:disabled + span { opacity: 0.5; }
 
 .send-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 

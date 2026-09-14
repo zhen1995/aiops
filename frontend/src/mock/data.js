@@ -116,30 +116,6 @@ export const topologyEdges = [
   ['payment-service', 'order-db-primary'], ['payment-service', 'redis-cluster'], ['user-service', 'user-db']
 ]
 
-// ---------------- 日志分析 ----------------
-export const logPipeline = ['日志解析', '模板提取 (Drain)', '参数分离', '向量化', '聚类分析', '异常检测']
-
-export const logClusters = [
-  { id: 'C-018', pattern: 'Connection to database <*> failed after <*>ms', count: 1240, level: 'error', services: ['order-service'], trend: 'spike', firstSeen: '13:32' },
-  { id: 'C-017', pattern: 'Slow query took <*>ms: SELECT * FROM orders WHERE <*>', count: 486, level: 'warn', services: ['order-service'], trend: 'spike', firstSeen: '13:35' },
-  { id: 'C-014', pattern: 'Payment callback timeout, orderId=<*>', count: 96, level: 'error', services: ['payment-service'], trend: 'rising', firstSeen: '13:10' },
-  { id: 'C-011', pattern: 'Cache miss for key <*>, fallback to db', count: 2043, level: 'warn', services: ['payment-service'], trend: 'flat', firstSeen: '09:00' },
-  { id: 'C-009', pattern: 'Request completed in <*>ms', count: 184203, level: 'info', services: ['gateway-service'], trend: 'flat', firstSeen: '00:00' },
-  { id: 'C-006', pattern: 'GC pause (G1 Evacuation Pause) <*>ms', count: 58, level: 'warn', services: ['order-service'], trend: 'rising', firstSeen: '13:33' }
-]
-
-export const logTemplates = [
-  { raw: 'Connection to database order-db failed after 5000ms', template: 'Connection to database <*> failed after <*>ms', params: ['order-db', '5000'] },
-  { raw: 'Connection to database user-db failed after 3000ms', template: 'Connection to database <*> failed after <*>ms', params: ['user-db', '3000'] },
-  { raw: 'Slow query took 2341ms: SELECT * FROM orders WHERE user_id=88213', template: 'Slow query took <*>ms: SELECT * FROM orders WHERE <*>', params: ['2341', 'user_id=88213'] }
-]
-
-export const logSeries = {
-  labels: timeLabels(24, 60),
-  total: seededSeries(41, 24, 8200, 2400, 0.2).map((v) => Math.round(v)),
-  error: seededSeries(43, 24, 60, 25, 0.4).map((v, i) => Math.round(i >= 20 ? v * 4 : v))
-}
-
 // ---------------- 数据源接入 ----------------
 export const dataSources = [
   { name: 'Prometheus', type: '指标数据', status: 'online', method: 'Remote Write / Federation', endpoint: 'http://prometheus:9090', desc: '指标采集：Counter / Gauge / Histogram / Summary 全类型覆盖', metricsRate: '42k samples/s' },

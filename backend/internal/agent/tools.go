@@ -129,7 +129,9 @@ type ListServicesInput struct{}
 type ServiceInfo struct {
 	Code            string            `json:"code"`
 	Name            string            `json:"name"`
+	ESDatasource    string            `json:"es_datasource"`
 	ESIndexPatterns []string          `json:"es_index_patterns"`
+	PromDatasource  string            `json:"prom_datasource"`
 	PromLabels      map[string]string `json:"prom_labels"`
 }
 
@@ -140,7 +142,7 @@ type ListServicesOutput struct {
 func (r *Registry) listServicesTool() (tool.InvokableTool, error) {
 	return utils.InferTool[ListServicesInput, ListServicesOutput](
 		"list_services",
-		"列出所有已启用的服务注册信息（code、名称、ES 索引模式、Prometheus 标签选择器）。查询指定服务的日志或指标前，先用本工具获取该服务对应的 ES 索引模式和 Prometheus 标签选择器，避免猜错索引。",
+		"列出所有已启用的服务注册信息（code、名称、ES 数据源名称与索引模式、Prometheus 数据源名称与标签选择器）。查询指定服务的日志或指标前，先用本工具获取该服务对应的 ES 数据源名称、索引模式和 Prometheus 标签选择器，避免猜错索引或数据源名。",
 		func(ctx context.Context, in ListServicesInput) (ListServicesOutput, error) {
 			var list []models.Service
 			if err := r.db.WithContext(ctx).
@@ -149,11 +151,39 @@ func (r *Registry) listServicesTool() (tool.InvokableTool, error) {
 				Find(&list).Error; err != nil {
 				return ListServicesOutput{}, err
 			}
+
+			// 收集引用的数据源 ID，批量查出名称（供 query_elasticsearch 等工具的 data_source_name 直接使用）
+			dsIDs := map[string]bool{}
+			for _, svc := range list {
+				if svc.ESDatasourceID != "" {
+					dsIDs[svc.ESDatasourceID] = true
+				}
+				if svc.PromDatasourceID != "" {
+					dsIDs[svc.PromDatasourceID] = true
+				}
+			}
+			dsNames := map[string]string{}
+			if len(dsIDs) > 0 {
+				ids := make([]string, 0, len(dsIDs))
+				for id := range dsIDs {
+					ids = append(ids, id)
+				}
+				var dsList []models.Datasource
+				if err := r.db.WithContext(ctx).Where("id IN ?", ids).Find(&dsList).Error; err != nil {
+					return ListServicesOutput{}, err
+				}
+				for _, ds := range dsList {
+					dsNames[ds.ID] = ds.Name
+				}
+			}
+
 			out := ListServicesOutput{Services: make([]ServiceInfo, 0, len(list))}
 			for _, svc := range list {
 				info := ServiceInfo{
 					Code:            svc.Code,
 					Name:            svc.Name,
+					ESDatasource:    dsNames[svc.ESDatasourceID],
+					PromDatasource:  dsNames[svc.PromDatasourceID],
 					ESIndexPatterns: []string{},
 					PromLabels:      map[string]string{},
 				}

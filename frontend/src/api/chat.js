@@ -45,10 +45,10 @@ export function getMessages(id) {
   return request(`/sessions/${id}/messages`)
 }
 
-export function streamChat(sessionId, content, { onChunk, onDone, onError, onPanelStart, onSpecialist }) {
+export function streamChat(sessionId, content, { panel = true, onChunk, onDone, onError, onPanelStart, onSpecialist } = {}) {
   const encoded = encodeURIComponent(content)
   const token = getToken()
-  let url = `${BASE}/sessions/${sessionId}/stream?content=${encoded}`
+  let url = `${BASE}/sessions/${sessionId}/stream?content=${encoded}&panel=${panel ? 1 : 0}`
   if (token) {
     url += `&token=${encodeURIComponent('Bearer ' + token)}`
   }

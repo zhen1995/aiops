@@ -11,3 +11,6 @@ knowledge:
   python_base_url: "http://localhost:9000"
   # 知识库上传文件的本地存储目录
   upload_dir: "./uploads/knowledge"
+log_analysis:
+  # 日志分析周期任务间隔（如 5m / 30s / 1h）
+  interval: "5m"
