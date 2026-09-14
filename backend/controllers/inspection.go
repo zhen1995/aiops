@@ -62,6 +62,15 @@ func (c *InspectionController) CreateTask(ctx *gin.Context) {
 		return
 	}
 
+	// 校验执行模式与巡检维度
+	if task.Mode == "" {
+		task.Mode = inspection.ModeSingle
+	}
+	if err := inspection.ValidateModeAndDimensions(task.Mode, task.Dimensions); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+
 	now := time.Now()
 	task.CreatedAt = now
 	task.UpdatedAt = now
@@ -90,6 +99,8 @@ func (c *InspectionController) UpdateTask(ctx *gin.Context) {
 		Name           string `json:"name"`
 		CronExpr       string `json:"cron_expr"`
 		Prompt         string `json:"prompt"`
+		Mode           string `json:"mode"`
+		Dimensions     string `json:"dimensions"`
 		NotifyMediaIDs string `json:"notify_media_ids"`
 		Enabled        *bool  `json:"enabled"`
 	}
@@ -110,6 +121,26 @@ func (c *InspectionController) UpdateTask(ctx *gin.Context) {
 	}
 	if req.Prompt != "" {
 		task.Prompt = req.Prompt
+	}
+	// 执行模式与维度：提供时校验并整体替换（维度允许在 mode=multi 时更新）
+	if req.Mode != "" || req.Dimensions != "" {
+		mode := req.Mode
+		if mode == "" {
+			mode = task.Mode
+		}
+		if mode == "" {
+			mode = inspection.ModeSingle
+		}
+		dimensions := req.Dimensions
+		if dimensions == "" {
+			dimensions = task.Dimensions
+		}
+		if err := inspection.ValidateModeAndDimensions(mode, dimensions); err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+			return
+		}
+		task.Mode = mode
+		task.Dimensions = dimensions
 	}
 	// 通知媒介允许清空，因此始终赋值
 	task.NotifyMediaIDs = req.NotifyMediaIDs

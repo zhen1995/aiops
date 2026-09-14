@@ -9,6 +9,7 @@ export default {
     serviceRegistry: 'Services',
     alertGroup: 'Alerts',
     alertDenoise: 'Denoising',
+    businessGroups: 'Business Groups',
     alertEvents: 'Alert Events',
     notifyRecords: 'Notify Records',
     alertRules: 'Alert Rules',

@@ -6,6 +6,7 @@ export default {
     table: {
       enabled: '启用',
       name: '任务名称',
+      mode: '模式',
       cron: 'Cron 表达式',
       prompt: '任务提示词',
       lastRun: '上次执行',
@@ -15,6 +16,12 @@ export default {
       runNow: '立即执行',
       remove: '删除',
       empty: '暂无巡检任务，点击右上角新建'
+    },
+    mode: {
+      single: '单 Agent',
+      multi: '多维度',
+      singleHint: '单个 Agent 独立完成巡检并生成报告',
+      multiHint: '多 Agent 按维度并发巡检，主编汇总成一份报告'
     },
     modal: {
       editTitle: '编辑巡检任务',
@@ -30,6 +37,12 @@ export default {
       nextRuns: '预计下次执行时间：',
       promptLabel: '任务提示词',
       promptPlaceholder: '描述你希望巡检任务分析的内容，例如：检查过去 24 小时内的异常告警、错误日志和服务健康状态...',
+      modeLabel: '巡检模式',
+      dimensions: '巡检维度',
+      addDimension: '添加维度',
+      removeDimension: '删除该维度',
+      dimNamePlaceholder: '维度名称，例如：容量趋势',
+      dimPromptPlaceholder: '该维度的巡检要求，例如：分析磁盘与内存使用趋势，预测耗尽时间...',
       media: '通知媒介',
       mediaHint: '报告生成后自动推送，可多选',
       mediaEmpty: '暂无启用的通知媒介，请先在「通知媒介」菜单中创建',
@@ -44,6 +57,8 @@ export default {
       nameRequired: '请填写任务名称',
       cronRequired: '请填写 Cron 表达式',
       promptRequired: '请填写任务提示词',
+      dimensionsRequired: '多维度模式至少需要一个巡检维度',
+      dimensionIncomplete: '每个维度都需要填写名称和提示词',
       saveFailed: '保存失败: ',
       toggleFailed: '操作失败: ',
       runNowConfirm: '立即执行巡检任务 "{name}"？（调用 LLM 可能需要几十秒）',

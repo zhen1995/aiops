@@ -62,6 +62,7 @@ func main() {
 		&models.Service{},
 		// 告警
 		&models.AlertRule{},
+		&models.BusinessGroup{},
 		&models.AlertEvent{},
 		&models.RootCauseAnalysis{},
 		// 巡检与通知
@@ -214,6 +215,17 @@ func main() {
 		ruleGroup.DELETE("/:id", ruleCtrl.Delete)
 		ruleGroup.PATCH("/:id/toggle", ruleCtrl.ToggleEnabled)
 	}
+
+	// 业务分组相关路由
+	bgCtrl := controllers.NewBusinessGroupController(db)
+	bgGroup := api.Group("/business-groups")
+	{
+		bgGroup.GET("", bgCtrl.List)
+		bgGroup.POST("", bgCtrl.Create)
+		bgGroup.PUT("/:id", bgCtrl.Update)
+		bgGroup.DELETE("/:id", bgCtrl.Delete)
+	}
+
 
 	// 告警事件代理路由
 	eventCtrl := controllers.NewAlertEventController(db)

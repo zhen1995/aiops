@@ -9,6 +9,7 @@ export default {
     serviceRegistry: '服务注册',
     alertGroup: '告警管理',
     alertDenoise: '告警降噪',
+    businessGroups: '业务分组',
     alertEvents: '告警事件',
     notifyRecords: '通知记录',
     alertRules: '告警规则',

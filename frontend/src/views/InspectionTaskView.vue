@@ -10,6 +10,7 @@
           <tr>
             <th style="width: 44px">{{ $t('inspection.task.table.enabled') }}</th>
             <th>{{ $t('inspection.task.table.name') }}</th>
+            <th style="width: 90px">{{ $t('inspection.task.table.mode') }}</th>
             <th style="width: 180px">{{ $t('inspection.task.table.cron') }}</th>
             <th>{{ $t('inspection.task.table.prompt') }}</th>
             <th style="width: 170px">{{ $t('inspection.task.table.lastRun') }}</th>
@@ -26,6 +27,11 @@
               </label>
             </td>
             <td><b>{{ t.name }}</b></td>
+            <td>
+              <span class="mode-tag" :class="'mode-' + (t.mode || 'single')">
+                {{ t.mode === 'multi' ? $t('inspection.task.mode.multi') : $t('inspection.task.mode.single') }}
+              </span>
+            </td>
             <td><code class="cron">{{ t.cron_expr }}</code></td>
             <td class="muted prompt-cell">{{ truncate(t.prompt, 60) }}</td>
             <td class="muted">{{ fmtTime(t.last_run_at) || '-' }}</td>
@@ -37,7 +43,7 @@
             </td>
           </tr>
           <tr v-if="tasks.length === 0">
-            <td colspan="7" class="empty">{{ $t('inspection.task.table.empty') }}</td>
+            <td colspan="8" class="empty">{{ $t('inspection.task.table.empty') }}</td>
           </tr>
         </tbody>
       </table>
@@ -93,6 +99,51 @@
               rows="6"
               :placeholder="$t('inspection.task.modal.promptPlaceholder')"
             />
+          </div>
+
+          <div class="form-item">
+            <label>{{ $t('inspection.task.modal.modeLabel') }}</label>
+            <div class="mode-options">
+              <label class="mode-option">
+                <input type="radio" value="single" v-model="form.mode" />
+                <span>
+                  <b>{{ $t('inspection.task.mode.single') }}</b>
+                  <em>{{ $t('inspection.task.mode.singleHint') }}</em>
+                </span>
+              </label>
+              <label class="mode-option">
+                <input type="radio" value="multi" v-model="form.mode" />
+                <span>
+                  <b>{{ $t('inspection.task.mode.multi') }}</b>
+                  <em>{{ $t('inspection.task.mode.multiHint') }}</em>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 多维度模式：维度编辑列表 -->
+          <div v-if="form.mode === 'multi'" class="form-item">
+            <label class="row-label">
+              {{ $t('inspection.task.modal.dimensions') }}
+              <button class="btn btn-sm" @click="addDimension" :disabled="form.dimensions.length >= 8">
+                + {{ $t('inspection.task.modal.addDimension') }}
+              </button>
+            </label>
+            <div v-for="(dim, idx) in form.dimensions" :key="idx" class="dimension-row">
+              <input
+                v-model="dim.name"
+                class="dim-name"
+                :placeholder="$t('inspection.task.modal.dimNamePlaceholder')"
+                maxlength="64"
+              />
+              <textarea
+                v-model="dim.prompt"
+                rows="2"
+                :placeholder="$t('inspection.task.modal.dimPromptPlaceholder')"
+              />
+              <button class="btn btn-sm dim-remove" @click="removeDimension(idx)" :title="$t('inspection.task.modal.removeDimension')">×</button>
+            </div>
+            <div v-if="dimError" class="form-error">{{ dimError }}</div>
           </div>
 
           <div class="form-item">
@@ -157,10 +208,13 @@ const defaultForm = () => ({
   name: '',
   cron_expr: '0 0 9 * * ?',
   prompt: '',
+  mode: 'single',
+  dimensions: [],
   notify_media_ids: [],
   enabled: true
 })
 const form = ref(defaultForm())
+const dimError = ref('')
 
 onMounted(() => {
   load()
@@ -193,14 +247,39 @@ function openDialog(task) {
     } catch (e) {
       mediaIds = []
     }
-    form.value = { name: task.name, cron_expr: task.cron_expr, prompt: task.prompt, notify_media_ids: mediaIds, enabled: task.enabled }
+    let dimensions = []
+    try {
+      const parsed = JSON.parse(task.dimensions || '[]')
+      if (Array.isArray(parsed)) dimensions = parsed
+    } catch (e) {
+      dimensions = []
+    }
+    form.value = {
+      name: task.name,
+      cron_expr: task.cron_expr,
+      prompt: task.prompt,
+      mode: task.mode || 'single',
+      dimensions,
+      notify_media_ids: mediaIds,
+      enabled: task.enabled
+    }
   } else {
     form.value = defaultForm()
   }
+  dimError.value = ''
   cronPreview.value = []
   cronError.value = ''
   showCronBuilder.value = false
   showDialog.value = true
+}
+
+function addDimension() {
+  if (form.value.dimensions.length >= 8) return
+  form.value.dimensions.push({ name: '', prompt: '' })
+}
+
+function removeDimension(idx) {
+  form.value.dimensions.splice(idx, 1)
 }
 
 function closeDialog() {
@@ -209,6 +288,7 @@ function closeDialog() {
   showCronBuilder.value = false
   cronPreview.value = []
   cronError.value = ''
+  dimError.value = ''
 }
 
 function onCronConfirm() {
@@ -232,12 +312,30 @@ async function save() {
   if (!form.value.cron_expr.trim()) return alert(t('inspection.task.messages.cronRequired'))
   if (!form.value.prompt.trim()) return alert(t('inspection.task.messages.promptRequired'))
 
+  // 多维度模式校验
+  dimError.value = ''
+  if (form.value.mode === 'multi') {
+    const dims = form.value.dimensions
+    if (dims.length === 0) {
+      dimError.value = t('inspection.task.messages.dimensionsRequired')
+      return
+    }
+    for (const d of dims) {
+      if (!d.name.trim() || !d.prompt.trim()) {
+        dimError.value = t('inspection.task.messages.dimensionIncomplete')
+        return
+      }
+    }
+  }
+
   submitting.value = true
   try {
     const payload = {
       name: form.value.name,
       cron_expr: form.value.cron_expr,
       prompt: form.value.prompt,
+      mode: form.value.mode,
+      dimensions: form.value.mode === 'multi' ? JSON.stringify(form.value.dimensions) : '',
       notify_media_ids: JSON.stringify(form.value.notify_media_ids || []),
       enabled: form.value.enabled
     }
@@ -300,6 +398,51 @@ function fmtTime(v) {
 </script>
 
 <style scoped>
+.mode-tag {
+  font-size: 12px;
+  padding: 2px 9px;
+  border-radius: 10px;
+  background: var(--c-bg);
+  color: var(--c-text-2);
+  border: 1px solid var(--c-border);
+}
+.mode-tag.mode-multi {
+  background: var(--c-primary-tint);
+  color: var(--c-primary);
+  border-color: transparent;
+}
+
+.mode-options { display: flex; gap: 10px; }
+.mode-option {
+  flex: 1;
+  display: flex !important;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  cursor: pointer;
+  margin-bottom: 0 !important;
+}
+.mode-option:has(input:checked) { border-color: var(--c-primary); background: var(--c-primary-soft); }
+.mode-option input { width: auto !important; margin-top: 2px; accent-color: var(--c-primary); }
+.mode-option span { display: flex; flex-direction: column; gap: 2px; }
+.mode-option b { font-size: 13px; color: var(--c-text); }
+.mode-option em { font-style: normal; font-size: 11.5px; color: var(--c-text-3); }
+
+.dimension-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+.dimension-row .dim-name {
+  width: 130px !important;
+  flex-shrink: 0;
+}
+.dimension-row textarea { flex: 1; }
+.dim-remove { flex-shrink: 0; margin-top: 4px; }
+
 .prompt-cell { max-width: 300px; }
 
 .cron {

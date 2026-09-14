@@ -9,6 +9,7 @@ const routes = [
   { path: '/chat', name: 'chat', component: () => import('../views/ChatView.vue'), meta: { title: 'layout.menu.chat', auth: '对话' } },
   { path: '/dashboard', name: 'dashboard', component: () => import('../views/Dashboard.vue'), meta: { title: 'layout.menu.dashboard', auth: '总览大盘' } },
   { path: '/alerts/denoise', name: 'alerts-denoise', component: () => import('../views/DenoiseView.vue'), meta: { title: 'layout.menu.alertDenoise', auth: '告警降噪' } },
+  { path: '/alerts/business-groups', name: 'business-groups', component: () => import('../views/BusinessGroupView.vue'), meta: { title: 'layout.menu.businessGroups', auth: '业务分组' } },
   { path: '/alerts/events', name: 'alert-events', component: () => import('../views/AnomalyView.vue'), meta: { title: 'layout.menu.alertEvents', auth: '告警事件' } },
   { path: '/notify/records', name: 'notify-records', component: () => import('../views/notify/NotifyRecordView.vue'), meta: { title: 'layout.menu.notifyRecords', auth: '通知记录' } },
   { path: '/alert-rules', name: 'alert-rules', component: () => import('../views/AlertRuleView.vue'), meta: { title: 'layout.menu.alertRules', auth: '告警规则' } },

@@ -21,6 +21,7 @@ type AlertEvent struct {
 	ID           string     `gorm:"primaryKey;size:64;comment:id" json:"id"`
 	RuleID       string     `gorm:"size:64;index;comment:关联告警规则ID" json:"rule_id"`
 	RuleName     string     `gorm:"size:128;comment:规则名称（冗余，便于展示）" json:"rule_name"`
+	GroupName    string     `gorm:"size:128;comment:业务分组名称（冗余，便于展示）" json:"group_name"`
 	Severity     int        `gorm:"comment:告警级别 1-P1紧急 2-P2警告 3-P3提醒" json:"severity"`
 	Type         string     `gorm:"size:16;index;comment:事件类型 alert-告警事件 recovery-告警恢复事件" json:"type"`
 	Status       string     `gorm:"size:16;index;comment:状态 firing-告警中 resolved-已恢复" json:"status"`

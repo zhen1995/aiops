@@ -9,6 +9,8 @@ import (
 	"aiops/internal/chat"
 	"aiops/models"
 
+	"github.com/cloudwego/eino/components/model"
+	"github.com/cloudwego/eino/schema"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -259,34 +261,77 @@ func (c *ChatController) StreamChat(ctx *gin.Context) {
 	}
 
 	// ---------- 6. 使用 Function Calling Agent 执行对话 ----------
-	ag := agent.New(cm, c.registry, agent.Options{
-		Instructions:      chat.SystemPrompt,
-		EnforceDataSource: true,
-	})
+
+	// ChatModel 工厂：每个专家/主持人必须持有独立实例（BindTools 有状态，不可并发共享）
+	factory := func(c context.Context) (model.ChatModel, error) {
+		return chat.NewClient(c, cfg)
+	}
 
 	var fullContent string
 	var promptTokens, completionTokens, totalTokens int
+	var resp *schema.Message
 
-	resp, err := ag.Run(cancelCtx, messages, &agent.Callbacks{
-		OnStatus: func(status string) {
-			sendEvent("status", gin.H{"status": status})
-		},
-		OnToolCall: func(name, args string) {
-			sendEvent("tool_call", gin.H{"name": name, "arguments": args})
-		},
-		OnToolResult: func(name, result string) {
-			sendEvent("tool_result", gin.H{"name": name, "result": result})
-		},
-		OnChunk: func(chunk string) {
-			fullContent = chunk
-			streamText(chunk)
-		},
-	})
-	if err != nil {
-		sendEvent("error", gin.H{"code": 500, "message": "生成失败: " + err.Error()})
-		close(jobCh)
-		<-senderDone
-		return
+	// 6.1 专家会诊：Planner 判断是否需要多专家会诊，不需要则透明走单 Agent
+	panelSubtasks := agent.Plan(cancelCtx, factory, question)
+	if len(panelSubtasks) > 0 {
+		specialists := make([]gin.H, 0, len(panelSubtasks))
+		for _, st := range panelSubtasks {
+			if sp, ok := agent.SpecialistInfo(st.Specialist); ok {
+				specialists = append(specialists, gin.H{"key": sp.Key, "title": sp.Title})
+			}
+		}
+		sendEvent("panel_start", gin.H{"question": question, "specialists": specialists})
+
+		panel := agent.NewPanel(c.registry)
+		resp, err = panel.Run(cancelCtx, factory, question, panelSubtasks, &agent.PanelCallbacks{
+			OnSpecialist: func(key, title, status, conclusion string) {
+				sendEvent("specialist", gin.H{"key": key, "title": title, "status": status, "conclusion": conclusion})
+			},
+			OnToolCall: func(expert, name, args string) {
+				sendEvent("tool_call", gin.H{"expert": expert, "name": name, "arguments": args})
+			},
+			OnToolResult: func(expert, name, result string) {
+				sendEvent("tool_result", gin.H{"expert": expert, "name": name, "result": result})
+			},
+			OnChunk: func(chunk string) {
+				fullContent = chunk
+				streamText(chunk)
+			},
+		})
+		if err != nil {
+			sendEvent("error", gin.H{"code": 500, "message": "专家会诊失败: " + err.Error()})
+			close(jobCh)
+			<-senderDone
+			return
+		}
+	} else {
+		// 6.2 单 Agent 路径（原逻辑）
+		ag := agent.New(cm, c.registry, agent.Options{
+			Instructions:      chat.SystemPrompt,
+			EnforceDataSource: true,
+		})
+
+		resp, err = ag.Run(cancelCtx, messages, &agent.Callbacks{
+			OnStatus: func(status string) {
+				sendEvent("status", gin.H{"status": status})
+			},
+			OnToolCall: func(name, args string) {
+				sendEvent("tool_call", gin.H{"name": name, "arguments": args})
+			},
+			OnToolResult: func(name, result string) {
+				sendEvent("tool_result", gin.H{"name": name, "result": result})
+			},
+			OnChunk: func(chunk string) {
+				fullContent = chunk
+				streamText(chunk)
+			},
+		})
+		if err != nil {
+			sendEvent("error", gin.H{"code": 500, "message": "生成失败: " + err.Error()})
+			close(jobCh)
+			<-senderDone
+			return
+		}
 	}
 
 	if resp.ResponseMeta != nil && resp.ResponseMeta.Usage != nil {

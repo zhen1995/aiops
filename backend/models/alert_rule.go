@@ -15,6 +15,8 @@ type AlertRule struct {
 	EvalInterval int            `gorm:"comment:执行频率(秒)" json:"eval_interval"`
 	Duration     int            `gorm:"comment:持续时间(秒)" json:"duration"`
 	Severity     int            `gorm:"comment:告警级别 1-P1紧急 2-P2警告 3-P3提醒" json:"severity"`
+	// GroupID 所属业务分组（可选）
+	GroupID string `gorm:"size:64;index;comment:业务分组ID" json:"group_id"`
 	// NotifyRuleID 关联的通知规则（可选）——触发告警/恢复时自动发送通知
 	NotifyRuleID string         `gorm:"size:64;comment:通知规则ID" json:"notify_rule_id"`
 	// RepeatIntervalMinutes 重复通知间隔（分钟），0 表示不重复提醒，仅首次触发时发一次
@@ -31,13 +33,12 @@ func (AlertRule) TableName() string {
 	return "alert_rules"
 }
 
-// BeforeCreate 自动生成 UUID 并设置默认值
+// BeforeCreate 自动生成 UUID
+// 注意：不在这里强制 IsEnabled 默认值——前端表单默认提交 1（启用），
+// 用户显式选择「不启用」（0）时必须原样落库，否则新建停用规则会被强制改为启用。
 func (r *AlertRule) BeforeCreate(tx *gorm.DB) error {
 	if r.ID == "" {
 		r.ID = uuid.New().String()
-	}
-	if r.IsEnabled == 0 {
-		r.IsEnabled = 1
 	}
 	return nil
 }

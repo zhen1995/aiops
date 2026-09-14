@@ -16,7 +16,7 @@
           </button>
         </div>
         <div class="filters">
-          <div class="filter-group">
+          <div v-if="scope === 'history'" class="filter-group">
             <label>{{ $t('alert.events.filters.timeWindow') }}</label>
             <select v-model.number="hours" @change="loadData">
               <option :value="24">{{ $t('alert.events.filters.last24h') }}</option>
@@ -69,6 +69,7 @@
               <input type="checkbox" :checked="isAllSelected" :indeterminate="isIndeterminate" @change="toggleSelectAll" />
             </th>
             <th>{{ $t('alert.events.table.ruleName') }}</th>
+            <th>{{ $t('alert.events.table.groupName') }}</th>
             <th>{{ $t('alert.events.table.severity') }}</th>
             <th>{{ $t('alert.events.table.target') }}</th>
             <th>{{ $t('alert.events.table.triggerTime') }}</th>
@@ -83,6 +84,10 @@
               <input type="checkbox" :checked="selectedIds.has(ev.id)" @change="toggleOne(ev.id)" />
             </td>
             <td><b>{{ ev.rule_name }}</b></td>
+            <td>
+              <span v-if="ev.group_name" class="group-chip">{{ ev.group_name }}</span>
+              <span v-else class="muted">—</span>
+            </td>
             <td>
               <LevelTag :level="severityMap(ev.severity)">
                 {{ severityText[ev.severity] || ev.severity }}
@@ -100,10 +105,10 @@
             </td>
           </tr>
           <tr v-if="!loading && events.length === 0">
-            <td colspan="8" class="empty-row">{{ $t('alert.events.table.empty') }}</td>
+            <td colspan="9" class="empty-row">{{ $t('alert.events.table.empty') }}</td>
           </tr>
           <tr v-if="loading">
-            <td colspan="8" class="empty-row">{{ $t('alert.events.table.loading') }}</td>
+            <td colspan="9" class="empty-row">{{ $t('alert.events.table.loading') }}</td>
           </tr>
         </tbody>
       </table>
@@ -244,7 +249,8 @@ async function loadData() {
   try {
     const result = await alertEventApi.list({
       scope: scope.value,
-      hours: hours.value,
+      // 活跃告警不带时间窗口（返回全部未恢复事件），历史告警保留时间窗口
+      hours: scope.value === 'history' ? hours.value : '',
       page: page.value,
       limit: limit.value,
       query: query.value.trim(),
@@ -321,6 +327,15 @@ watch(events, (list) => {
 </script>
 
 <style scoped>
+.group-chip {
+  font-size: 12px;
+  background: var(--c-primary-soft, rgba(22,119,255,0.08));
+  color: var(--c-primary);
+  border-radius: var(--radius-tag, 10px);
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+
 .card-head-flex {
   display: flex;
   align-items: center;

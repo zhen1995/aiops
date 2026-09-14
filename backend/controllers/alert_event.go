@@ -30,13 +30,8 @@ func NewAlertEventController(db *gorm.DB) *AlertEventController {
 }
 
 // List 查询告警事件
-// scope=active 返回未恢复（告警中）事件；scope=history 返回已解决/已恢复事件（含告警恢复事件）
+// scope=active 返回全部未恢复（告警中）事件，不受时间窗口限制；scope=history 返回已解决/已恢复事件（含告警恢复事件），支持 hours 时间窗口过滤
 func (c *AlertEventController) List(ctx *gin.Context) {
-	hours, err := parseInt64(ctx.DefaultQuery("hours", "24"))
-	if err != nil || hours <= 0 {
-		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "hours 参数必须是正整数"})
-		return
-	}
 	page, err := parseInt(ctx.DefaultQuery("page", "1"))
 	if err != nil || page < 1 {
 		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "page 参数必须是正整数"})
@@ -54,13 +49,24 @@ func (c *AlertEventController) List(ctx *gin.Context) {
 		return
 	}
 
+	// hours 仅对 history 生效；不传或非法时历史告警默认最近 24 小时
+	hours := int64(24)
+	if h := ctx.Query("hours"); h != "" {
+		parsed, err := parseInt64(h)
+		if err != nil || parsed <= 0 {
+			ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "hours 参数必须是正整数"})
+			return
+		}
+		hours = parsed
+	}
+
 	db := c.DB.Model(&models.AlertEvent{})
 	if scope == "active" {
 		db = db.Where("status = ?", models.AlertEventStatusFiring)
 	} else {
 		db = db.Where("status = ?", models.AlertEventStatusResolved)
+		db = db.Where("trigger_time >= ?", time.Now().Add(-time.Duration(hours)*time.Hour))
 	}
-	db = db.Where("trigger_time >= ?", time.Now().Add(-time.Duration(hours)*time.Hour))
 
 	if s := ctx.Query("severity"); s != "" {
 		sev, err := parseInt(s)

@@ -6,6 +6,7 @@ export default {
     table: {
       enabled: 'Enabled',
       name: 'Task Name',
+      mode: 'Mode',
       cron: 'Cron Expression',
       prompt: 'Task Prompt',
       lastRun: 'Last Run',
@@ -15,6 +16,12 @@ export default {
       runNow: 'Run Now',
       remove: 'Delete',
       empty: 'No inspection tasks yet. Click "+ New Task" in the top right.'
+    },
+    mode: {
+      single: 'Single Agent',
+      multi: 'Multi-dim',
+      singleHint: 'A single agent performs the inspection and generates the report',
+      multiHint: 'Multiple agents inspect by dimension in parallel; an editor merges results into one report'
     },
     modal: {
       editTitle: 'Edit Inspection Task',
@@ -30,6 +37,12 @@ export default {
       nextRuns: 'Next execution times:',
       promptLabel: 'Task Prompt',
       promptPlaceholder: 'Describe what you want the inspection to analyze, e.g. check abnormal alerts, error logs and service health in the past 24 hours...',
+      modeLabel: 'Inspection Mode',
+      dimensions: 'Inspection Dimensions',
+      addDimension: 'Add Dimension',
+      removeDimension: 'Remove this dimension',
+      dimNamePlaceholder: 'Dimension name, e.g. Capacity Trend',
+      dimPromptPlaceholder: 'Requirements for this dimension, e.g. analyze disk and memory usage trends and predict exhaustion time...',
       media: 'Notification Media',
       mediaHint: 'Reports are pushed automatically after generation; multiple selections allowed',
       mediaEmpty: 'No enabled notification media. Please create one in the "Notification Media" menu first.',
@@ -44,6 +57,8 @@ export default {
       nameRequired: 'Please enter a task name',
       cronRequired: 'Please enter a Cron expression',
       promptRequired: 'Please enter a task prompt',
+      dimensionsRequired: 'Multi-dimension mode requires at least one dimension',
+      dimensionIncomplete: 'Every dimension needs a name and a prompt',
       saveFailed: 'Failed to save: ',
       toggleFailed: 'Operation failed: ',
       runNowConfirm: 'Run inspection task "{name}" now? (Calling the LLM may take tens of seconds)',

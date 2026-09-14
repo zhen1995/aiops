@@ -318,6 +318,7 @@ func (e *Engine) fireLocked(rule models.AlertRule, sample datasource.InstantSamp
 	event := models.AlertEvent{
 		RuleID:      rule.ID,
 		RuleName:    rule.Name,
+		GroupName:   e.groupName(rule.GroupID),
 		Severity:    rule.Severity,
 		Type:        models.AlertEventTypeAlert,
 		Status:      models.AlertEventStatusFiring,
@@ -375,6 +376,18 @@ func (e *Engine) recordNotify(rec models.NotifyRecord) {
 	}
 }
 
+// groupName 按业务分组 ID 查询分组名称（用于事件冗余展示）；查不到或为空分组返回空串
+func (e *Engine) groupName(groupID string) string {
+	if groupID == "" {
+		return ""
+	}
+	var g models.BusinessGroup
+	if err := e.db.Select("name").Where("id = ?", groupID).First(&g).Error; err != nil {
+		return ""
+	}
+	return g.Name
+}
+
 // recoverLocked 把指定未恢复事件置为已恢复，并创建告警恢复事件（调用方需已持有 e.mu）
 func (e *Engine) recoverLocked(rule models.AlertRule, eventID string, now time.Time) error {
 	var firing models.AlertEvent
@@ -396,6 +409,7 @@ func (e *Engine) recoverLocked(rule models.AlertRule, eventID string, now time.T
 	recovery := models.AlertEvent{
 		RuleID:      rule.ID,
 		RuleName:    rule.Name,
+		GroupName:   e.groupName(rule.GroupID),
 		Severity:    rule.Severity,
 		Type:        models.AlertEventTypeRecovery,
 		Status:      models.AlertEventStatusResolved,

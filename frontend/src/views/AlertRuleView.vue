@@ -10,25 +10,29 @@
           <h3 class="card-title">{{ $t('alert.rules.listTitle') }}</h3>
           <p class="card-sub">{{ $t('alert.rules.listSub') }}</p>
         </div>
-        <div style="display: flex; align-items: center; gap: 10px;">
+        <div class="toolbar-right">
+          <select v-model="filterGroupId" class="form-input group-filter" @change="reloadFirstPage">
+            <option value="">{{ $t('alert.rules.filterAllGroups') }}</option>
+            <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
+          </select>
           <span v-if="filterKw" class="filter-tag">
             {{ $t('alert.rules.keyword', { kw: filterKw }) }}
-            <em @click="filterKw = ''">×</em>
+            <em @click="clearKeyword">×</em>
           </span>
           <button class="btn btn-sm" @click="loadData" :disabled="loading">
             {{ loading ? $t('alert.rules.loading') : $t('alert.rules.refresh') }}
           </button>
         </div>
       </div>
-      <table class="table">
+      <div class="table-scroll">
+      <table class="table rules-table">
         <thead>
           <tr>
             <th class="col-status">{{ $t('alert.rules.colStatus') }}</th>
             <th>{{ $t('alert.rules.colRuleName') }}</th>
+            <th>{{ $t('alert.rules.colGroup') }}</th>
             <th>{{ $t('alert.rules.colSeverity') }}</th>
             <th>PromQL</th>
-            <th>{{ $t('alert.rules.colEvalInterval') }}</th>
-            <th>{{ $t('alert.rules.colDuration') }}</th>
             <th>{{ $t('alert.rules.colNotifyRule') }}</th>
             <th>{{ $t('alert.rules.colEnabled') }}</th>
             <th>{{ $t('alert.rules.colCreatedAt') }}</th>
@@ -36,7 +40,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="rule in filteredRules" :key="rule.id">
+          <tr v-for="rule in rules" :key="rule.id">
             <td class="col-status">
               <span
                 class="status-icon"
@@ -63,13 +67,15 @@
             </td>
             <td><b>{{ rule.name }}</b></td>
             <td>
+              <span v-if="rule.group_name" class="group-chip">{{ rule.group_name }}</span>
+              <span v-else class="muted">—</span>
+            </td>
+            <td>
               <LevelTag :level="severityLevel(rule.severity)">
                 {{ severityText(rule.severity) }}
               </LevelTag>
             </td>
             <td class="mono" :title="rule.prom_ql">{{ rule.prom_ql || '-' }}</td>
-            <td>{{ $t('alert.rules.everySeconds', { n: rule.eval_interval }) }}</td>
-            <td>{{ rule.duration === 0 ? $t('alert.rules.durationImmediate') : rule.duration }}</td>
             <td>
               <template v-if="rule.notify_rule_id">
                 <span class="notify-link">{{ (notifyRules.find(nr => nr.id === rule.notify_rule_id) || {}).name || rule.notify_rule_id }}</span>
@@ -81,7 +87,7 @@
                 {{ rule.is_enabled === 1 ? $t('alert.rules.enabledOn') : $t('alert.rules.enabledOff') }}
               </LevelTag>
             </td>
-            <td class="muted">{{ fmtTime(rule.created_at) }}</td>
+            <td class="muted col-time">{{ fmtTime(rule.created_at) }}</td>
             <td>
               <div class="ops">
                 <button class="btn btn-sm" @click="openEditModal(rule)">{{ $t('alert.rules.edit') }}</button>
@@ -92,14 +98,40 @@
               </div>
             </td>
           </tr>
-          <tr v-if="!loading && filteredRules.length === 0">
-            <td colspan="10" class="empty-row">{{ filterKw ? $t('alert.rules.emptyNoMatch') : $t('alert.rules.empty') }}</td>
+          <tr v-if="!loading && rules.length === 0">
+            <td colspan="9" class="empty-row">{{ filterKw ? $t('alert.rules.emptyNoMatch') : $t('alert.rules.empty') }}</td>
           </tr>
           <tr v-if="loading">
-            <td colspan="10" class="empty-row">{{ $t('alert.rules.loading') }}</td>
+            <td colspan="9" class="empty-row">{{ $t('alert.rules.loading') }}</td>
           </tr>
         </tbody>
       </table>
+      </div>
+
+      <!-- 分页栏 -->
+      <div class="pagination" v-if="total > 0">
+        <span class="pager-total">{{ $t('alert.rules.pager.total', { total }) }}</span>
+        <div class="pager-pages">
+          <button class="pager-btn" :disabled="page === 1 || loading" @click="changePage(page - 1)">‹</button>
+          <button
+            v-for="(p, idx) in pageNumbers"
+            :key="idx"
+            class="pager-btn"
+            :class="{ active: p === page }"
+            :disabled="p === '…'"
+            @click="typeof p === 'number' && changePage(p)"
+          >{{ p }}</button>
+          <button class="pager-btn" :disabled="page >= totalPages || loading" @click="changePage(page + 1)">›</button>
+        </div>
+        <select v-model.number="limit" class="pager-size" @change="changeLimit">
+          <option v-for="n in [10, 20, 50, 100]" :key="n" :value="n">{{ $t('alert.rules.pager.perPage', { n }) }}</option>
+        </select>
+        <span class="pager-jump">
+          {{ $t('alert.rules.pager.jumpTo') }}
+          <input v-model.number="jumpTo" type="number" min="1" :max="totalPages" @keyup.enter="jumpToPage" />
+          {{ $t('alert.rules.pager.pageUnit') }}
+        </span>
+      </div>
     </div>
 
     <!-- 规则活跃事件弹窗 -->
@@ -195,6 +227,14 @@
           </div>
 
           <div class="form-item">
+            <label class="form-label">{{ $t('alert.rules.form.groupLabel') }}</label>
+            <select v-model="form.group_id" class="form-input">
+              <option value="">{{ $t('alert.rules.form.noGroup') }}</option>
+              <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
+            </select>
+          </div>
+
+          <div class="form-item">
             <label class="form-label">{{ $t('alert.rules.form.notifyRuleLabel') }} <span class="form-hint-inline">{{ $t('alert.rules.form.notifyOptional') }}</span></label>
             <select v-model="form.notify_rule_id" class="form-input">
               <option value="">{{ $t('alert.rules.form.noNotify') }}</option>
@@ -247,6 +287,7 @@ import LevelTag from '../components/LevelTag.vue'
 import { alertRuleApi } from '../api/alertRule.js'
 import { notifyApi } from '../api/notify.js'
 import { alertEventApi } from '../api/alertEvent.js'
+import { businessGroupApi } from '../api/businessGroup.js'
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
@@ -331,18 +372,35 @@ function parseTags(s) {
 // -------- 基础状态 --------
 const rules = ref([])
 const notifyRules = ref([])
+const groups = ref([])
 const loading = ref(false)
 const saving = ref(false)
 
-// 全局搜索落地：/alert-rules?q=关键字，客户端过滤规则名称与 PromQL
+// 全局搜索落地：/alert-rules?q=关键字，服务端过滤规则名称与 PromQL
 const filterKw = ref(route.query.q ? String(route.query.q) : '')
-const filteredRules = computed(() => {
-  const kw = filterKw.value.trim().toLowerCase()
-  if (!kw) return rules.value
-  return rules.value.filter(r =>
-    (r.name || '').toLowerCase().includes(kw) ||
-    (r.prom_ql || '').toLowerCase().includes(kw)
-  )
+// 业务分组筛选（服务端过滤）
+const filterGroupId = ref('')
+// 分页
+const page = ref(1)
+const limit = ref(20)
+const total = ref(0)
+const jumpTo = ref('')
+
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / limit.value)))
+
+// 页码序列：最多 7 个，首尾固定，中间用省略号
+const pageNumbers = computed(() => {
+  const t = totalPages.value
+  const c = page.value
+  if (t <= 7) return Array.from({ length: t }, (_, i) => i + 1)
+  const pages = [1]
+  const lo = Math.max(2, c - 1)
+  const hi = Math.min(t - 1, c + 1)
+  if (lo > 2) pages.push('…')
+  for (let i = lo; i <= hi; i++) pages.push(i)
+  if (hi < t - 1) pages.push('…')
+  pages.push(t)
+  return pages
 })
 
 // 弹窗状态
@@ -357,6 +415,7 @@ const form = reactive({
   eval_interval: 60,
   duration: 300,
   severity: 2,
+  group_id: '',
   notify_rule_id: '',
   repeat_interval_minutes: 0,
   max_send_count: 0,
@@ -366,16 +425,57 @@ const form = reactive({
 async function loadData() {
   loading.value = true
   try {
-    const data = await alertRuleApi.list()
-    rules.value = data || []
+    const data = await alertRuleApi.list({
+      page: page.value,
+      limit: limit.value,
+      query: filterKw.value.trim(),
+      groupId: filterGroupId.value
+    })
+    rules.value = data?.list || []
+    total.value = data?.total || 0
+    // 当前页已空（如删除末页最后一条）时回退到上一页
+    if (rules.value.length === 0 && page.value > 1 && total.value > 0) {
+      page.value--
+      loading.value = false
+      return loadData()
+    }
     // 同时刷新活跃事件列表（规则状态图标依赖）
     await loadActiveEvents()
   } catch (err) {
     alert(t('alert.rules.msg.loadFailed', { msg: err.message }))
     rules.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
+}
+
+// 筛选条件变化时回到第一页重新查询
+function reloadFirstPage() {
+  page.value = 1
+  loadData()
+}
+
+function clearKeyword() {
+  filterKw.value = ''
+  reloadFirstPage()
+}
+
+function changePage(p) {
+  if (p < 1 || p > totalPages.value || p === page.value) return
+  page.value = p
+  loadData()
+}
+
+function changeLimit() {
+  page.value = 1
+  loadData()
+}
+
+function jumpToPage() {
+  const p = parseInt(jumpTo.value, 10)
+  if (!isNaN(p)) changePage(Math.min(Math.max(p, 1), totalPages.value))
+  jumpTo.value = ''
 }
 
 function resetForm() {
@@ -384,6 +484,7 @@ function resetForm() {
   form.eval_interval = 60
   form.duration = 300
   form.severity = 2
+  form.group_id = ''
   form.notify_rule_id = ''
   form.repeat_interval_minutes = 0
   form.max_send_count = 0
@@ -407,6 +508,7 @@ function openEditModal(rule) {
   form.eval_interval = rule.eval_interval || 60
   form.duration = rule.duration
   form.severity = rule.severity
+  form.group_id = rule.group_id || ''
   form.notify_rule_id = rule.notify_rule_id || ''
   form.repeat_interval_minutes = rule.repeat_interval_minutes || 0
   form.max_send_count = rule.max_send_count || 0
@@ -454,6 +556,7 @@ async function saveRule() {
       eval_interval: form.eval_interval,
       duration: form.duration,
       severity: form.severity,
+      group_id: form.group_id || '',
       notify_rule_id: form.notify_rule_id || '',
       repeat_interval_minutes: form.repeat_interval_minutes || 0,
       max_send_count: form.max_send_count || 0,
@@ -468,6 +571,7 @@ async function saveRule() {
 
     saving.value = false
     closeModal()
+    if (!isEdit.value) page.value = 1
     await loadData()
   } catch (err) {
     alert(t(isEdit.value ? 'alert.rules.msg.updateFailed' : 'alert.rules.msg.createFailed', { msg: err.message }))
@@ -480,7 +584,8 @@ async function toggleEnabled(rule) {
     const result = await alertRuleApi.toggle(rule.id)
     const idx = rules.value.findIndex(r => r.id === rule.id)
     if (idx !== -1 && result) {
-      rules.value[idx] = result
+      // 合并而非整体替换：接口异常时保留本地冗余字段（如 group_name）
+      rules.value[idx] = { ...rules.value[idx], ...result }
     }
   } catch (err) {
     alert(t('alert.rules.msg.toggleFailed', { msg: err.message }))
@@ -507,13 +612,142 @@ async function loadNotifyRules() {
   }
 }
 
+async function loadGroups() {
+  try {
+    groups.value = await businessGroupApi.list() || []
+  } catch {
+    groups.value = []
+  }
+}
+
 onMounted(() => {
   loadData()
   loadNotifyRules()
+  loadGroups()
 })
 </script>
 
 <style scoped>
+.group-filter.form-input {
+  width: 160px;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  font-size: 12.5px;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.rules-table {
+  min-width: 980px;
+}
+
+.rules-table td {
+  vertical-align: middle;
+}
+
+.col-time {
+  white-space: nowrap;
+}
+
+.ops {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+.ops .btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.group-chip {
+  font-size: 12px;
+  background: var(--c-primary-soft, rgba(22,119,255,0.08));
+  color: var(--c-primary);
+  border-radius: var(--radius-tag, 10px);
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+
+/* 分页栏 */
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: var(--c-text-2);
+}
+
+.pager-total { white-space: nowrap; }
+
+.pager-pages { display: flex; align-items: center; gap: 6px; }
+
+.pager-btn {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 7px;
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  background: var(--c-surface);
+  color: var(--c-text-2);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.pager-btn:hover:not(:disabled) {
+  border-color: var(--c-primary);
+  color: var(--c-primary);
+}
+.pager-btn.active {
+  background: var(--c-primary);
+  border-color: var(--c-primary);
+  color: #fff;
+  cursor: default;
+}
+.pager-btn:disabled { cursor: default; opacity: 0.6; }
+.pager-btn.active:disabled { opacity: 1; }
+
+.pager-size {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  background: var(--c-surface);
+  color: var(--c-text-2);
+  font-size: 12.5px;
+  outline: none;
+  cursor: pointer;
+}
+
+.pager-jump {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.pager-jump input {
+  width: 48px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: 12.5px;
+  outline: none;
+  box-sizing: border-box;
+}
+.pager-jump input:focus { border-color: var(--c-primary); }
+
 .filter-tag {
   display: inline-flex;
   align-items: center;

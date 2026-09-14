@@ -32,6 +32,8 @@ type Options struct {
 	// 用户问题命中数据源关键词时，必须调用 query_*/search_* 工具，否则拒绝回答。
 	// 对话等开放式问答场景建议开启；巡检等任务式场景由模型自行决策，一般不开启。
 	EnforceDataSource bool
+	// ToolFilter 非空时仅保留这些工具（按工具名），供专科专家只拿自己领域的工具
+	ToolFilter []string
 	// MaxIterations 最大迭代次数，默认 5
 	MaxIterations int
 }
@@ -56,6 +58,26 @@ func (a *Agent) Run(ctx context.Context, messages []*schema.Message, cb *Callbac
 	toolMap, infos, err := a.registry.ToolMap(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("加载工具失败: %w", err)
+	}
+
+	if len(a.opts.ToolFilter) > 0 {
+		allow := make(map[string]bool, len(a.opts.ToolFilter))
+		for _, n := range a.opts.ToolFilter {
+			allow[n] = true
+		}
+		filteredMap := make(map[string]tool.InvokableTool, len(allow))
+		for name, t := range toolMap {
+			if allow[name] {
+				filteredMap[name] = t
+			}
+		}
+		filteredInfos := make([]*schema.ToolInfo, 0, len(allow))
+		for _, info := range infos {
+			if allow[info.Name] {
+				filteredInfos = append(filteredInfos, info)
+			}
+		}
+		toolMap, infos = filteredMap, filteredInfos
 	}
 
 	if len(infos) > 0 {

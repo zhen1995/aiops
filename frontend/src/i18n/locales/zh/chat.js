@@ -21,6 +21,14 @@ export default {
     error: '\n[错误：{err}]',
     aborted: '_[已中止]_'
   },
+  panel: {
+    title: '专家会诊',
+    expertCount: '{count} 位专家协同分析',
+    running: '分析中…',
+    done: '已完成',
+    failed: '分析失败',
+    viewConclusion: '查看结论'
+  },
   toolbar: {
     p0Alerts: '今日 P0 告警',
     rootCause: '根因分析',

@@ -18,6 +18,12 @@ import (
 	"gorm.io/gorm"
 )
 
+// 执行模式常量
+const (
+	ModeSingle = "single" // 单 Agent 巡检
+	ModeMulti  = "multi"  // 多 Agent 多维度巡检
+)
+
 // Executor 根据巡检任务的提示词调用默认 LLM 生成报告
 // frontendBaseURL 为前端访问地址，用于报告通知中的"完整报告"链接
 func Executor(ctx context.Context, db *gorm.DB, task models.InspectionTask, frontendBaseURL string) (models.InspectionReport, error) {
@@ -43,6 +49,11 @@ func Executor(ctx context.Context, db *gorm.DB, task models.InspectionTask, fron
 		report.Error = "初始化 LLM 失败: " + err.Error()
 		_ = db.Create(&report).Error
 		return report, err
+	}
+
+	// 多维度模式：并发分维度巡检后由主编 Agent 汇总
+	if task.Mode == ModeMulti {
+		return runMultiDimension(ctx, db, task, report, cm, frontendBaseURL)
 	}
 
 	// 3. 组装消息（巡检专用的 system prompt + 用户提示词）
@@ -75,24 +86,28 @@ func Executor(ctx context.Context, db *gorm.DB, task models.InspectionTask, fron
 		return report, fmt.Errorf("LLM 返回为空")
 	}
 
-	// 5. 解析结果
+	finalizeReport(db, task, &report, content, frontendBaseURL)
+	return report, nil
+}
+
+// finalizeReport 填充报告标题/摘要/评分，落库并按任务配置推送通知
+func finalizeReport(db *gorm.DB, task models.InspectionTask, report *models.InspectionReport, content string, frontendBaseURL string) {
+	today := time.Now().Format("2006-01-02")
 	report.Title = fmt.Sprintf("%s - %s", task.Name, today)
 	report.Content = content
 	report.Summary = extractSummary(content, 120)
 	report.Score = estimateScore(content)
 	report.Status = "completed"
 
-	if err := db.Create(&report).Error; err != nil {
+	if err := db.Create(report).Error; err != nil {
 		report.Error = "保存报告失败: " + err.Error()
 		report.Status = "failed"
-		_ = db.Save(&report).Error
-		return report, err
+		_ = db.Save(report).Error
+		return
 	}
 
-	// 6. 通过任务配置的通知媒介推送报告（失败仅记录日志，不影响报告本身）
-	notifyReport(db, task, report, frontendBaseURL)
-
-	return report, nil
+	// 通过任务配置的通知媒介推送报告（失败仅记录日志，不影响报告本身）
+	notifyReport(db, task, *report, frontendBaseURL)
 }
 
 // notifyReport 将巡检报告通过任务关联的通知媒介发送出去

@@ -49,6 +49,28 @@
               <b>{{ msg.role === 'assistant' ? $t('chat.message.assistantName') : $t('chat.message.userName') }}</b>
               <span class="muted">{{ fmtTime(msg.created_at) }}</span>
             </div>
+            <div v-if="msg.panel" class="panel-card">
+              <div class="panel-head">
+                <span class="panel-title">{{ $t('chat.panel.title') }}</span>
+                <span class="panel-count">{{ $t('chat.panel.expertCount', { count: msg.panel.specialists.length }) }}</span>
+              </div>
+              <div
+                v-for="sp in msg.panel.specialists"
+                :key="sp.key"
+                class="panel-row"
+                :class="'st-' + sp.status"
+              >
+                <span class="sp-dot"></span>
+                <span class="sp-title">{{ sp.title }}</span>
+                <span v-if="sp.status === 'running'" class="sp-status">{{ $t('chat.panel.running') }}</span>
+                <span v-else-if="sp.status === 'failed'" class="sp-status sp-failed">{{ $t('chat.panel.failed') }}</span>
+                <span v-else class="sp-status sp-ok">{{ $t('chat.panel.done') }}</span>
+                <details v-if="sp.conclusion" class="sp-conclusion">
+                  <summary>{{ $t('chat.panel.viewConclusion') }}</summary>
+                  <p>{{ sp.conclusion }}</p>
+                </details>
+              </div>
+            </div>
             <div class="message-content">
               <template v-if="isThinkingMessage(msg)">
                 <span class="thinking-indicator">
@@ -368,6 +390,27 @@ async function send() {
       messages.value[currentAssistantIndex.value].content += chunk
       scrollToBottom()
     },
+    onPanelStart: (data) => {
+      // 专家会诊开始：初始化会诊面板（专家名单 + 运行状态）
+      isThinking.value = false
+      const msg = messages.value[currentAssistantIndex.value]
+      if (msg) {
+        msg.panel = {
+          specialists: (data.specialists || []).map(s => ({ ...s, status: 'running', conclusion: '' }))
+        }
+      }
+      scrollToBottom()
+    },
+    onSpecialist: (data) => {
+      // 单个专家状态更新（running/completed/failed + 结论）
+      const msg = messages.value[currentAssistantIndex.value]
+      if (!msg || !msg.panel) return
+      const sp = msg.panel.specialists.find(x => x.key === data.key)
+      if (sp) {
+        sp.status = data.status
+        if (data.conclusion) sp.conclusion = data.conclusion
+      }
+    },
     onDone: () => {
       if (manuallyAborting.value) return
       isStreaming.value = false
@@ -415,6 +458,89 @@ function abortStreaming() {
 </script>
 
 <style scoped>
+/* 专家会诊面板 */
+.panel-card {
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  background: var(--c-bg);
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  max-width: 720px;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.panel-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--c-primary);
+}
+
+.panel-count {
+  font-size: 11.5px;
+  color: var(--c-text-3);
+}
+
+.panel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12.5px;
+  flex-wrap: wrap;
+}
+
+.sp-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--c-text-3);
+  flex-shrink: 0;
+}
+
+.panel-row.st-running .sp-dot {
+  background: var(--c-primary);
+  animation: sp-pulse 1.2s ease-in-out infinite;
+}
+
+.panel-row.st-completed .sp-dot { background: #27ae60; }
+.panel-row.st-failed .sp-dot { background: var(--c-danger); }
+
+@keyframes sp-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.sp-title { font-weight: 500; color: var(--c-text); }
+
+.sp-status { color: var(--c-text-3); font-size: 12px; }
+.sp-status.sp-ok { color: #27ae60; }
+.sp-status.sp-failed { color: var(--c-danger); }
+
+.sp-conclusion { width: 100%; }
+.sp-conclusion summary {
+  cursor: pointer;
+  color: var(--c-primary);
+  font-size: 12px;
+  user-select: none;
+}
+.sp-conclusion p {
+  margin: 6px 0 2px;
+  padding: 8px 10px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--c-text-2);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .chat-page {
   display: flex;
   gap: 16px;

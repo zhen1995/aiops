@@ -21,6 +21,14 @@ export default {
     error: '\n[Error: {err}]',
     aborted: '_[Aborted]_'
   },
+  panel: {
+    title: 'Expert Panel',
+    expertCount: '{count} experts analyzing',
+    running: 'Analyzing...',
+    done: 'Done',
+    failed: 'Failed',
+    viewConclusion: 'View conclusion'
+  },
   toolbar: {
     p0Alerts: "Today's P0 Alerts",
     rootCause: 'Root Cause Analysis',

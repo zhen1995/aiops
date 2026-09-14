@@ -3,6 +3,8 @@ package controllers
 import (
 	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"aiops/internal/alerting"
 	"aiops/models"
@@ -22,19 +24,79 @@ func NewAlertRuleController(db *gorm.DB, engine *alerting.Engine) *AlertRuleCont
 	return &AlertRuleController{DB: db, engine: engine}
 }
 
-// List 获取所有告警规则列表
+// ruleWithGroup 规则响应体：附加业务分组名称（冗余展示字段，同 AlertEvent.GroupName 模式）
+type ruleWithGroup struct {
+	models.AlertRule
+	GroupName string `json:"group_name"`
+}
+
+// attachGroupNames 批量查询分组名称，为规则列表附加 group_name 响应字段
+func (c *AlertRuleController) attachGroupNames(list []models.AlertRule) []ruleWithGroup {
+	items := make([]ruleWithGroup, 0, len(list))
+	groupIDs := make([]string, 0, len(list))
+	for _, r := range list {
+		if r.GroupID != "" {
+			groupIDs = append(groupIDs, r.GroupID)
+		}
+	}
+	nameMap := map[string]string{}
+	if len(groupIDs) > 0 {
+		var groups []models.BusinessGroup
+		if err := c.DB.Where("id IN ?", groupIDs).Find(&groups).Error; err == nil {
+			for _, g := range groups {
+				nameMap[g.ID] = g.Name
+			}
+		}
+	}
+	for _, r := range list {
+		items = append(items, ruleWithGroup{AlertRule: r, GroupName: nameMap[r.GroupID]})
+	}
+	return items
+}
+
+// List 获取告警规则列表（分页）
+// 支持 ?page=&limit=&group_id=&query=（规则名称/PromQL 模糊过滤）；响应中附加 group_name 便于前端展示
 func (c *AlertRuleController) List(ctx *gin.Context) {
-	var list []models.AlertRule
-	if err := c.DB.Order("created_at desc").Find(&list).Error; err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "查询失败",
-		})
+	page, err := strconv.Atoi(ctx.DefaultQuery("page", "1"))
+	if err != nil || page < 1 {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "page 参数必须是正整数"})
 		return
 	}
+	limit, err := strconv.Atoi(ctx.DefaultQuery("limit", "20"))
+	if err != nil || limit < 1 || limit > 200 {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "limit 参数必须是 1-200 的整数"})
+		return
+	}
+
+	db := c.DB.Model(&models.AlertRule{})
+	if gid := ctx.Query("group_id"); gid != "" {
+		db = db.Where("group_id = ?", gid)
+	}
+	if q := strings.TrimSpace(ctx.Query("query")); q != "" {
+		like := "%" + q + "%"
+		db = db.Where("name LIKE ? OR prom_ql LIKE ?", like, like)
+	}
+
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询失败"})
+		return
+	}
+
+	var list []models.AlertRule
+	if err := db.Order("created_at desc").
+		Offset((page - 1) * limit).Limit(limit).
+		Find(&list).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询失败"})
+		return
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{
 		"code": 0,
-		"data": list,
+		"data": gin.H{
+			"list":  c.attachGroupNames(list),
+			"total": total,
+		},
 	})
 }
 
@@ -58,12 +120,12 @@ func (c *AlertRuleController) Get(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusOK, gin.H{
 		"code": 0,
-		"data": rule,
+		"data": c.attachGroupNames([]models.AlertRule{rule})[0],
 	})
 }
 
 // validateRule 校验规则必填字段
-func validateRule(rule *models.AlertRule) error {
+func (c *AlertRuleController) validateRule(rule *models.AlertRule) error {
 	if rule.Name == "" {
 		return errors.New("规则名称不能为空")
 	}
@@ -78,6 +140,15 @@ func validateRule(rule *models.AlertRule) error {
 	}
 	if rule.EvalInterval <= 0 {
 		return errors.New("执行频率必须是正整数（秒）")
+	}
+	if rule.GroupID != "" {
+		var count int64
+		if err := c.DB.Model(&models.BusinessGroup{}).Where("id = ?", rule.GroupID).Count(&count).Error; err != nil {
+			return errors.New("校验业务分组失败")
+		}
+		if count == 0 {
+			return errors.New("业务分组不存在")
+		}
 	}
 	return nil
 }
@@ -94,7 +165,7 @@ func (c *AlertRuleController) Create(ctx *gin.Context) {
 		return
 	}
 
-	if err := validateRule(&rule); err != nil {
+	if err := c.validateRule(&rule); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
 			"message": err.Error(),
@@ -150,7 +221,7 @@ func (c *AlertRuleController) Update(ctx *gin.Context) {
 		return
 	}
 
-	if err := validateRule(&updateData); err != nil {
+	if err := c.validateRule(&updateData); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
 			"message": err.Error(),
@@ -164,6 +235,7 @@ func (c *AlertRuleController) Update(ctx *gin.Context) {
 		"eval_interval":           updateData.EvalInterval,
 		"duration":                updateData.Duration,
 		"severity":                updateData.Severity,
+		"group_id":                updateData.GroupID,
 		"notify_rule_id":          updateData.NotifyRuleID,
 		"repeat_interval_minutes": updateData.RepeatIntervalMinutes,
 		"max_send_count":          updateData.MaxSendCount,
@@ -193,7 +265,7 @@ func (c *AlertRuleController) Update(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"code": 0,
-		"data": rule,
+		"data": c.attachGroupNames([]models.AlertRule{rule})[0],
 	})
 }
 
@@ -282,6 +354,6 @@ func (c *AlertRuleController) ToggleEnabled(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"code": 0,
-		"data": rule,
+		"data": c.attachGroupNames([]models.AlertRule{rule})[0],
 	})
 }
