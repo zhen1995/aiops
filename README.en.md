@@ -81,7 +81,7 @@ database:
 server:
   port: ":8080"
 app:
-  # Frontend URL used for the "full report" link in inspection notifications
+  # Frontend URL: only the first-run seed for system_configs; change it later on the "System Config" page
   frontend_base_url: "http://localhost:5173"
 knowledge:
   python_base_url: "http://localhost:9000"
@@ -94,7 +94,7 @@ Configuration can also be overridden via environment variables (recommended for 
 |----------------------|-------------|---------|
 | `AIOPS_DATABASE_DSN` / `DATABASE_DSN` | MySQL DSN | See config.yaml |
 | `AIOPS_SERVER_PORT` / `SERVER_PORT` | Server port | `:8080` |
-| `AIOPS_APP_FRONTEND_BASE_URL` / `FRONTEND_BASE_URL` | Frontend URL | `http://localhost:5173` |
+| `AIOPS_APP_FRONTEND_BASE_URL` / `FRONTEND_BASE_URL` | Frontend URL (first-run seed; managed on the "System Config" page afterwards) | `http://localhost:5173` |
 
 Start the backend:
 
@@ -166,7 +166,7 @@ The embedding model must expose an **Embeddings API** (any OpenAI-compatible pro
 
    SSE (chat streaming, RCA polling) relies on `proxy_buffering off` and `X-Accel-Buffering no` — do not omit them.
 4. **Knowledge base (optional)**: Deploy Qdrant (`cd qdrant && docker compose up -d`) and the Python service (uvicorn) on the server. Adjust the volume mount path in `qdrant/docker-compose.yml` (`/data/qdrant:/qdrant/storage`) to match your server layout.
-5. **Frontend URL**: Set `AIOPS_APP_FRONTEND_BASE_URL` to the real frontend address so links in inspection report notifications are reachable.
+5. **Frontend URL**: Set the real frontend address on the "System Config" page after deployment (the first-run seed comes from `AIOPS_APP_FRONTEND_BASE_URL`) so links in inspection report notifications are reachable.
 
 ## Testing
 

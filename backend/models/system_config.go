@@ -13,6 +13,13 @@ const SystemConfigKeyQdrantURL = "qdrant_url"
 // DefaultQdrantURL system_configs 无记录时的回退默认值
 const DefaultQdrantURL = "http://localhost:6333"
 
+// SystemConfigKeyFrontendBaseURL system_configs 中前端访问地址的键名
+// （巡检报告通知中的"完整报告"链接、告警通知模板 $.domain 变量均使用此地址）
+const SystemConfigKeyFrontendBaseURL = "frontend_base_url"
+
+// DefaultFrontendBaseURL system_configs 无记录时的回退默认值
+const DefaultFrontendBaseURL = "http://localhost:5173"
+
 // SystemConfig 系统配置（key-value 存储）
 type SystemConfig struct {
 	ID        string    `gorm:"primaryKey;size:64;comment:id" json:"id"`
@@ -33,17 +40,38 @@ func (c *SystemConfig) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// SeedSystemConfig 种子系统配置：qdrant_url 无记录时插入配置默认值（幂等）
-func SeedSystemConfig(db *gorm.DB, qdrantURL string) error {
+// SeedSystemConfig 种子系统配置：qdrant_url / frontend_base_url 无记录时插入配置
+// 默认值（幂等）。frontendBaseURL 为空时取 DefaultFrontendBaseURL。
+func SeedSystemConfig(db *gorm.DB, qdrantURL, frontendBaseURL string) error {
 	if qdrantURL == "" {
 		qdrantURL = DefaultQdrantURL
 	}
-	var count int64
-	if err := db.Model(&SystemConfig{}).Where("`key` = ?", SystemConfigKeyQdrantURL).Count(&count).Error; err != nil {
-		return err
+	if frontendBaseURL == "" {
+		frontendBaseURL = DefaultFrontendBaseURL
 	}
-	if count > 0 {
-		return nil
+	for key, value := range map[string]string{
+		SystemConfigKeyQdrantURL:       qdrantURL,
+		SystemConfigKeyFrontendBaseURL: frontendBaseURL,
+	} {
+		var count int64
+		if err := db.Model(&SystemConfig{}).Where("`key` = ?", key).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			continue
+		}
+		if err := db.Create(&SystemConfig{Key: key, Value: value}).Error; err != nil {
+			return err
+		}
 	}
-	return db.Create(&SystemConfig{Key: SystemConfigKeyQdrantURL, Value: qdrantURL}).Error
+	return nil
+}
+
+// GetSystemConfigValue 读取指定 key 的配置值，无记录或读错误时回退 fallback
+func GetSystemConfigValue(db *gorm.DB, key, fallback string) string {
+	var cfg SystemConfig
+	if err := db.Where("`key` = ?", key).First(&cfg).Error; err != nil {
+		return fallback
+	}
+	return cfg.Value
 }

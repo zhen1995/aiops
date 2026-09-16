@@ -38,25 +38,29 @@ type ruleState struct {
 
 // Engine 告警规则评估引擎
 type Engine struct {
-	db       *gorm.DB
-	domain   string // 站点地址（用于模板 $.domain 变量）
-	denoise  *denoise.DenoiseService // 可选降噪依赖（nil 时跳过降噪）
-	stop     chan struct{}
+	db      *gorm.DB
+	denoise *denoise.DenoiseService // 可选降噪依赖（nil 时跳过降噪）
+	stop    chan struct{}
 
 	mu       sync.Mutex
-	states   map[string]*ruleState  // ruleID → 评估状态
+	states   map[string]*ruleState    // ruleID → 评估状态
 	stopChan map[string]chan struct{} // ruleID → 该规则评估循环的停止通道
 }
 
 // NewEngine 创建评估引擎
-func NewEngine(db *gorm.DB, domain string) *Engine {
+func NewEngine(db *gorm.DB) *Engine {
 	return &Engine{
 		db:       db,
-		domain:   domain,
 		stop:     make(chan struct{}),
 		states:   make(map[string]*ruleState),
 		stopChan: make(map[string]chan struct{}),
 	}
+}
+
+// loadDomain 读取前端访问地址（system_configs 的 frontend_base_url），
+// 供通知模板 $.domain 变量使用；保存后即时生效。
+func (e *Engine) loadDomain() string {
+	return models.GetSystemConfigValue(e.db, models.SystemConfigKeyFrontendBaseURL, models.DefaultFrontendBaseURL)
 }
 
 // SetDenoise 注入降噪服务（由 main.go 在引擎启动后调用；denoise 包不反向依赖本包）
@@ -316,16 +320,16 @@ func (e *Engine) fireLocked(rule models.AlertRule, sample datasource.InstantSamp
 	}
 
 	event := models.AlertEvent{
-		RuleID:      rule.ID,
-		RuleName:    rule.Name,
-		GroupName:   e.groupName(rule.GroupID),
-		Severity:    rule.Severity,
-		Type:        models.AlertEventTypeAlert,
-		Status:      models.AlertEventStatusFiring,
-		TargetIdent: targetIdent,
-		Tags:        tags,
+		RuleID:       rule.ID,
+		RuleName:     rule.Name,
+		GroupName:    e.groupName(rule.GroupID),
+		Severity:     rule.Severity,
+		Type:         models.AlertEventTypeAlert,
+		Status:       models.AlertEventStatusFiring,
+		TargetIdent:  targetIdent,
+		Tags:         tags,
 		TriggerValue: fmt.Sprintf("%g", sample.Value),
-		TriggerTime: now,
+		TriggerTime:  now,
 	}
 	if err := e.db.Create(&event).Error; err != nil {
 		return "", err
@@ -602,7 +606,7 @@ func (e *Engine) dispatch(event models.AlertEvent, rule models.AlertRule) {
 
 	// 6. 渲染模板
 	evt := buildAlertEvent(event, rule)
-	content, err := notify.RenderTemplate(tpl.Content, evt, e.domain)
+	content, err := notify.RenderTemplate(tpl.Content, evt, e.loadDomain())
 	if err != nil {
 		fmt.Printf("%s 模板渲染失败: %v\n", logPrefix, err)
 		abortErr("模板渲染失败", err)
@@ -643,8 +647,8 @@ func (e *Engine) dispatch(event models.AlertEvent, rule models.AlertRule) {
 
 	// 9. 更新事件的通知次数和时间（频控）
 	if err := e.db.Model(&models.AlertEvent{}).Where("id = ?", event.ID).Updates(map[string]interface{}{
-		"notify_count":      gorm.Expr("notify_count + 1"),
-		"last_notified_at":  now,
+		"notify_count":     gorm.Expr("notify_count + 1"),
+		"last_notified_at": now,
 	}).Error; err != nil {
 		fmt.Printf("%s 更新通知频控状态失败: %v\n", logPrefix, err)
 	}
@@ -718,30 +722,30 @@ func buildAlertEvent(ev models.AlertEvent, rule models.AlertRule) *notify.AlertE
 	}
 
 	return &notify.AlertEvent{
-		Id:             id,
-		RuleID:         0,
-		RuleName:       rule.Name,
-		RuleNote:       "",
-		Cluster:        "",
-		BusiGroupID:    0,
-		BusiGroupName:  "",
-		Severity:       ev.Severity,
-		SeverityLabel:  sevLabel,
-		TriggerValue:   ev.TriggerValue,
-		TriggerTime:    triggerTime,
-		FirstTrigger:   firstTrigger,
-		LastTrigger:    lastEval,
-		LastEvalTime:   lastEval,
-		IsRecovered:    isRecovered,
-		RecoverTime:    lastEval,
-		DurationSec:    durationSec,
-		Location:       tags["location"],
-		Cate:           "prometheus",
-		TargetIdent:    ev.TargetIdent,
-		Datasource:     "",
-		Tags:           tags,
-		TagsMap:        tags,
-		TagsJSON:       formatTagsJSON(tags),
+		Id:              id,
+		RuleID:          0,
+		RuleName:        rule.Name,
+		RuleNote:        "",
+		Cluster:         "",
+		BusiGroupID:     0,
+		BusiGroupName:   "",
+		Severity:        ev.Severity,
+		SeverityLabel:   sevLabel,
+		TriggerValue:    ev.TriggerValue,
+		TriggerTime:     triggerTime,
+		FirstTrigger:    firstTrigger,
+		LastTrigger:     lastEval,
+		LastEvalTime:    lastEval,
+		IsRecovered:     isRecovered,
+		RecoverTime:     lastEval,
+		DurationSec:     durationSec,
+		Location:        tags["location"],
+		Cate:            "prometheus",
+		TargetIdent:     ev.TargetIdent,
+		Datasource:      "",
+		Tags:            tags,
+		TagsMap:         tags,
+		TagsJSON:        formatTagsJSON(tags),
 		AnnotationsJSON: map[string]string{},
 	}
 }

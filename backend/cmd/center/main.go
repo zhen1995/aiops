@@ -104,12 +104,12 @@ func main() {
 	if err := controllers.EnsureDefaultTemplate(db); err != nil {
 		fmt.Println("初始化默认通知模板失败:", err)
 	}
-	if err := models.SeedSystemConfig(db, cfg.Knowledge.QdrantURL); err != nil {
+	if err := models.SeedSystemConfig(db, cfg.Knowledge.QdrantURL, cfg.App.FrontendBaseURL); err != nil {
 		fmt.Println("初始化系统配置失败:", err)
 	}
 
 	// 启动告警规则评估引擎
-	alertEngine := alerting.NewEngine(db, cfg.App.FrontendBaseURL)
+	alertEngine := alerting.NewEngine(db)
 	if err := alertEngine.Start(); err != nil {
 		fmt.Println("启动告警引擎失败:", err)
 	}
@@ -123,7 +123,7 @@ func main() {
 	}
 
 	// 启动巡检调度器
-	sched := inspection.NewScheduler(db, cfg.App.FrontendBaseURL)
+	sched := inspection.NewScheduler(db)
 	if err := sched.Start(); err != nil {
 		fmt.Println("启动巡检调度器失败:", err)
 	}
@@ -323,7 +323,7 @@ func main() {
 	}
 
 	// 消息模板相关路由
-	tplCtrl := controllers.NewNotifyTemplateController(db, cfg.App.FrontendBaseURL)
+	tplCtrl := controllers.NewNotifyTemplateController(db)
 	tplGroup := api.Group("/notify-templates")
 	{
 		tplGroup.GET("", tplCtrl.List)

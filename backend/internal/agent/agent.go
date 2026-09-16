@@ -13,8 +13,9 @@ import (
 	"github.com/cloudwego/eino/schema"
 )
 
-// defaultMaxIterations Agent 默认最大迭代次数，防止死循环
-const defaultMaxIterations = 5
+// defaultMaxIterations Agent 默认最大迭代次数，防止死循环。
+// 参考夜莺 aiagent 默认 25：复杂运维分析需多轮工具调用，5 次极易耗尽。
+const defaultMaxIterations = 20
 
 // Callbacks 供上层（如 SSE 控制器、巡检执行器）观察 Agent 执行过程
 type Callbacks struct {
@@ -34,7 +35,7 @@ type Options struct {
 	EnforceDataSource bool
 	// ToolFilter 非空时仅保留这些工具（按工具名），供专科专家只拿自己领域的工具
 	ToolFilter []string
-	// MaxIterations 最大迭代次数，默认 5
+	// MaxIterations 最大迭代次数，默认 20
 	MaxIterations int
 }
 
@@ -99,6 +100,8 @@ func (a *Agent) Run(ctx context.Context, messages []*schema.Message, cb *Callbac
 	var reminderSent bool
 
 	// used 记录真正执行过工具调用的迭代次数；防幻觉提醒通过 continue 重试，不消耗迭代次数
+	var lastThought string
+	dedup := map[string]string{} // 同 Run 内同名同参工具调用去重（借鉴夜莺 idempotency）
 	for used := 0; used < a.opts.MaxIterations; {
 		resp, err := a.cm.Generate(ctx, messages)
 		if err != nil {
@@ -143,35 +146,58 @@ func (a *Agent) Run(ctx context.Context, messages []*schema.Message, cb *Callbac
 
 		// 记录模型发出的 tool_calls
 		messages = append(messages, schema.AssistantMessage(resp.Content, resp.ToolCalls))
+		if strings.TrimSpace(resp.Content) != "" {
+			lastThought = resp.Content
+		}
 
 		if cb != nil && cb.OnStatus != nil {
 			cb.OnStatus(fmt.Sprintf("正在调用 %d 个数据查询工具...", len(resp.ToolCalls)))
 		}
 
 		// 并发执行工具
-		results := a.executeToolCalls(ctx, resp.ToolCalls, toolMap, cb)
+		results := a.executeToolCalls(ctx, resp.ToolCalls, toolMap, cb, dedup)
 
-		// 将工具结果回填到上下文
+		// 将工具结果回填到上下文（单条结果按 liveObservationCapBytes 收口，
+		// 防止超大结果在剩余迭代中反复携带撑爆上下文）
 		for idx, tc := range resp.ToolCalls {
 			content := results[idx]
 			if content == "" {
 				content = "{}"
 			}
 			messages = append(messages, schema.ToolMessage(
-				content,
+				capToolResult(content),
 				tc.ID,
 				schema.WithToolName(tc.Function.Name),
 			))
 		}
 	}
 
-	return nil, fmt.Errorf("Agent 超过最大迭代次数 %d", a.opts.MaxIterations)
+	// 达到迭代上限：借鉴夜莺 ExtractPartialResult，返回基于已获取数据的部分结果，
+	// 走正常完成路径而非报错，让用户得到半截分析而不是一句错误。
+	var b strings.Builder
+	fmt.Fprintf(&b, "分析未能在工具调用上限内完全收敛（已达 %d 次工具调用）。", a.opts.MaxIterations)
+	if len(invokedQueryTools) > 0 {
+		fmt.Fprintf(&b, "已执行的数据查询：%s。", strings.Join(invokedQueryTools, "、"))
+	}
+	b.WriteString("基于目前已获取的数据，目前的判断如下：")
+	if strings.TrimSpace(lastThought) != "" {
+		b.WriteString("\n\n" + lastThought)
+	} else {
+		b.WriteString("\n\n（模型未给出中间分析，请缩小问题范围或补充更具体的查询条件后重试。）")
+	}
+	msg := refusalMessage(b.String())
+	if cb != nil && cb.OnChunk != nil {
+		cb.OnChunk(msg.Content)
+	}
+	return msg, nil
 }
 
-func (a *Agent) executeToolCalls(ctx context.Context, calls []schema.ToolCall, toolMap map[string]tool.InvokableTool, cb *Callbacks) []string {
+func (a *Agent) executeToolCalls(ctx context.Context, calls []schema.ToolCall, toolMap map[string]tool.InvokableTool, cb *Callbacks, dedup map[string]string) []string {
 	type result struct {
 		idx     int
 		content string
+		// key 非空表示这是一次真实执行，收集结果时以该 key 记入 dedup
+		key string
 	}
 
 	results := make([]string, len(calls))
@@ -179,10 +205,38 @@ func (a *Agent) executeToolCalls(ctx context.Context, calls []schema.ToolCall, t
 		return results
 	}
 
+	// 串行预 Pass 完成去重判定（dedup map 不在 goroutine 内读写，避免并发写 map）：
+	//  1. 已执行过的同名同参调用：直接复用历史结果；
+	//  2. 同批内重复的调用：记录其"属主"下标，执行完按属主结果回填。
+	owner := make([]int, len(calls))
+	executed := make([]bool, len(calls))
+	keys := make([]string, len(calls))
+	for idx, tc := range calls {
+		owner[idx] = -1
+		keys[idx] = tc.Function.Name + "\x00" + tc.Function.Arguments
+		if cached, hit := dedup[keys[idx]]; hit {
+			results[idx] = cached + "\n\n(本轮已用相同参数调用过该工具，以上为首次执行结果，未重复执行)"
+			if cb != nil && cb.OnToolResult != nil {
+				cb.OnToolResult(tc.Function.Name, results[idx])
+			}
+			continue
+		}
+		for j := 0; j < idx; j++ {
+			if executed[j] && keys[j] == keys[idx] {
+				owner[idx] = j
+				break
+			}
+		}
+		executed[idx] = owner[idx] == -1
+	}
+
 	var wg sync.WaitGroup
 	resCh := make(chan result, len(calls))
 
 	for idx, tc := range calls {
+		if !executed[idx] {
+			continue
+		}
 		wg.Add(1)
 		go func(idx int, tc schema.ToolCall) {
 			defer wg.Done()
@@ -193,20 +247,24 @@ func (a *Agent) executeToolCalls(ctx context.Context, calls []schema.ToolCall, t
 
 			t, ok := toolMap[tc.Function.Name]
 			var content string
-			var err error
+			var key string
 			if !ok {
-				err = fmt.Errorf("未知工具: %s", tc.Function.Name)
-			} else {
-				content, err = t.InvokableRun(ctx, tc.Function.Arguments)
-			}
-			if err != nil {
+				err := fmt.Errorf("未知工具: %s", tc.Function.Name)
 				content = fmt.Sprintf(`{"error": %q}`, err.Error())
+			} else {
+				var err error
+				content, err = t.InvokableRun(ctx, tc.Function.Arguments)
+				if err != nil {
+					content = fmt.Sprintf(`{"error": %q}`, err.Error())
+				} else {
+					key = tc.Function.Name + "\x00" + tc.Function.Arguments
+				}
 			}
 
 			if cb != nil && cb.OnToolResult != nil {
 				cb.OnToolResult(tc.Function.Name, content)
 			}
-			resCh <- result{idx: idx, content: content}
+			resCh <- result{idx: idx, content: content, key: key}
 		}(idx, tc)
 	}
 
@@ -217,6 +275,20 @@ func (a *Agent) executeToolCalls(ctx context.Context, calls []schema.ToolCall, t
 
 	for r := range resCh {
 		results[r.idx] = r.content
+		if r.key != "" {
+			dedup[r.key] = r.content
+		}
+	}
+
+	// 同批重复调用按属主结果回填（此时属主已执行完毕，串行访问无竞争）
+	for idx := range calls {
+		if owner[idx] < 0 {
+			continue
+		}
+		results[idx] = results[owner[idx]] + "\n\n(同一次调用中已用相同参数执行过该工具，以上为首次执行结果，未重复执行)"
+		if cb != nil && cb.OnToolResult != nil {
+			cb.OnToolResult(calls[idx].Function.Name, results[idx])
+		}
 	}
 	return results
 }

@@ -56,7 +56,7 @@ func parseDimensions(raw string) ([]InspectionDimension, error) {
 }
 
 // runMultiDimension 多维度巡检：各维度并发由子巡检 Agent 产出小结，主编 Agent 汇总成最终报告
-func runMultiDimension(ctx context.Context, db *gorm.DB, task models.InspectionTask, report models.InspectionReport, cm model.ChatModel, frontendBaseURL string) (models.InspectionReport, error) {
+func runMultiDimension(ctx context.Context, db *gorm.DB, task models.InspectionTask, report models.InspectionReport, cm model.ChatModel) (models.InspectionReport, error) {
 	fail := func(err error, msg string) (models.InspectionReport, error) {
 		report.Status = "failed"
 		report.Error = msg + ": " + err.Error()
@@ -127,7 +127,7 @@ func runMultiDimension(ctx context.Context, db *gorm.DB, task models.InspectionT
 	}
 
 	// 4. 落库 + 通知（与单 Agent 路径一致）
-	finalizeReport(db, task, &report, content, frontendBaseURL)
+	finalizeReport(db, task, &report, content)
 	return report, nil
 }
 
@@ -144,6 +144,8 @@ func runDimension(ctx context.Context, db *gorm.DB, task models.InspectionTask, 
 
 	ag := agent.New(cm, agent.NewRegistry(db), agent.Options{
 		Instructions: systemPrompt,
+		// 与单 Agent 巡检一致：对齐对话默认上限；达上限时返回部分小结而非失败
+		MaxIterations: 20,
 	})
 	resp, err := ag.Run(ctx, []*schema.Message{
 		schema.SystemMessage(systemPrompt),

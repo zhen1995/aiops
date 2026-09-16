@@ -16,12 +16,17 @@ import (
 
 // NotifyTemplateController 消息模板控制器
 type NotifyTemplateController struct {
-	DB     *gorm.DB
-	Domain string // 站点地址（如 http://localhost:5173），用于模板里的 {{$.domain}} 变量
+	DB *gorm.DB
 }
 
-func NewNotifyTemplateController(db *gorm.DB, domain string) *NotifyTemplateController {
-	return &NotifyTemplateController{DB: db, Domain: domain}
+func NewNotifyTemplateController(db *gorm.DB) *NotifyTemplateController {
+	return &NotifyTemplateController{DB: db}
+}
+
+// loadDomain 读取前端访问地址（system_configs 的 frontend_base_url），
+// 用于模板预览里未显式传 domain 时的 {{$.domain}} 变量回退值。
+func (c *NotifyTemplateController) loadDomain() string {
+	return models.GetSystemConfigValue(c.DB, models.SystemConfigKeyFrontendBaseURL, models.DefaultFrontendBaseURL)
 }
 
 func (c *NotifyTemplateController) List(ctx *gin.Context) {
@@ -165,7 +170,7 @@ func (c *NotifyTemplateController) Preview(ctx *gin.Context) {
 
 	domain := body.Domain
 	if domain == "" {
-		domain = c.Domain
+		domain = c.loadDomain()
 	}
 
 	result := notify.RenderTemplateJSON(body.Content, evt, domain)

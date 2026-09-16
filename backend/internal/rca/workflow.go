@@ -30,7 +30,7 @@ func buildGraph(cm model.ChatModel, db *gorm.DB, eventCtx string, evidenceOut *s
 	collect := compose.InvokableLambda(func(ctx context.Context, input string) (string, error) {
 		ag := agent.New(cm, agent.NewRegistry(db), agent.Options{
 			Instructions:  collectPrompt,
-			MaxIterations: 15, // 证据收集涉及多轮工具调用，放宽迭代上限
+			MaxIterations: 25, // 证据收集是多步工具调用，取与夜莺一致的上限；达上限时返回部分证据而非失败
 		})
 		resp, err := ag.Run(ctx, []*schema.Message{schema.UserMessage(input)}, nil)
 		if err != nil {

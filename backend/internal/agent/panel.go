@@ -243,7 +243,7 @@ func (p *Panel) runSpecialist(ctx context.Context, factory ChatModelFactory, st 
 		Instructions:      sp.Instructions,
 		EnforceDataSource: true,
 		ToolFilter:        sp.ToolFilter,
-		MaxIterations:     6,
+		MaxIterations:     8,
 	})
 
 	var innerErr error

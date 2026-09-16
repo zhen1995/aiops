@@ -25,8 +25,8 @@ const (
 )
 
 // Executor 根据巡检任务的提示词调用默认 LLM 生成报告
-// frontendBaseURL 为前端访问地址，用于报告通知中的"完整报告"链接
-func Executor(ctx context.Context, db *gorm.DB, task models.InspectionTask, frontendBaseURL string) (models.InspectionReport, error) {
+// 报告通知中的"完整报告"链接使用 system_configs 的 frontend_base_url（保存后即时生效）
+func Executor(ctx context.Context, db *gorm.DB, task models.InspectionTask) (models.InspectionReport, error) {
 	report := models.InspectionReport{
 		TaskID:   task.ID,
 		TaskName: task.Name,
@@ -53,7 +53,7 @@ func Executor(ctx context.Context, db *gorm.DB, task models.InspectionTask, fron
 
 	// 多维度模式：并发分维度巡检后由主编 Agent 汇总
 	if task.Mode == ModeMulti {
-		return runMultiDimension(ctx, db, task, report, cm, frontendBaseURL)
+		return runMultiDimension(ctx, db, task, report, cm)
 	}
 
 	// 3. 组装消息（巡检专用的 system prompt + 用户提示词）
@@ -69,6 +69,8 @@ func Executor(ctx context.Context, db *gorm.DB, task models.InspectionTask, fron
 	// 4. 使用公共 Agent 执行（与对话 Agent 共享数据源工具集，可查询真实指标/日志/火焰图）
 	ag := agent.New(cm, agent.NewRegistry(db), agent.Options{
 		Instructions: systemPrompt,
+		// 巡检常需多轮工具查询，显式对齐对话默认上限；达上限时 Agent 返回部分结果而非报错
+		MaxIterations: 20,
 	})
 	resp, err := ag.Run(ctx, messages, nil)
 	if err != nil {
@@ -86,12 +88,12 @@ func Executor(ctx context.Context, db *gorm.DB, task models.InspectionTask, fron
 		return report, fmt.Errorf("LLM 返回为空")
 	}
 
-	finalizeReport(db, task, &report, content, frontendBaseURL)
+	finalizeReport(db, task, &report, content)
 	return report, nil
 }
 
 // finalizeReport 填充报告标题/摘要/评分，落库并按任务配置推送通知
-func finalizeReport(db *gorm.DB, task models.InspectionTask, report *models.InspectionReport, content string, frontendBaseURL string) {
+func finalizeReport(db *gorm.DB, task models.InspectionTask, report *models.InspectionReport, content string) {
 	today := time.Now().Format("2006-01-02")
 	report.Title = fmt.Sprintf("%s - %s", task.Name, today)
 	report.Content = content
@@ -107,11 +109,11 @@ func finalizeReport(db *gorm.DB, task models.InspectionTask, report *models.Insp
 	}
 
 	// 通过任务配置的通知媒介推送报告（失败仅记录日志，不影响报告本身）
-	notifyReport(db, task, *report, frontendBaseURL)
+	notifyReport(db, task, *report)
 }
 
 // notifyReport 将巡检报告通过任务关联的通知媒介发送出去
-func notifyReport(db *gorm.DB, task models.InspectionTask, report models.InspectionReport, frontendBaseURL string) {
+func notifyReport(db *gorm.DB, task models.InspectionTask, report models.InspectionReport) {
 	if len(task.NotifyMediaIDs) == 0 {
 		return
 	}
@@ -129,7 +131,7 @@ func notifyReport(db *gorm.DB, task models.InspectionTask, report models.Inspect
 	content := fmt.Sprintf("【AIOPS 巡检报告】\n任务：%s\n标题：%s\n评分：%d\n时间：%s\n完整报告： %s/#/inspection/reports/%d",
 		report.TaskName, report.Title, report.Score,
 		report.CreatedAt.Format("2006-01-02 15:04:05"),
-		strings.TrimRight(frontendBaseURL, "/"), report.ID)
+		strings.TrimRight(loadFrontendBaseURL(db), "/"), report.ID)
 
 	for _, m := range mediaList {
 		if err := notify.Send(m.Type, m.Config, content); err != nil {
@@ -138,6 +140,12 @@ func notifyReport(db *gorm.DB, task models.InspectionTask, report models.Inspect
 			fmt.Printf("[巡检通知] 已通过媒介 %s 发送报告\n", m.Name)
 		}
 	}
+}
+
+// loadFrontendBaseURL 读取前端访问地址（system_configs 的 frontend_base_url），
+// 用于报告通知中的"完整报告"链接；保存后即时生效。
+func loadFrontendBaseURL(db *gorm.DB) string {
+	return models.GetSystemConfigValue(db, models.SystemConfigKeyFrontendBaseURL, models.DefaultFrontendBaseURL)
 }
 
 // extractSummary 从报告内容里取前几个非空段落的前 maxLen 个字符作为摘要

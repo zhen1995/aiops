@@ -17,20 +17,16 @@ type Scheduler struct {
 	cron *cron.Cron
 	db   *gorm.DB
 
-	// frontendBaseURL 前端访问地址，用于报告通知中的"完整报告"链接
-	frontendBaseURL string
-
 	mu     sync.Mutex
 	entries map[uint]cron.EntryID // taskID → cron.EntryID
 }
 
 // NewScheduler 创建 Scheduler 实例
-func NewScheduler(db *gorm.DB, frontendBaseURL string) *Scheduler {
+func NewScheduler(db *gorm.DB) *Scheduler {
 	return &Scheduler{
-		cron:            cron.New(cron.WithSeconds()), // 支持秒级 cron（可选），也兼容 5 段标准 cron
-		db:              db,
-		frontendBaseURL: frontendBaseURL,
-		entries:         make(map[uint]cron.EntryID),
+		cron:    cron.New(cron.WithSeconds()), // 支持秒级 cron（可选），也兼容 5 段标准 cron
+		db:      db,
+		entries: make(map[uint]cron.EntryID),
 	}
 }
 
@@ -141,7 +137,7 @@ func (s *Scheduler) registerTask(task models.InspectionTask) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
 
-		if _, err2 := Executor(ctx, s.db, task, s.frontendBaseURL); err2 != nil {
+		if _, err2 := Executor(ctx, s.db, task); err2 != nil {
 			fmt.Printf("[巡检调度器] 任务 %s 执行失败: %v\n", task.Name, err2)
 		} else {
 			fmt.Printf("[巡检调度器] 任务 %s 执行完成\n", task.Name)
@@ -168,5 +164,5 @@ func (s *Scheduler) TriggerNow(ctx context.Context, taskID uint) (models.Inspect
 	if err := s.db.First(&task, taskID).Error; err != nil {
 		return models.InspectionReport{}, err
 	}
-	return Executor(ctx, s.db, task, s.frontendBaseURL)
+	return Executor(ctx, s.db, task)
 }

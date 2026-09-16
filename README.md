@@ -80,7 +80,7 @@ database:
 server:
   port: ":8080"
 app:
-  # 前端访问地址，用于巡检报告通知中的「完整报告」链接
+  # 前端访问地址：仅作为首启种子写入 system_configs，之后可在「系统配置」页修改
   frontend_base_url: "http://localhost:5173"
 knowledge:
   python_base_url: "http://localhost:9000"
@@ -93,7 +93,7 @@ knowledge:
 |----------|------|--------|
 | `AIOPS_DATABASE_DSN` / `DATABASE_DSN` | MySQL 连接串 | 见 config.yaml |
 | `AIOPS_SERVER_PORT` / `SERVER_PORT` | 服务端口 | `:8080` |
-| `AIOPS_APP_FRONTEND_BASE_URL` / `FRONTEND_BASE_URL` | 前端访问地址 | `http://localhost:5173` |
+| `AIOPS_APP_FRONTEND_BASE_URL` / `FRONTEND_BASE_URL` | 前端访问地址（首启种子，之后以「系统配置」页为准） | `http://localhost:5173` |
 
 启动：
 
@@ -165,7 +165,7 @@ uvicorn app.main:app --port 9000
 
    SSE（对话流、根因分析轮询）依赖 `proxy_buffering off` 与 `X-Accel-Buffering no`，请勿省略。
 4. **知识库（可选）**：服务器上部署 Qdrant（`cd qdrant && docker compose up -d`）与 Python 服务（uvicorn），注意 `qdrant/docker-compose.yml` 中数据卷挂载路径（`/data/qdrant:/qdrant/storage`）需按你的服务器实际目录调整。
-5. **前端地址**：通过 `AIOPS_APP_FRONTEND_BASE_URL` 配置真实前端地址，保证巡检报告通知中的链接可访问。
+5. **前端地址**：部署后在「系统配置」页配置真实前端地址（首启种子来自 `AIOPS_APP_FRONTEND_BASE_URL`），保证巡检报告通知中的链接可访问。
 
 ## 测试
 

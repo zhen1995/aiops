@@ -1,10 +1,11 @@
 database:
   # MySQL 连接串，请改成你的实际地址；生产环境建议通过环境变量 AIOPS_DATABASE_DSN 注入
-  dsn: "root:root@tcp(localhost:3306)/aiops?charset=utf8mb4&parseTime=True&loc=Local"
+  dsn: "root:a.123456R+=@tcp(10.2.216.92:3306)/aiops?charset=utf8mb4&parseTime=True&loc=Local"
 server:
   port: ":8080"
 app:
-  # 前端访问地址，用于巡检报告通知中的"完整报告"链接
+  # 前端访问地址：仅作为首启种子写入 system_configs（frontend_base_url），
+  # 之后可在「系统配置」页修改并即时生效（巡检报告链接、通知模板 $.domain）
   frontend_base_url: "http://localhost:5173"
 knowledge:
   # Python 算法服务地址（知识库解析/向量化/检索）

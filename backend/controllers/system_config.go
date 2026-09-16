@@ -23,61 +23,79 @@ func NewSystemConfigController(db *gorm.DB) *SystemConfigController {
 	return &SystemConfigController{DB: db}
 }
 
-// systemConfigPayload 请求/响应体：qdrant_url 为空字符串表示未传
+// systemConfigPayload 请求/响应体：字段为空字符串表示未传
 type systemConfigPayload struct {
-	QdrantURL string `json:"qdrant_url"`
+	QdrantURL       string `json:"qdrant_url"`
+	FrontendBaseURL string `json:"frontend_base_url"`
 }
 
-// getQdrantURL 从 system_configs 读取 qdrant_url，无记录或读错误时回退默认值
-func (c *SystemConfigController) getQdrantURL() string {
-	var cfg models.SystemConfig
-	if err := c.DB.Where("`key` = ?", models.SystemConfigKeyQdrantURL).First(&cfg).Error; err != nil {
-		return models.DefaultQdrantURL
-	}
-	return cfg.Value
+// getConfigValue 从 system_configs 读取指定 key，无记录或读错误时回退默认值
+func (c *SystemConfigController) getConfigValue(key, fallback string) string {
+	return models.GetSystemConfigValue(c.DB, key, fallback)
 }
 
 // Get 获取系统配置
-// GET /api/system-config → {"qdrant_url": "..."}
+// GET /api/system-config → {"qdrant_url": "...", "frontend_base_url": "..."}
 func (c *SystemConfigController) Get(ctx *gin.Context) {
-	ctx.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{"qdrant_url": c.getQdrantURL()}})
+	ctx.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{
+		"qdrant_url":        c.getConfigValue(models.SystemConfigKeyQdrantURL, models.DefaultQdrantURL),
+		"frontend_base_url": c.getConfigValue(models.SystemConfigKeyFrontendBaseURL, models.DefaultFrontendBaseURL),
+	}})
 }
 
-// Update 更新系统配置（upsert）
-// PUT /api/system-config，body {"qdrant_url": "..."}
+// Update 更新系统配置（upsert；只更新请求中显式传入且非空的字段）
+// PUT /api/system-config，body {"qdrant_url": "...", "frontend_base_url": "..."}
 func (c *SystemConfigController) Update(ctx *gin.Context) {
 	var payload systemConfigPayload
 	if err := ctx.ShouldBindJSON(&payload); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误", "error": err.Error()})
 		return
 	}
-	url := strings.TrimSpace(payload.QdrantURL)
-	if err := validateQdrantURL(url); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+
+	updates := map[string]string{}
+	if url := strings.TrimSpace(payload.QdrantURL); url != "" {
+		if err := validateQdrantURL(url); err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+			return
+		}
+		updates[models.SystemConfigKeyQdrantURL] = url
+	}
+	if url := strings.TrimSpace(payload.FrontendBaseURL); url != "" {
+		if err := validateFrontendBaseURL(url); err != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+			return
+		}
+		updates[models.SystemConfigKeyFrontendBaseURL] = url
+	}
+	if len(updates) == 0 {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "没有需要保存的配置项"})
 		return
 	}
 
-	var cfg models.SystemConfig
-	err := c.DB.Where("`key` = ?", models.SystemConfigKeyQdrantURL).First(&cfg).Error
-	switch {
-	case errors.Is(err, gorm.ErrRecordNotFound):
-		cfg = models.SystemConfig{Key: models.SystemConfigKeyQdrantURL, Value: url}
-		if err := c.DB.Create(&cfg).Error; err != nil {
-			ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "保存系统配置失败", "error": err.Error()})
+	for key, value := range updates {
+		var cfg models.SystemConfig
+		err := c.DB.Where("`key` = ?", key).First(&cfg).Error
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			if err := c.DB.Create(&models.SystemConfig{Key: key, Value: value}).Error; err != nil {
+				ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "保存系统配置失败", "error": err.Error()})
+				return
+			}
+		case err != nil:
+			ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询系统配置失败", "error": err.Error()})
 			return
+		default:
+			if err := c.DB.Model(&cfg).Update("value", value).Error; err != nil {
+				ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "保存系统配置失败", "error": err.Error()})
+				return
+			}
 		}
-	case err != nil:
-		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询系统配置失败", "error": err.Error()})
-		return
-	default:
-		if err := c.DB.Model(&cfg).Update("value", url).Error; err != nil {
-			ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "保存系统配置失败", "error": err.Error()})
-			return
-		}
-		cfg.Value = url
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{"qdrant_url": cfg.Value}})
+	ctx.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{
+		"qdrant_url":        c.getConfigValue(models.SystemConfigKeyQdrantURL, models.DefaultQdrantURL),
+		"frontend_base_url": c.getConfigValue(models.SystemConfigKeyFrontendBaseURL, models.DefaultFrontendBaseURL),
+	}})
 }
 
 // TestQdrant 测试 Qdrant 向量库连通性（Go 直接 GET {url}/collections，3s 超时）
@@ -89,7 +107,7 @@ func (c *SystemConfigController) TestQdrant(ctx *gin.Context) {
 		url = strings.TrimSpace(payload.QdrantURL)
 	}
 	if url == "" {
-		url = c.getQdrantURL()
+		url = c.getConfigValue(models.SystemConfigKeyQdrantURL, models.DefaultQdrantURL)
 	} else if err := validateQdrantURL(url); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
@@ -117,6 +135,17 @@ func validateQdrantURL(url string) error {
 	}
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		return errors.New("Qdrant 地址必须以 http:// 或 https:// 开头")
+	}
+	return nil
+}
+
+// validateFrontendBaseURL 校验前端访问地址：非空且以 http:// 或 https:// 开头
+func validateFrontendBaseURL(url string) error {
+	if url == "" {
+		return errors.New("前端访问地址不能为空")
+	}
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+		return errors.New("前端访问地址必须以 http:// 或 https:// 开头")
 	}
 	return nil
 }

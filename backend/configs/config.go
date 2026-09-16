@@ -35,7 +35,8 @@ type ServerConfig struct {
 }
 
 type AppConfig struct {
-	// FrontendBaseURL 前端访问地址，用于巡检报告通知中的"完整报告"链接
+	// FrontendBaseURL 前端访问地址：仅作为首启种子写入 system_configs（frontend_base_url），
+	// 之后以「系统配置」页为准（巡检报告链接、通知模板 $.domain 变量即时生效）
 	FrontendBaseURL string `mapstructure:"frontend_base_url" yaml:"frontend_base_url"`
 }
 

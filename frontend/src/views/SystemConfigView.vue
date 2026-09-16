@@ -35,11 +35,39 @@
       </div>
     </div>
 
+    <div class="card">
+      <div class="card-head-flex">
+        <div>
+          <h3 class="card-title">{{ $t('system.frontend.title') }}</h3>
+          <p class="card-sub">{{ $t('system.frontend.sub') }}</p>
+        </div>
+      </div>
+
+      <div class="form-item">
+        <label class="form-label required">{{ $t('system.frontend.urlLabel') }}</label>
+        <input
+          v-model="frontendBaseUrl"
+          class="form-input"
+          :placeholder="$t('system.frontend.urlPlaceholder')"
+          :disabled="loading"
+        />
+        <span v-if="frontendUrlError" class="form-error">{{ frontendUrlError }}</span>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" @click="saveFrontendUrl" :disabled="loading || savingFrontend">
+          {{ savingFrontend ? $t('system.actions.saving') : $t('system.actions.save') }}
+        </button>
+      </div>
+    </div>
+
     <div class="card tips-card">
       <h3 class="card-title">{{ $t('system.tips.title') }}</h3>
       <ul class="tips-list">
         <li>{{ $t('system.tips.item1') }}</li>
         <li>{{ $t('system.tips.item2') }}</li>
+        <li>{{ $t('system.tips.item3') }}</li>
+        <li>{{ $t('system.tips.item4') }}</li>
       </ul>
     </div>
   </div>
@@ -54,10 +82,13 @@ import { systemConfigApi } from '../api/systemConfig.js'
 const { t } = useI18n({ useScope: 'global' })
 
 const qdrantUrl = ref('')
+const frontendBaseUrl = ref('')
 const loading = ref(false)
 const saving = ref(false)
+const savingFrontend = ref(false)
 const testing = ref(false)
 const urlError = ref('')
+const frontendUrlError = ref('')
 const testResult = ref(null)
 
 async function loadConfig() {
@@ -65,6 +96,7 @@ async function loadConfig() {
   try {
     const data = await systemConfigApi.getSystemConfig()
     qdrantUrl.value = (data && data.qdrant_url) || ''
+    frontendBaseUrl.value = (data && data.frontend_base_url) || ''
   } catch (err) {
     alert(t('system.messages.loadFailed', { message: err.message }))
   } finally {
@@ -108,6 +140,36 @@ async function testConnection() {
     testResult.value = { ok: false, message: err.message }
   } finally {
     testing.value = false
+  }
+}
+
+function validateFrontendUrl() {
+  frontendUrlError.value = ''
+  const url = frontendBaseUrl.value.trim()
+  if (!url) {
+    frontendUrlError.value = t('system.messages.frontendUrlRequired')
+    return false
+  }
+  if (!/^https?:\/\//.test(url)) {
+    frontendUrlError.value = t('system.messages.frontendUrlInvalid')
+    return false
+  }
+  return true
+}
+
+async function saveFrontendUrl() {
+  if (!validateFrontendUrl()) return
+  savingFrontend.value = true
+  try {
+    const data = await systemConfigApi.updateSystemConfig({ frontend_base_url: frontendBaseUrl.value.trim() })
+    if (data && data.frontend_base_url) {
+      frontendBaseUrl.value = data.frontend_base_url
+    }
+    alert(t('system.messages.saveSuccess'))
+  } catch (err) {
+    alert(t('system.messages.saveFailed', { message: err.message }))
+  } finally {
+    savingFrontend.value = false
   }
 }
 
