@@ -48,14 +48,17 @@
             </td>
             <td class="muted">{{ r.task_name }}</td>
             <td class="muted">{{ fmtTime(r.created_at) }}</td>
-            <td class="muted" style="max-width: 380px">{{ r.summary }}</td>
+            <td class="muted" style="max-width: 380px">
+              <span v-if="r.status === 'failed' && r.error" class="error-reason" :title="r.error">{{ r.error }}</span>
+              <template v-else>{{ r.summary }}</template>
+            </td>
             <td>
               <span v-if="r.status === 'completed'" class="status-ok">{{ $t('inspection.report.status.completed') }}</span>
               <span v-else-if="r.status === 'generating'" class="status-run">{{ $t('inspection.report.status.generating') }}</span>
               <span v-else class="status-err">{{ $t('inspection.report.status.failed') }}</span>
             </td>
             <td>
-              <RouterLink v-if="r.status === 'completed'" :to="`/inspection/reports/${r.id}`" class="btn btn-sm">{{ $t('inspection.report.table.view') }}</RouterLink>
+              <RouterLink v-if="r.status !== 'generating'" :to="`/inspection/reports/${r.id}`" class="btn btn-sm">{{ $t('inspection.report.table.view') }}</RouterLink>
               <button class="btn btn-sm btn-danger-link" @click="remove(r)">{{ $t('inspection.report.table.remove') }}</button>
             </td>
           </tr>
@@ -184,6 +187,16 @@ function fmtTime(v) {
   color: var(--c-primary);
 }
 .report-title:hover { text-decoration: underline; }
+
+.error-reason {
+  display: inline-block;
+  max-width: 100%;
+  color: var(--c-danger, #c93b3b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
 
 .status-ok {
   display: inline-block;

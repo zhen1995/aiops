@@ -4,6 +4,10 @@
       <button class="btn btn-primary" @click="openDialog()">{{ $t('inspection.task.newBtn') }}</button>
     </PageHeader>
 
+    <transition name="toast-fade">
+      <div v-if="toast.message" class="toast" :class="'toast-' + toast.type">{{ toast.message }}</div>
+    </transition>
+
     <div class="card">
       <table class="table">
         <thead>
@@ -201,8 +205,16 @@ const submitting = ref(false)
 const cronPreview = ref([])
 const cronError = ref('')
 const showCronBuilder = ref(false)
+const toast = ref({ message: '', type: '' })
+let toastTimer = null
 
 const { t } = useI18n({ useScope: 'global' })
+
+function showToast(message, type) {
+  toast.value = { message, type }
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { toast.value = { message: '', type: '' } }, 3000)
+}
 
 const defaultForm = () => ({
   name: '',
@@ -367,10 +379,10 @@ async function runNow(task) {
   if (!confirm(t('inspection.task.messages.runNowConfirm', { name: task.name }))) return
   try {
     await triggerTask(task.id)
-    alert(t('inspection.task.messages.runSucceeded'))
+    showToast(t('inspection.task.messages.runSucceeded'), 'success')
     await load()
   } catch (e) {
-    alert(t('inspection.task.messages.runFailed') + e.message)
+    showToast(t('inspection.task.messages.runFailed') + e.message, 'error')
   }
 }
 
@@ -398,6 +410,25 @@ function fmtTime(v) {
 </script>
 
 <style scoped>
+.toast {
+  margin-bottom: 16px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.toast-success {
+  background: var(--c-success-bg);
+  color: var(--c-success);
+  border: 1px solid #cee6d8;
+}
+.toast-error {
+  background: var(--c-p0-bg);
+  color: var(--c-danger, #c93b3b);
+  border: 1px solid #f0d0d0;
+}
+.toast-fade-enter-active, .toast-fade-leave-active { transition: opacity 0.2s; }
+.toast-fade-enter-from, .toast-fade-leave-to { opacity: 0; }
+
 .mode-tag {
   font-size: 12px;
   padding: 2px 9px;
