@@ -16,7 +16,7 @@ type LLMConfig struct {
 	ModelType        string         `gorm:"size:10;not null;default:chat;comment:模型类型 chat-对话 embedding-向量化" json:"model_type"`
 	Model            string         `gorm:"size:50;comment:模型名称" json:"model"`
 	BaseURL          string         `gorm:"size:200;comment:api url" json:"base_url"`
-	APIKey           string         `gorm:"size:100;comment:密钥" json:"api_key"`
+	APIKey           string         `gorm:"size:512;comment:密钥（AES-256-GCM 加密存储，enc:v1: 前缀）" json:"api_key"`
 	IsDefault        int            `gorm:"not null;default:0;comment:0 否，1是" json:"is_default"`
 	IsEnabled        int            `gorm:"default:1;comment:是否启用 0-否 1-是" json:"is_enabled"`
 	CreatedAt        time.Time      `gorm:"comment:创建时间" json:"created_at"`

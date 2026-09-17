@@ -244,10 +244,12 @@ const hasTrend = computed(() => (trend.value.labels || []).length > 0)
 const formatCount = (n) => (typeof n === 'number' ? n.toLocaleString() : (n ?? 0))
 
 // ISO 时间格式化为 HH:mm（与原 Mock 视觉一致）
+// 完整展示年月日时分秒（本地时区）
 const formatTime = (iso) => {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso || '-'
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
 }
 
 // 将模板字符串按 <*> 占位符切分，用于高亮渲染

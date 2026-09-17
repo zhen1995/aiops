@@ -84,7 +84,11 @@
       </header>
 
       <main class="content">
-        <RouterView />
+        <RouterView v-slot="{ Component }">
+          <KeepAlive :include="['ChatView']">
+            <component :is="Component" />
+          </KeepAlive>
+        </RouterView>
       </main>
     </div>
   </div>

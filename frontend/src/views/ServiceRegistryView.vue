@@ -27,7 +27,6 @@
           <tr>
             <th>{{ $t('service.table.name') }}</th>
             <th>{{ $t('service.table.code') }}</th>
-            <th>{{ $t('service.table.parent') }}</th>
             <th>{{ $t('service.table.esPatterns') }}</th>
             <th>{{ $t('service.table.promLabels') }}</th>
             <th>{{ $t('service.table.owner') }}</th>
@@ -45,7 +44,6 @@
           >
             <td><b>{{ svc.name }}</b></td>
             <td class="mono">{{ svc.code || '-' }}</td>
-            <td>{{ parentName(svc) }}</td>
             <td class="muted mono" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis" :title="patternsText(svc)">
               {{ patternsText(svc) }}
             </td>
@@ -110,14 +108,6 @@
               <input v-model="form.code" class="form-input" :placeholder="$t('service.modal.codePlaceholder')" />
               <span v-if="errors.code" class="form-error">{{ errors.code }}</span>
             </div>
-          </div>
-
-          <div class="form-item">
-            <label class="form-label">{{ $t('service.modal.parent') }}</label>
-            <select v-model="form.parent_id" class="form-input">
-              <option value="">{{ $t('service.modal.noParent') }}</option>
-              <option v-for="opt in parentOptions" :key="opt.id" :value="opt.id">{{ opt.name }}</option>
-            </select>
           </div>
 
           <div class="form-item">
@@ -279,17 +269,6 @@ const dsList = ref([])
 const esOptions = computed(() => dsList.value.filter(d => d.type === 'ElasticSearch'))
 const promOptions = computed(() => dsList.value.filter(d => d.type === 'Prometheus'))
 
-// 父服务下拉（启用服务，排除当前编辑的服务自身）
-const serviceOptions = ref([])
-const parentOptions = computed(() => serviceOptions.value.filter(o => o.id !== editingId.value))
-
-// 父服务名称展示
-function parentName(svc) {
-  if (!svc.parent_id) return '-'
-  const parent = serviceOptions.value.find(o => o.id === svc.parent_id)
-  return parent ? parent.name : '-'
-}
-
 // 弹窗状态
 const modalVisible = ref(false)
 const isEdit = ref(false)
@@ -300,7 +279,6 @@ const patternInput = ref('')
 const form = reactive({
   name: '',
   code: '',
-  parent_id: '',
   es_datasource_id: '',
   es_index_patterns: [],
   prom_datasource_id: '',
@@ -396,20 +374,9 @@ async function loadDatasources() {
   }
 }
 
-// 加载父服务下拉选项
-async function loadServiceOptions() {
-  try {
-    const data = await serviceApi.options()
-    serviceOptions.value = Array.isArray(data) ? data : (data?.list || [])
-  } catch (e) {
-    serviceOptions.value = []
-  }
-}
-
 function resetForm() {
   form.name = ''
   form.code = ''
-  form.parent_id = ''
   form.es_datasource_id = ''
   form.es_index_patterns = []
   form.prom_datasource_id = ''
@@ -451,7 +418,6 @@ async function openEditModal(svc) {
 function fillForm(detail) {
   form.name = detail.name || ''
   form.code = detail.code || ''
-  form.parent_id = detail.parent_id || ''
   form.es_datasource_id = detail.es_datasource_id || ''
   form.es_index_patterns = Array.isArray(detail.es_index_patterns) ? [...detail.es_index_patterns] : []
   form.prom_datasource_id = detail.prom_datasource_id || ''
@@ -547,7 +513,6 @@ async function saveService() {
     const payload = {
       name: form.name.trim(),
       code: form.code.trim(),
-      parent_id: form.parent_id || '',
       es_datasource_id: form.es_datasource_id || '',
       es_index_patterns: form.es_index_patterns,
       prom_datasource_id: form.prom_datasource_id || '',
@@ -569,7 +534,6 @@ async function saveService() {
     saving.value = false
     closeModal()
     await loadData()
-    loadServiceOptions()
   } catch (err) {
     alert(t('service.message.saveFailed', { action: isEdit.value ? t('service.message.update') : t('service.message.create'), msg: err.message }))
     saving.value = false
@@ -595,7 +559,6 @@ async function deleteService(svc) {
   try {
     await serviceApi.remove(svc.id)
     await loadData()
-    loadServiceOptions()
   } catch (err) {
     alert(t('service.message.deleteFailed', { msg: err.message }))
   }
@@ -625,7 +588,6 @@ async function verifyService(svc) {
 onMounted(() => {
   loadData()
   loadDatasources()
-  loadServiceOptions()
   handleHighlightParam()
 })
 

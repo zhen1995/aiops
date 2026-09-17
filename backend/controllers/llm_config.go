@@ -3,7 +3,9 @@ package controllers
 import (
 	"errors"
 	"net/http"
+	"strings"
 
+	"aiops/internal/crypto"
 	"aiops/models"
 
 	"github.com/gin-gonic/gin"
@@ -20,6 +22,15 @@ func NewLLMConfigController(db *gorm.DB) *LLMConfigController {
 	return &LLMConfigController{DB: db}
 }
 
+// maskKey 响应返回前对 API Key 脱敏
+func maskKey(config *models.LLMConfig) {
+	plain, err := crypto.Decrypt(config.APIKey)
+	if err != nil {
+		plain = config.APIKey
+	}
+	config.APIKey = crypto.Mask(plain)
+}
+
 // List 获取所有 LLM 配置列表
 func (c *LLMConfigController) List(ctx *gin.Context) {
 	var configs []models.LLMConfig
@@ -29,6 +40,9 @@ func (c *LLMConfigController) List(ctx *gin.Context) {
 			"message": "查询失败",
 		})
 		return
+	}
+	for i := range configs {
+		maskKey(&configs[i])
 	}
 	ctx.JSON(http.StatusOK, gin.H{
 		"code": 0,
@@ -54,6 +68,7 @@ func (c *LLMConfigController) Get(ctx *gin.Context) {
 		})
 		return
 	}
+	maskKey(&config)
 	ctx.JSON(http.StatusOK, gin.H{
 		"code": 0,
 		"data": config,
@@ -83,6 +98,17 @@ func (c *LLMConfigController) Create(ctx *gin.Context) {
 		})
 		return
 	}
+
+	// API Key 加密存储
+	encryptedKey, err := crypto.Encrypt(config.APIKey)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "API Key 加密失败",
+		})
+		return
+	}
+	config.APIKey = encryptedKey
 
 	// 开启事务
 	tx := c.DB.Begin()
@@ -117,6 +143,7 @@ func (c *LLMConfigController) Create(ctx *gin.Context) {
 		return
 	}
 
+	maskKey(&config)
 	ctx.JSON(http.StatusOK, gin.H{
 		"code": 0,
 		"data": config,
@@ -165,6 +192,14 @@ func (c *LLMConfigController) Update(ctx *gin.Context) {
 		return
 	}
 
+	// API Key：为空或仍为脱敏值（用户未修改）时保留原密钥，否则加密后更新
+	plainKey, err := crypto.Decrypt(config.APIKey)
+	if err != nil {
+		plainKey = config.APIKey
+	}
+	submitted := strings.TrimSpace(updateData.APIKey)
+	keepOldKey := submitted == "" || submitted == crypto.Mask(plainKey)
+
 	// 开启事务
 	tx := c.DB.Begin()
 
@@ -188,9 +223,20 @@ func (c *LLMConfigController) Update(ctx *gin.Context) {
 		"model_type":        updateData.ModelType,
 		"model":             updateData.Model,
 		"base_url":          updateData.BaseURL,
-		"api_key":           updateData.APIKey,
 		"is_default":        updateData.IsDefault,
 		"is_enabled":        updateData.IsEnabled,
+	}
+	if !keepOldKey {
+		encryptedKey, err := crypto.Encrypt(submitted)
+		if err != nil {
+			tx.Rollback()
+			ctx.JSON(http.StatusInternalServerError, gin.H{
+				"code":    500,
+				"message": "API Key 加密失败",
+			})
+			return
+		}
+		updates["api_key"] = encryptedKey
 	}
 
 	if err := tx.Model(&config).Updates(updates).Error; err != nil {
@@ -219,6 +265,7 @@ func (c *LLMConfigController) Update(ctx *gin.Context) {
 		})
 		return
 	}
+	maskKey(&config)
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"code": 0,
@@ -304,6 +351,7 @@ func (c *LLMConfigController) ToggleEnabled(ctx *gin.Context) {
 		})
 		return
 	}
+	maskKey(&config)
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"code": 0,

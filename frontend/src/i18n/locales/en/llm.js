@@ -46,8 +46,7 @@ export default {
     modelPlaceholder: 'Enter the model name, e.g.: gpt-4o',
     apiUrlPlaceholder: 'Enter the API endpoint, e.g.: https://api.openai.com/v1',
     apiKeyPlaceholder: 'Enter the API Key',
-    show: 'Show',
-    hide: 'Hide',
+    apiKeyKeepPlaceholder: 'Configured: {masked}, leave blank to keep unchanged',
     cancel: 'Cancel',
     save: 'Save',
     saving: 'Saving...'

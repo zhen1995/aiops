@@ -17,7 +17,6 @@ export default {
   table: {
     name: '名称',
     code: '编码',
-    parent: '父服务',
     esPatterns: 'ES 索引模式',
     promLabels: 'Prom 标签',
     owner: '负责人',
@@ -45,8 +44,6 @@ export default {
     namePlaceholder: '请输入服务名称',
     code: '服务编码',
     codePlaceholder: '唯一标识，例如：order-service',
-    parent: '父服务',
-    noParent: '无（顶级服务）',
     esDatasource: 'ES 数据源',
     selectDatasource: '请选择数据源',
     esPatternsLabel: 'ES 索引模式',

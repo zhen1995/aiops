@@ -17,7 +17,6 @@ export default {
   table: {
     name: 'Name',
     code: 'Code',
-    parent: 'Parent Service',
     esPatterns: 'ES Index Patterns',
     promLabels: 'Prom Labels',
     owner: 'Owner',
@@ -45,8 +44,6 @@ export default {
     namePlaceholder: 'Enter service name',
     code: 'Service Code',
     codePlaceholder: 'Unique identifier, e.g. order-service',
-    parent: 'Parent Service',
-    noParent: 'None (top-level service)',
     esDatasource: 'ES Data Source',
     selectDatasource: 'Select a data source',
     esPatternsLabel: 'ES Index Patterns',

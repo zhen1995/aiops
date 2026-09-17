@@ -37,7 +37,7 @@
             <td>{{ supplierLabel(m.supplier_category) }}</td>
             <td class="mono">{{ m.model }}</td>
             <td class="muted mono" style="max-width: 220px; overflow: hidden; text-overflow: ellipsis">{{ m.base_url }}</td>
-            <td class="mono">{{ maskApiKey(m.api_key) }}</td>
+            <td class="mono">{{ m.api_key || '-' }}</td>
             <td>
               <LevelTag :level="m.is_enabled === 1 ? 'running' : 'info'">
                 {{ m.is_enabled === 1 ? $t('llm.table.statusRunning') : $t('llm.table.statusStopped') }}
@@ -133,17 +133,12 @@
 
           <div class="form-item">
             <label class="form-label required">API Key</label>
-            <div class="input-with-action">
-              <input
-                v-model="form.api_key"
-                class="form-input"
-                :type="showApiKey ? 'text' : 'password'"
-                :placeholder="$t('llm.modal.apiKeyPlaceholder')"
-              />
-              <span class="input-action" @click="showApiKey = !showApiKey">
-                {{ showApiKey ? $t('llm.modal.hide') : $t('llm.modal.show') }}
-              </span>
-            </div>
+            <input
+              v-model="form.api_key"
+              type="password"
+              class="form-input"
+              :placeholder="isEdit ? $t('llm.modal.apiKeyKeepPlaceholder', { masked: editingMaskedKey }) : $t('llm.modal.apiKeyPlaceholder')"
+            />
             <span v-if="errors.api_key" class="form-error">{{ errors.api_key }}</span>
           </div>
         </div>
@@ -192,7 +187,8 @@ const saving = ref(false)
 const modalVisible = ref(false)
 const isEdit = ref(false)
 const editingId = ref(null)
-const showApiKey = ref(false)
+// 编辑态已配置 key 的脱敏值，用于占位提示（接口不返回完整密钥）
+const editingMaskedKey = ref('')
 const errors = reactive({})
 
 const form = reactive({
@@ -235,12 +231,6 @@ async function loadSuppliers() {
   }
 }
 
-function maskApiKey(key) {
-  if (!key) return '-'
-  if (key.length <= 8) return key.slice(0, 2) + '****'
-  return key.slice(0, 7) + '****' + key.slice(-4)
-}
-
 function resetForm() {
   form.name = ''
   form.description = ''
@@ -257,8 +247,8 @@ function resetForm() {
 function openCreateModal() {
   isEdit.value = false
   editingId.value = null
+  editingMaskedKey.value = ''
   resetForm()
-  showApiKey.value = false
   modalVisible.value = true
 }
 
@@ -272,10 +262,11 @@ function openEditModal(m) {
   form.supplier_category = m.supplier_category
   form.model = m.model
   form.base_url = m.base_url
-  form.api_key = m.api_key || ''
+  // 编辑态不回填密钥：接口仅返回脱敏值，留空表示不修改
+  editingMaskedKey.value = m.api_key || ''
+  form.api_key = ''
   form.is_enabled = m.is_enabled
   form.is_default = m.is_default || 0
-  showApiKey.value = false
   modalVisible.value = true
 }
 
@@ -308,7 +299,8 @@ function validateForm() {
     errors.base_url = t('llm.validation.apiUrlRequired')
     valid = false
   }
-  if (!form.api_key.trim()) {
+  // 仅新建时强制填写；编辑留空表示不修改（后端保留原密钥）
+  if (!isEdit.value && !form.api_key.trim()) {
     errors.api_key = t('llm.validation.apiKeyRequired')
     valid = false
   }
@@ -559,24 +551,4 @@ input:checked + .slider {
 input:checked + .slider:before {
   transform: translateX(18px);
 }
-
-/* 带操作按钮的输入框 */
-.input-with-action {
-  position: relative;
-}
-.input-with-action .form-input {
-  padding-right: 60px;
-}
-.input-action {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  cursor: pointer;
-  color: var(--c-primary);
-  font-size: 12px;
-  padding: 2px 6px;
-  user-select: none;
-}
-.input-action:hover { color: var(--c-primary-dark); }
 </style>

@@ -3,6 +3,7 @@ package chat
 import (
 	"errors"
 
+	"aiops/internal/crypto"
 	"aiops/models"
 
 	"gorm.io/gorm"
@@ -18,5 +19,11 @@ func DefaultConfig(db *gorm.DB, modelType string) (*models.LLMConfig, error) {
 		}
 		return nil, err
 	}
+	// API Key 落库为加密值（enc:v1: 前缀），历史明文则原样返回
+	plain, err := crypto.Decrypt(cfg.APIKey)
+	if err != nil {
+		return nil, err
+	}
+	cfg.APIKey = plain
 	return &cfg, nil
 }

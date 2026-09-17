@@ -46,8 +46,7 @@ export default {
     modelPlaceholder: '请输入模型名称，例如：gpt-4o',
     apiUrlPlaceholder: '请输入接口地址，例如：https://api.openai.com/v1',
     apiKeyPlaceholder: '请输入 API Key',
-    show: '显示',
-    hide: '隐藏',
+    apiKeyKeepPlaceholder: '已配置：{masked}，留空则不修改',
     cancel: '取消',
     save: '保存',
     saving: '保存中...'

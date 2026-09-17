@@ -134,13 +134,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onMounted, onActivated, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { fmtTime } from '../mock/data'
 import { getSessions, createSession, deleteSession, getMessages, streamChat } from '../api/chat'
 import { llmConfigApi } from '../api/llmConfig'
 import MarkdownContent from '../components/MarkdownContent.vue'
+
+defineOptions({ name: 'ChatView' })
 
 const { t } = useI18n({ useScope: 'global' })
 
@@ -208,12 +210,29 @@ function isThinkingMessage(msg) {
   return msg.role === 'assistant' && msg.content === '' && isThinking.value
 }
 
+let initPromise = null
 onMounted(() => {
-  loadSessions()
+  // 组件被 KeepAlive 缓存：切走再切回不触发 mounted，会话列表只加载一次
+  initPromise = loadSessions()
   loadDefaultModelName()
+})
+
+onActivated(async () => {
+  // 首次挂载与每次从其他菜单切回都会触发（早于 loadSessions 完成时等待其结果）
+  await initPromise
+  await ensureFreshSession()
   handleRcaParam()
   handleSearchParam()
 })
+
+// 每次进入对话界面默认使用新对话：当前会话已有消息则新建，空会话视为已是新对话
+async function ensureFreshSession() {
+  if (!currentSessionId.value) return
+  const rt = getRuntime(currentSessionId.value)
+  if (rt.loaded && rt.messages.length > 0) {
+    await handleCreateSession()
+  }
+}
 
 async function loadDefaultModelName() {
   try {

@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"aiops/configs"
 	"aiops/controllers"
 	"aiops/internal/agent"
 	"aiops/internal/alerting"
+	"aiops/internal/crypto"
 	"aiops/internal/denoise"
 	"aiops/internal/inspection"
 	"aiops/internal/knowledge"
@@ -20,6 +22,29 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
+
+// migrateLLMKeys 将 llm_config 表中未加密的明文 API Key 加密回写（幂等，每次启动执行）
+func migrateLLMKeys(db *gorm.DB) {
+	var configs []models.LLMConfig
+	if err := db.Find(&configs).Error; err != nil {
+		fmt.Println("扫描 LLM 配置失败:", err)
+		return
+	}
+	for i := range configs {
+		key := configs[i].APIKey
+		if key == "" || strings.HasPrefix(key, crypto.Prefix) {
+			continue
+		}
+		enc, err := crypto.Encrypt(key)
+		if err != nil {
+			fmt.Println("加密 LLM API Key 失败:", err)
+			continue
+		}
+		if err := db.Model(&models.LLMConfig{}).Where("id = ?", configs[i].ID).Update("api_key", enc).Error; err != nil {
+			fmt.Println("回写加密 LLM API Key 失败:", err)
+		}
+	}
+}
 
 // getConfigPath 获取配置文件路径（自动定位到项目根目录）
 func getConfigPath() string {
@@ -94,6 +119,9 @@ func main() {
 
 	// 历史告警规则补齐执行频率默认值（GORM 自动加列后为 0）
 	db.Model(&models.AlertRule{}).Where("eval_interval = 0 OR eval_interval IS NULL").Update("eval_interval", 30)
+
+	// 存量 LLM API Key 明文一次性加密迁移
+	migrateLLMKeys(db)
 
 	if err := models.SeedSysAuth(db); err != nil {
 		fmt.Println("初始化权限失败:", err)
