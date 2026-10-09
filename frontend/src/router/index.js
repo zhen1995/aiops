@@ -73,9 +73,10 @@ router.beforeEach((to, from, next) => {
       next({ path: '/no-permission' })
       return
     }
-    // 有权限但不包含当前路由所需权限，跳转到首页
+    // 有权限但不包含当前路由所需权限：回首页；若当前就在首页（/chat）则无权限页，
+    // 避免重定向到自身导致 Vue Router 无限重定向、页面白屏
     if (!perms.includes(to.meta.auth)) {
-      next({ path: '/chat' })
+      next({ path: to.path === '/chat' ? '/no-permission' : '/chat' })
       return
     }
   }

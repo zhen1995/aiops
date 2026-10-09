@@ -10,7 +10,10 @@ RUN npm ci --registry=${NPM_REGISTRY}
 COPY frontend/ ./
 RUN npm run build
 
-FROM nginx:alpine
+# 锁定版本：nginx 1.31.x 写文件改用 pwritev2（需 Linux 4.6+ 内核），在 CentOS 7（内核 3.10）上
+# 会被 Docker 默认 seccomp 拦截并返回 EPERM，导致 nginx 无法启动（见 nginx/docker-nginx#1059）；
+# 1.28.x 使用 pwritev（Linux 2.6.30+），兼容老内核。不要随意升级主版本。
+FROM nginx:1.28.3-alpine
 COPY --from=build /src/dist /usr/share/nginx/html
 COPY deploy/nginx/default.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
