@@ -4,6 +4,11 @@
 
 An intelligent operations (AIOps) platform for large-scale distributed systems. It unifies multi-source observability data — Prometheus metrics, ELK logs, and Pyroscope profiling — and combines it with LLM-powered agents to deliver conversational querying, alert rule evaluation, alert event management, alert noise reduction, scheduled inspection reports, root cause analysis, and an operations knowledge base.
 
+<p align="center">
+  <img src="example.png" alt="AIOPS platform usage example" width="920">
+</p>
+<p align="center"><em>Usage example: AI chat assistant, dashboard, and alert management.</em></p>
+
 ## Features
 
 - **AI Chat Assistant**: An LLM agent with a Function Calling loop that invokes read-only data source tools (Prometheus / ElasticSearch / Pyroscope). When ops-data keywords are detected, querying data sources is enforced before answering to prevent hallucination.

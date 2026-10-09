@@ -4,6 +4,11 @@
 
 面向大规模分布式系统的智能运维平台：融合 Prometheus 指标、ELK 日志、性能剖析等多源监控数据，结合大模型（LLM）Agent 实现智能对话问答、告警规则评估、告警事件管理、告警降噪、定时巡检报告、根因分析与运维知识库。
 
+<p align="center">
+  <img src="example_zh.png" alt="AIOPS 平台使用示例" width="920">
+</p>
+<p align="center"><em>使用示例：AI 对话助手、总览大盘与告警管理。</em></p>
+
 ## 功能特性
 
 - **AI 对话助手**：基于大模型 Function Calling 循环调用只读数据源工具（Prometheus / ElasticSearch / Pyroscope），命中运维数据关键词时强制先查数据源，防止幻觉。
