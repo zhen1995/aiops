@@ -19,13 +19,20 @@ export default {
     type: 'Type',
     size: 'Size',
     status: 'Status',
+    failReason: 'Failure Reason',
     uploader: 'Uploader',
     uploadTime: 'Uploaded At',
     actions: 'Actions',
     reindex: 'Reindex',
     delete: 'Delete',
+    viewReason: 'View Reason',
     emptyNoMatch: 'No documents match the keyword',
     emptyNoDocs: 'No documents yet. Click the "Upload Document" button in the top right to add one.'
+  },
+  failDialog: {
+    title: 'Indexing Failure Reason',
+    empty: 'No failure reason recorded',
+    close: 'Close'
   },
   status: {
     indexed: 'Indexed',

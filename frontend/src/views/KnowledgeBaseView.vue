@@ -55,6 +55,7 @@
             <th>{{ $t('knowledge.table.type') }}</th>
             <th>{{ $t('knowledge.table.size') }}</th>
             <th>{{ $t('knowledge.table.status') }}</th>
+            <th>{{ $t('knowledge.table.failReason') }}</th>
             <th>{{ $t('knowledge.table.uploader') }}</th>
             <th>{{ $t('knowledge.table.uploadTime') }}</th>
             <th>{{ $t('knowledge.table.actions') }}</th>
@@ -81,6 +82,14 @@
               <span class="status-dot" :class="f.status"></span>
               {{ statusText(f.status) }}
             </td>
+            <td>
+              <button
+                v-if="f.status === 'failed'"
+                class="link-btn"
+                @click="showFailReason(f)"
+              >{{ $t('knowledge.table.viewReason') }}</button>
+              <span v-else class="muted">-</span>
+            </td>
             <td>{{ f.uploader || '-' }}</td>
             <td class="muted">{{ formatTime(f.created_at) }}</td>
             <td>
@@ -91,10 +100,25 @@
             </td>
           </tr>
           <tr v-if="filteredFiles.length === 0">
-            <td colspan="7" class="empty">{{ filterKw ? $t('knowledge.table.emptyNoMatch') : $t('knowledge.table.emptyNoDocs') }}</td>
+            <td colspan="8" class="empty">{{ filterKw ? $t('knowledge.table.emptyNoMatch') : $t('knowledge.table.emptyNoDocs') }}</td>
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <!-- 索引失败原因弹窗 -->
+    <div v-if="failDetail" class="modal-mask" @click.self="failDetail = null">
+      <div class="modal fail-modal" role="dialog" :aria-label="$t('knowledge.failDialog.title')">
+        <div class="modal-header">
+          <h3>{{ $t('knowledge.failDialog.title') }}</h3>
+          <span class="modal-close" role="button" tabindex="0" :aria-label="$t('knowledge.failDialog.close')"
+                @click="failDetail = null" @keydown.enter="failDetail = null">&times;</span>
+        </div>
+        <div class="modal-body">
+          <p class="fail-modal-file">{{ failDetail.name }}</p>
+          <pre class="fail-modal-error">{{ failDetail.error_msg || $t('knowledge.failDialog.empty') }}</pre>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -115,6 +139,18 @@ const router = useRouter()
 const files = ref([])
 const fileInput = ref(null)
 let pollTimer = null
+
+// 索引失败原因弹窗：当前查看的文档对象，null 表示弹窗关闭
+const failDetail = ref(null)
+
+const showFailReason = (doc) => {
+  failDetail.value = doc
+}
+
+const onKeydown = (e) => {
+  if (e.key === 'Escape') failDetail.value = null
+}
+window.addEventListener('keydown', onKeydown)
 
 // 全局搜索落地：/knowledge-base?doc=<文档ID>&q=标题，按关键字过滤并高亮该行
 const highlightDocId = ref('')
@@ -201,6 +237,7 @@ onUnmounted(() => {
     clearInterval(pollTimer)
     pollTimer = null
   }
+  window.removeEventListener('keydown', onKeydown)
 })
 
 const triggerUpload = () => {
@@ -309,5 +346,90 @@ tr.row-highlight td {
   text-align: center;
   color: var(--c-text-3);
   padding: 32px 12px;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  color: var(--c-danger);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link-btn:hover {
+  opacity: 0.8;
+}
+
+.modal-mask {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--c-surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-modal);
+  width: 580px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.modal-header h3 { margin: 0; font-size: 16px; font-weight: 600; }
+
+.modal-close {
+  cursor: pointer;
+  font-size: 24px;
+  color: var(--c-text-3);
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.modal-close:hover { color: var(--c-text); }
+
+.modal-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+}
+
+.fail-modal {
+  width: min(560px, calc(100vw - 48px));
+}
+
+.fail-modal-file {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--c-text-2);
+  word-break: break-all;
+}
+
+.fail-modal-error {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--c-p0-bg);
+  border: 1px solid rgba(201, 59, 59, 0.2);
+  border-radius: 8px;
+  color: var(--c-p0);
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: inherit;
 }
 </style>

@@ -54,7 +54,7 @@ def get_store(qdrant_url: str | None = None) -> VectorStore:
 
 
 @router.post("/index")
-async def index_document(
+def index_document(
     document_id: str = Form(...),
     title: str = Form(...),
     file: UploadFile = File(...),
@@ -63,7 +63,10 @@ async def index_document(
     model: str = Form(...),
     qdrant_url: str = Form(""),
 ):
-    data = await file.read()
+    # 必须是同步 def（而非 async def）：parse/chunk/embedding/upsert 全是同步阻塞调用，
+    # FastAPI 会把 sync 端点放到线程池执行；若写成 async def 会直接卡死事件循环，
+    # 导致 logs/parse、retrieve 等所有请求排队超时。
+    data = file.file.read()
     _check_size(len(data))
     try:
         text = parse_document(file.filename or "", data)

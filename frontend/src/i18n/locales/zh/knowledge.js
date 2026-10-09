@@ -19,13 +19,20 @@ export default {
     type: '类型',
     size: '大小',
     status: '状态',
+    failReason: '失败原因',
     uploader: '上传人',
     uploadTime: '上传时间',
     actions: '操作',
     reindex: '重新索引',
     delete: '删除',
+    viewReason: '查看原因',
     emptyNoMatch: '没有匹配关键字的文档',
     emptyNoDocs: '暂无文档，点击右上角“上传文档”按钮添加'
+  },
+  failDialog: {
+    title: '索引失败原因',
+    empty: '未记录失败原因',
+    close: '关闭'
   },
   status: {
     indexed: '已索引',

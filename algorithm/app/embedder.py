@@ -14,7 +14,10 @@ class Embedder:
 
     def __init__(self, config: EmbedConfig):
         self.config = config
-        self._client = OpenAI(base_url=config.base_url, api_key=config.api_key, timeout=60)
+        # timeout 必须显著小于 Go 端调用本服务的 120s 超时，max_retries 限制重试次数，
+        # 保证 embedding 接口不可达时快速失败并返回真实错误，而不是拖垮整个 uvicorn worker
+        self._client = OpenAI(base_url=config.base_url, api_key=config.api_key,
+                              timeout=30, max_retries=1)
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
         """批量向量化，自动按 BATCH_SIZE 分批，返回与输入等长的向量列表"""

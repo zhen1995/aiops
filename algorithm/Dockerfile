@@ -8,4 +8,5 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -i ${PIP_INDEX_URL} -r requirements.txt
 COPY app ./app
 EXPOSE 9000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "9000"]
+# 2 个 worker：一个 worker 被慢的 embedding 请求占用时，另一个仍可响应日志解析/检索请求
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "9000", "--workers", "2"]
