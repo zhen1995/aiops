@@ -42,7 +42,7 @@ aiops/
 │   ├── src/views/           # 页面视图
 │   └── vite.config.js       # 含 /api → localhost:8080 开发代理
 ├── algorithm/               # Python 算法服务（知识库解析/向量化/检索，可选）
-├── deploy/                  # Docker 部署配套（Nginx 站点配置、MySQL 用户初始化脚本）
+├── deploy/                  # Docker 部署配套（Nginx 站点配置）
 ├── docker-compose.yml       # 全栈一键部署编排（MySQL/后端/前端/算法服务/Qdrant）
 ├── qdrant/                  # Qdrant 向量库独立部署文件（docker-compose.yml + config.yaml）
 ├── nginx.conf               # Nginx 生产部署参考配置

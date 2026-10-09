@@ -2,6 +2,7 @@
 # PIP_INDEX_URL 可通过 --build-arg 覆盖（如海外服务器用 https://pypi.org/simple）
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 FROM python:3.12-slim
+ARG PIP_INDEX_URL
 WORKDIR /srv
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -i ${PIP_INDEX_URL} -r requirements.txt

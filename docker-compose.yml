@@ -10,14 +10,14 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 中设置 MYSQL_ROOT_PASSWORD}
+      # 通过官方机制自动创建业务用户 aiops（授予 aiops 库全部权限），无需自定义初始化脚本
+      MYSQL_USER: aiops
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 中设置 MYSQL_PASSWORD}
       MYSQL_DATABASE: aiops
       TZ: Asia/Shanghai
     volumes:
       # init.sql 幂等（建表 + root/root 管理员/权限/默认通知模板种子），仅首次初始化数据卷时执行
       - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
-      # 创建后端专用的 aiops 数据库用户
-      - ./deploy/docker/02-user.sh:/docker-entrypoint-initdb.d/02-user.sh:ro
       - mysql_data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent || exit 1"]

@@ -1,0 +1,2 @@
+# 防止 Windows 检出/打包时把 LF 转换为 CRLF（sourced 的 shell 脚本带 CRLF 会执行失败）
+*.sh text eol=lf
