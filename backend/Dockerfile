@@ -1,7 +1,11 @@
 # AIOPS Go 后端镜像（多阶段构建）
+# GOPROXY 可通过 --build-arg 覆盖（如海外服务器用 https://proxy.golang.org,direct）
+ARG GOPROXY=https://goproxy.cn,direct
 FROM golang:1.26-alpine AS build
+ARG GOPROXY
 WORKDIR /src
 ENV CGO_ENABLED=0
+ENV GOPROXY=${GOPROXY}
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
