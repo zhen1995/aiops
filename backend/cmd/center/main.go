@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -46,21 +47,29 @@ func migrateLLMKeys(db *gorm.DB) {
 	}
 }
 
-// getConfigPath 获取配置文件路径（自动定位到项目根目录）
-func getConfigPath() string {
+// getConfigPaths 获取候选配置文件路径（按优先级依次尝试）：
+// 1. $AIOPS_CONFIG 显式指定；2. 工作目录相对路径（容器/生产部署）；
+// 3. 编译期源码路径（本地 go run 开发）。
+func getConfigPaths() []string {
+	var paths []string
+	if p := os.Getenv("AIOPS_CONFIG"); p != "" {
+		paths = append(paths, p)
+	}
+	paths = append(paths, filepath.Join("configs", "config.yaml"))
+
 	_, filename, _, _ := runtime.Caller(0)
 	dir := filepath.Dir(filename)
 	dir = filepath.Join(dir, "..", "..")
 	absDir, err := filepath.Abs(dir)
-	if err != nil {
-		panic("获取项目根目录失败: " + err.Error())
+	if err == nil {
+		paths = append(paths, filepath.Join(absDir, "configs", "config.yaml"))
 	}
-	return filepath.Join(absDir, "configs", "config.yaml")
+	return paths
 }
 
 func main() {
 	// 加载配置文件
-	cfg, err := configs.LoadConfig(getConfigPath())
+	cfg, err := configs.LoadConfig(getConfigPaths()...)
 	if err != nil {
 		panic("加载配置文件失败: " + err.Error())
 	}

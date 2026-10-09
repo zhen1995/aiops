@@ -1,0 +1,82 @@
+name: aiops
+
+# AIOPS 智能运维平台 · 全栈一键部署
+# 使用：cp .env.example .env（按需修改密码与端口）→ docker compose up -d --build
+# 访问：http://localhost（默认账号 root / root），随后到「LLM 配置」添加模型
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 中设置 MYSQL_ROOT_PASSWORD}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 中设置 MYSQL_PASSWORD}
+      MYSQL_DATABASE: aiops
+      TZ: Asia/Shanghai
+    volumes:
+      # init.sql 幂等（建表 + root/root 管理员/权限/默认通知模板种子），仅首次初始化数据卷时执行
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      # 创建后端专用的 aiops 数据库用户
+      - ./deploy/docker/02-user.sh:/docker-entrypoint-initdb.d/02-user.sh:ro
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # 不对宿主机暴露 3306，仅容器网络内访问
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      AIOPS_DATABASE_DSN: aiops:${MYSQL_PASSWORD}@tcp(mysql:3306)/aiops?charset=utf8mb4&parseTime=True&loc=Local
+      AIOPS_KNOWLEDGE_PYTHON_BASE_URL: http://analyzer:9000
+      AIOPS_KNOWLEDGE_QDRANT_URL: http://qdrant:6333
+      AIOPS_APP_FRONTEND_BASE_URL: http://localhost:${AIOPS_WEB_PORT:-80}
+    volumes:
+      # 知识库上传文件持久化（容器内 upload_dir 默认为 ./uploads/knowledge）
+      - aiops_uploads:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      analyzer:
+        condition: service_started
+      qdrant:
+        condition: service_started
+    # 不对宿主机暴露 8080，仅经 web(Nginx) 反代访问
+
+  analyzer:
+    build: ./algorithm
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      KB_QDRANT_URL: http://qdrant:6333
+    depends_on:
+      qdrant:
+        condition: service_started
+    # 不对宿主机暴露 9000，仅 backend 容器内访问（服务无鉴权）
+
+  qdrant:
+    image: qdrant/qdrant:v1.11.4
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    # 不对宿主机暴露 6333/6334，控制台无鉴权，仅容器网络内访问
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${AIOPS_WEB_PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  mysql_data:
+  qdrant_data:
+  aiops_uploads:

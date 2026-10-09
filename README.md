@@ -42,10 +42,36 @@ aiops/
 │   ├── src/views/           # 页面视图
 │   └── vite.config.js       # 含 /api → localhost:8080 开发代理
 ├── algorithm/               # Python 算法服务（知识库解析/向量化/检索，可选）
-├── qdrant/                  # Qdrant 向量库部署文件（docker-compose.yml + config.yaml）
+├── deploy/                  # Docker 部署配套（Nginx 站点配置、MySQL 用户初始化脚本）
+├── docker-compose.yml       # 全栈一键部署编排（MySQL/后端/前端/算法服务/Qdrant）
+├── qdrant/                  # Qdrant 向量库独立部署文件（docker-compose.yml + config.yaml）
 ├── nginx.conf               # Nginx 生产部署参考配置
 └── sql/                     # 数据库初始化脚本（含 root 用户种子）
 ```
+
+## Docker 一键部署（推荐）
+
+前置：Docker 与 Docker Compose 插件。无需安装 Go/Node.js/Python/MySQL，一条命令拉起全栈（MySQL + Go 后端 + 前端 Nginx + Python 算法服务 + Qdrant）：
+
+```bash
+git clone https://github.com/<你的账号>/aiops.git
+cd aiops
+cp .env.example .env          # 按需修改 MySQL 密码与对外端口
+docker compose up -d --build
+```
+
+浏览器访问 `http://localhost`（若修改了 `AIOPS_WEB_PORT` 则对应端口），使用默认账号 `root / root` 登录，随后到「LLM 配置」添加对话模型（知识库功能还需添加向量化模型并设为默认，见下文「可选：启用运维知识库」）。
+
+| 说明 | 内容 |
+|------|------|
+| 默认账号 | `root / root`（来自 `sql/init.sql` 种子，首登后请立即修改） |
+| 数据持久化 | Docker 卷 `mysql_data`（元数据）、`qdrant_data`（向量）、`aiops_uploads`（知识库上传文件） |
+| 对外端口 | 仅 `web` 容器的 80（可用 `AIOPS_WEB_PORT` 修改）；8080/9000/6333/3306 不映射到宿主机 |
+| 常用变量 | `MYSQL_ROOT_PASSWORD`、`MYSQL_PASSWORD`、`AIOPS_WEB_PORT`（见 `.env.example`） |
+| 升级 | `docker compose up -d --build`（后端 AutoMigrate 自动加列；向量化模型维度变更需重建 Qdrant，见知识库章节） |
+| 卸载 | `docker compose down`；连同数据卷一起删除： `docker compose down -v` |
+
+> ⚠️ MySQL 初始化脚本（建表 + 默认账号种子）仅在数据卷首次创建时执行；已存在数据卷时修改 `.env` 中的密码不会生效，需要 `docker compose down -v` 重建（会清空数据）。
 
 ## 快速开始
 

@@ -1,0 +1,11 @@
+.git
+.idea
+.kimi-code
+.superpowers
+**/node_modules
+frontend/dist
+backend/center.exe
+backend/uploads
+algorithm/.venv
+**/__pycache__
+**/.pytest_cache
