@@ -1,6 +1,7 @@
 package models
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,6 +20,13 @@ const SystemConfigKeyFrontendBaseURL = "frontend_base_url"
 
 // DefaultFrontendBaseURL system_configs 无记录时的回退默认值
 const DefaultFrontendBaseURL = "http://localhost:5173"
+
+// SystemConfigKeyLogRetentionDays system_configs 中日志分析数据保留天数的键名
+// （日志分析的分析结果按此天数定期清理，防止相关表无限增长）
+const SystemConfigKeyLogRetentionDays = "log_analysis_retention_days"
+
+// DefaultLogRetentionDays 日志分析数据保留天数默认值（1 天）
+const DefaultLogRetentionDays = 1
 
 // SystemConfig 系统配置（key-value 存储）
 type SystemConfig struct {
@@ -50,8 +58,9 @@ func SeedSystemConfig(db *gorm.DB, qdrantURL, frontendBaseURL string) error {
 		frontendBaseURL = DefaultFrontendBaseURL
 	}
 	for key, value := range map[string]string{
-		SystemConfigKeyQdrantURL:       qdrantURL,
-		SystemConfigKeyFrontendBaseURL: frontendBaseURL,
+		SystemConfigKeyQdrantURL:         qdrantURL,
+		SystemConfigKeyFrontendBaseURL:   frontendBaseURL,
+		SystemConfigKeyLogRetentionDays:  fmt.Sprintf("%d", DefaultLogRetentionDays),
 	} {
 		var count int64
 		if err := db.Model(&SystemConfig{}).Where("`key` = ?", key).Count(&count).Error; err != nil {

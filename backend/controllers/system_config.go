@@ -2,8 +2,10 @@ package controllers
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,10 +25,24 @@ func NewSystemConfigController(db *gorm.DB) *SystemConfigController {
 	return &SystemConfigController{DB: db}
 }
 
-// systemConfigPayload 请求/响应体：字段为空字符串表示未传
+// systemConfigPayload 请求/响应体：字段为空字符串/0 表示未传
 type systemConfigPayload struct {
-	QdrantURL       string `json:"qdrant_url"`
-	FrontendBaseURL string `json:"frontend_base_url"`
+	QdrantURL        string `json:"qdrant_url"`
+	FrontendBaseURL  string `json:"frontend_base_url"`
+	LogRetentionDays int    `json:"log_analysis_retention_days"`
+}
+
+// getLogRetentionDays 读取日志分析保留天数：无记录/非法值时回退默认值，并限制在 1~365 天
+func (c *SystemConfigController) getLogRetentionDays() int {
+	raw := models.GetSystemConfigValue(c.DB, models.SystemConfigKeyLogRetentionDays, fmt.Sprintf("%d", models.DefaultLogRetentionDays))
+	days, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || days < 1 {
+		return models.DefaultLogRetentionDays
+	}
+	if days > 365 {
+		return 365
+	}
+	return days
 }
 
 // getConfigValue 从 system_configs 读取指定 key，无记录或读错误时回退默认值
@@ -35,11 +51,12 @@ func (c *SystemConfigController) getConfigValue(key, fallback string) string {
 }
 
 // Get 获取系统配置
-// GET /api/system-config → {"qdrant_url": "...", "frontend_base_url": "..."}
+// GET /api/system-config → {"qdrant_url": "...", "frontend_base_url": "...", "log_analysis_retention_days": 1}
 func (c *SystemConfigController) Get(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{
-		"qdrant_url":        c.getConfigValue(models.SystemConfigKeyQdrantURL, models.DefaultQdrantURL),
-		"frontend_base_url": c.getConfigValue(models.SystemConfigKeyFrontendBaseURL, models.DefaultFrontendBaseURL),
+		"qdrant_url":                  c.getConfigValue(models.SystemConfigKeyQdrantURL, models.DefaultQdrantURL),
+		"frontend_base_url":           c.getConfigValue(models.SystemConfigKeyFrontendBaseURL, models.DefaultFrontendBaseURL),
+		"log_analysis_retention_days": c.getLogRetentionDays(),
 	}})
 }
 
@@ -67,6 +84,13 @@ func (c *SystemConfigController) Update(ctx *gin.Context) {
 		}
 		updates[models.SystemConfigKeyFrontendBaseURL] = url
 	}
+	if payload.LogRetentionDays != 0 {
+		if payload.LogRetentionDays < 1 || payload.LogRetentionDays > 365 {
+			ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "日志分析保留天数必须是 1~365 之间的整数"})
+			return
+		}
+		updates[models.SystemConfigKeyLogRetentionDays] = strconv.Itoa(payload.LogRetentionDays)
+	}
 	if len(updates) == 0 {
 		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "没有需要保存的配置项"})
 		return
@@ -93,8 +117,9 @@ func (c *SystemConfigController) Update(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"code": 0, "data": gin.H{
-		"qdrant_url":        c.getConfigValue(models.SystemConfigKeyQdrantURL, models.DefaultQdrantURL),
-		"frontend_base_url": c.getConfigValue(models.SystemConfigKeyFrontendBaseURL, models.DefaultFrontendBaseURL),
+		"qdrant_url":                  c.getConfigValue(models.SystemConfigKeyQdrantURL, models.DefaultQdrantURL),
+		"frontend_base_url":           c.getConfigValue(models.SystemConfigKeyFrontendBaseURL, models.DefaultFrontendBaseURL),
+		"log_analysis_retention_days": c.getLogRetentionDays(),
 	}})
 }
 

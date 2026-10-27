@@ -14,5 +14,9 @@ export const alertRuleApi = {
   create: (payload) => request('', { method: 'POST', body: payload }),
   update: (id, payload) => request(`/${id}`, { method: 'PUT', body: payload }),
   remove: (id) => request(`/${id}`, { method: 'DELETE' }),
+  // 批量删除：{ ids: [] }
+  batchDelete: (ids) => request('/batch', { method: 'DELETE', body: { ids } }),
+  // 克隆到其他业务分组：{ ids: [], group_id }
+  clone: (payload) => request('/clone', { method: 'POST', body: payload }),
   toggle: (id) => request(`/${id}/toggle`, { method: 'PATCH' })
 }

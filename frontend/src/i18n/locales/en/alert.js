@@ -122,9 +122,17 @@ export default {
     enabledOn: 'Enabled',
     enabledOff: 'Disabled',
     edit: 'Edit',
+    clone: 'Clone',
     enable: 'Enable',
     disable: 'Disable',
     delete: 'Delete',
+    more: 'More',
+    batchDelete: 'Delete Alert Rules',
+    cloneToGroup: 'Clone to Another Group',
+    cloneTarget: 'Target Group',
+    cloneHint: 'Clone the {count} selected rules to the target group ("-copy" suffix is appended on name conflicts)',
+    selectFirst: 'Please select alert rules first',
+    confirmBatchDelete: 'Delete the {count} selected alert rules?',
     activeBadge: '{count} firing alerts',
     emptyNoMatch: 'No alert rules match the keyword',
     empty: 'No alert rules yet. Click "Add Rule" to create one',
@@ -184,7 +192,9 @@ export default {
       createFailed: 'Create failed: {msg}',
       toggleFailed: 'Failed to toggle status: {msg}',
       confirmDelete: 'Delete alert rule "{name}"?',
-      deleteFailed: 'Delete failed: {msg}'
+      deleteFailed: 'Delete failed: {msg}',
+      batchDeleteFailed: 'Batch delete failed: {msg}',
+      cloneFailed: 'Clone failed: {msg}'
     }
   }
 }

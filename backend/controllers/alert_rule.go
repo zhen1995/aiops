@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -124,8 +125,8 @@ func (c *AlertRuleController) Get(ctx *gin.Context) {
 	})
 }
 
-// validateRule 校验规则必填字段
-func (c *AlertRuleController) validateRule(rule *models.AlertRule) error {
+// validateRule 校验规则必填字段；excludeID 用于更新时排除自身做名称唯一性校验
+func (c *AlertRuleController) validateRule(rule *models.AlertRule, excludeID string) error {
 	if rule.Name == "" {
 		return errors.New("规则名称不能为空")
 	}
@@ -150,6 +151,18 @@ func (c *AlertRuleController) validateRule(rule *models.AlertRule) error {
 			return errors.New("业务分组不存在")
 		}
 	}
+	// 规则名称唯一性校验（软删除记录不占用名称）
+	var dup int64
+	q := c.DB.Model(&models.AlertRule{}).Where("name = ?", rule.Name)
+	if excludeID != "" {
+		q = q.Where("id <> ?", excludeID)
+	}
+	if err := q.Count(&dup).Error; err != nil {
+		return errors.New("校验规则名称失败")
+	}
+	if dup > 0 {
+		return errors.New("规则名称已存在")
+	}
 	return nil
 }
 
@@ -165,7 +178,7 @@ func (c *AlertRuleController) Create(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.validateRule(&rule); err != nil {
+	if err := c.validateRule(&rule, ""); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
 			"message": err.Error(),
@@ -221,7 +234,7 @@ func (c *AlertRuleController) Update(ctx *gin.Context) {
 		return
 	}
 
-	if err := c.validateRule(&updateData); err != nil {
+	if err := c.validateRule(&updateData, id); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"code":    400,
 			"message": err.Error(),
@@ -267,6 +280,112 @@ func (c *AlertRuleController) Update(ctx *gin.Context) {
 		"code": 0,
 		"data": c.attachGroupNames([]models.AlertRule{rule})[0],
 	})
+}
+
+// BatchDelete 批量删除告警规则（软删除）：逐条停止评估并将未恢复事件置为已恢复
+func (c *AlertRuleController) BatchDelete(ctx *gin.Context) {
+	var payload struct {
+		IDs []string `json:"ids" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&payload); err != nil || len(payload.IDs) == 0 {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误：ids 不能为空"})
+		return
+	}
+
+	deleted := 0
+	for _, id := range payload.IDs {
+		var rule models.AlertRule
+		if err := c.DB.First(&rule, "id = ?", id).Error; err != nil {
+			continue
+		}
+		if err := c.DB.Delete(&rule).Error; err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除失败", "error": err.Error()})
+			return
+		}
+		c.engine.Remove(id)
+		deleted++
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功", "data": gin.H{"deleted": deleted}})
+}
+
+// CloneToGroup 将选中的告警规则克隆到指定业务分组：逐条复制为新规则，名称冲突时自动追加“-副本”后缀
+func (c *AlertRuleController) CloneToGroup(ctx *gin.Context) {
+	var payload struct {
+		IDs     []string `json:"ids" binding:"required"`
+		GroupID string   `json:"group_id" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&payload); err != nil || len(payload.IDs) == 0 {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误：ids 与 group_id 不能为空"})
+		return
+	}
+
+	// 目标业务分组必须存在
+	var group models.BusinessGroup
+	if err := c.DB.First(&group, "id = ?", payload.GroupID).Error; err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "目标业务分组不存在"})
+		return
+	}
+
+	// 生成未被占用的规则名称：原名 → 原名-副本 → 原名-副本2 …
+	uniqueName := func(base string) (string, error) {
+		candidate := base + "-副本"
+		for i := 2; ; i++ {
+			var count int64
+			if err := c.DB.Model(&models.AlertRule{}).Where("name = ?", candidate).Count(&count).Error; err != nil {
+				return "", err
+			}
+			if count == 0 {
+				return candidate, nil
+			}
+			if i > 99 {
+				return "", errors.New("无法生成可用副本名称（重名过多）")
+			}
+			candidate = fmt.Sprintf("%s-副本%d", base, i)
+		}
+	}
+
+	cloned := 0
+	var firstErr error
+	for _, id := range payload.IDs {
+		var src models.AlertRule
+		if err := c.DB.First(&src, "id = ?", id).Error; err != nil {
+			continue
+		}
+		name, err := uniqueName(src.Name)
+		if err != nil {
+			firstErr = err
+			break
+		}
+		copy := models.AlertRule{
+			Name:                  name,
+			PromQL:                src.PromQL,
+			Severity:              src.Severity,
+			Duration:              src.Duration,
+			EvalInterval:          src.EvalInterval,
+			GroupID:               payload.GroupID,
+			NotifyRuleID:          src.NotifyRuleID,
+			RepeatIntervalMinutes: src.RepeatIntervalMinutes,
+			MaxSendCount:          src.MaxSendCount,
+			IsEnabled:             src.IsEnabled,
+		}
+		if err := c.DB.Create(&copy).Error; err != nil {
+			firstErr = err
+			break
+		}
+		// 启用状态的副本直接纳入评估引擎
+		if copy.IsEnabled == 1 {
+			c.engine.Update(copy)
+		}
+		cloned++
+	}
+
+	if firstErr != nil && cloned == 0 {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "克隆失败", "error": firstErr.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"code": 0, "message": "克隆成功", "data": gin.H{"cloned": cloned}})
 }
 
 // Delete 删除告警规则（软删除）

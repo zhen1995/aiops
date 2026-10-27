@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,10 +19,10 @@ import (
 )
 
 const (
-	defaultInterval = 5 * time.Minute    // 默认分析间隔
-	pythonBatchSize = 500                // 单次调用 Python 的日志批大小
-	maxSamples      = 3                  // 模板保留的最近样本条数
-	statRetention   = 7 * 24 * time.Hour // 分桶统计保留时长
+	defaultInterval = 5 * time.Minute // 默认分析间隔
+	pythonBatchSize = 500             // 单次调用 Python 的日志批大小
+	maxSamples      = 3               // 模板保留的最近样本条数
+	maxRetentionDays = 365            // 日志分析数据保留天数上限
 
 	spikeMultiple  = 3.0 // spike：当前 >= 上一窗口 × 3
 	risingMultiple = 1.5 // rising：当前 >= 上一窗口 × 1.5
@@ -137,7 +138,7 @@ func (a *Analyzer) runRound() {
 		}
 	}
 
-	a.cleanupStats(ctx)
+	a.cleanupExpired(ctx)
 }
 
 // logEntry 单条拉取到的日志：原文 + 时间 + 级别提示
@@ -503,13 +504,47 @@ func (a *Analyzer) saveCursor(serviceID string, t time.Time) {
 	}
 }
 
-// cleanupStats 清理 7 天前的分桶统计
-func (a *Analyzer) cleanupStats(ctx context.Context) {
-	deadline := time.Now().Add(-statRetention)
-	if err := a.db.WithContext(ctx).
+// retentionDays 读取日志分析保留天数配置（system_configs），非法值回退默认 1 天并限制上限
+func (a *Analyzer) retentionDays() int {
+	raw := models.GetSystemConfigValue(a.db, models.SystemConfigKeyLogRetentionDays, fmt.Sprintf("%d", models.DefaultLogRetentionDays))
+	days, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || days < 1 {
+		return models.DefaultLogRetentionDays
+	}
+	if days > maxRetentionDays {
+		return maxRetentionDays
+	}
+	return days
+}
+
+// cleanupExpired 按保留天数定期清理过期的日志分析数据，防止相关表无限增长：
+// 分桶统计按 bucket_start、聚类/模板按 last_seen_at 早于截止时间的记录删除
+func (a *Analyzer) cleanupExpired(ctx context.Context) {
+	days := a.retentionDays()
+	deadline := time.Now().AddDate(0, 0, -days)
+
+	if res := a.db.WithContext(ctx).
 		Where("bucket_start < ?", deadline).
-		Delete(&models.LogClusterStat{}).Error; err != nil {
-		log.Printf("[日志分析] 清理过期分桶失败: %v", err)
+		Delete(&models.LogClusterStat{}); res.Error != nil {
+		log.Printf("[日志分析] 清理过期分桶失败: %v", res.Error)
+	} else if res.RowsAffected > 0 {
+		log.Printf("[日志分析] 清理 %d 天前过期分桶 %d 条", days, res.RowsAffected)
+	}
+
+	if res := a.db.WithContext(ctx).
+		Where("last_seen_at < ?", deadline).
+		Delete(&models.LogCluster{}); res.Error != nil {
+		log.Printf("[日志分析] 清理过期聚类失败: %v", res.Error)
+	} else if res.RowsAffected > 0 {
+		log.Printf("[日志分析] 清理 %d 天前过期聚类 %d 条", days, res.RowsAffected)
+	}
+
+	if res := a.db.WithContext(ctx).
+		Where("last_seen_at < ?", deadline).
+		Delete(&models.LogTemplate{}); res.Error != nil {
+		log.Printf("[日志分析] 清理过期模板失败: %v", res.Error)
+	} else if res.RowsAffected > 0 {
+		log.Printf("[日志分析] 清理 %d 天前过期模板 %d 条", days, res.RowsAffected)
 	}
 }
 

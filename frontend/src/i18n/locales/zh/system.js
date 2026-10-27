@@ -13,6 +13,12 @@ export default {
     urlLabel: '前端地址',
     urlPlaceholder: '例如：http://localhost:5173'
   },
+  logRetention: {
+    title: '日志分析数据保留',
+    sub: '日志分析的分析结果按保留天数定期清理，防止数据库表无限增长',
+    daysLabel: '保留天数',
+    daysHint: '默认保留 1 天，可设置 1~365 天；超期的分桶统计、聚类与模板将被自动删除'
+  },
   form: {
     qdrantUrl: 'Qdrant 地址',
     qdrantUrlPlaceholder: '例如：http://localhost:6333'
@@ -41,6 +47,7 @@ export default {
     testFailed: '测试失败：{message}',
     urlRequired: '请输入 Qdrant 地址',
     frontendUrlRequired: '请输入前端访问地址',
-    frontendUrlInvalid: '前端访问地址必须以 http:// 或 https:// 开头'
+    frontendUrlInvalid: '前端访问地址必须以 http:// 或 https:// 开头',
+    logRetentionInvalid: '保留天数必须是 1~365 之间的整数'
   }
 }

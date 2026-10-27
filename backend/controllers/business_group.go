@@ -67,6 +67,31 @@ func (c *BusinessGroupController) validateGroupName(name string, excludeID strin
 	return nil
 }
 
+// validateParent 校验父分组：存在且未删除；selfID 非空时还需保证 parentID 不是自身或其子孙（防成环）
+func (c *BusinessGroupController) validateParent(parentID string, selfID string) error {
+	if parentID == "" {
+		return nil
+	}
+	var parent models.BusinessGroup
+	if err := c.DB.First(&parent, "id = ?", parentID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("父分组不存在")
+		}
+		return err
+	}
+	for cur := parentID; cur != ""; {
+		if cur == selfID {
+			return errors.New("父分组不能是自身或其子分组")
+		}
+		var g models.BusinessGroup
+		if err := c.DB.Select("parent_id").First(&g, "id = ?", cur).Error; err != nil {
+			break
+		}
+		cur = g.ParentID
+	}
+	return nil
+}
+
 // Create 创建业务分组
 func (c *BusinessGroupController) Create(ctx *gin.Context) {
 	var group models.BusinessGroup
@@ -75,7 +100,12 @@ func (c *BusinessGroupController) Create(ctx *gin.Context) {
 		return
 	}
 	group.Name = strings.TrimSpace(group.Name)
+	group.ParentID = strings.TrimSpace(group.ParentID)
 	if err := c.validateGroupName(group.Name, ""); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	if err := c.validateParent(group.ParentID, ""); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
 	}
@@ -86,7 +116,7 @@ func (c *BusinessGroupController) Create(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"code": 0, "data": group})
 }
 
-// Update 重命名业务分组
+// Update 重命名业务分组 / 调整父分组
 func (c *BusinessGroupController) Update(ctx *gin.Context) {
 	id := ctx.Param("id")
 
@@ -101,7 +131,8 @@ func (c *BusinessGroupController) Update(ctx *gin.Context) {
 	}
 
 	var updateData struct {
-		Name string `json:"name"`
+		Name     string  `json:"name"`
+		ParentID *string `json:"parent_id"` // 传 null/缺省表示不修改父分组；传 "" 表示移到顶级
 	}
 	if err := ctx.ShouldBindJSON(&updateData); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误", "error": err.Error()})
@@ -109,20 +140,32 @@ func (c *BusinessGroupController) Update(ctx *gin.Context) {
 	}
 
 	name := strings.TrimSpace(updateData.Name)
+	if name == "" {
+		name = group.Name
+	}
+	parentID := group.ParentID
+	if updateData.ParentID != nil {
+		parentID = strings.TrimSpace(*updateData.ParentID)
+	}
 	if err := c.validateGroupName(name, id); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
 	}
+	if err := c.validateParent(parentID, id); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
 
-	if err := c.DB.Model(&group).Update("name", name).Error; err != nil {
+	if err := c.DB.Model(&group).Updates(map[string]interface{}{"name": name, "parent_id": parentID}).Error; err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新业务分组失败", "error": err.Error()})
 		return
 	}
 	group.Name = name
+	group.ParentID = parentID
 	ctx.JSON(http.StatusOK, gin.H{"code": 0, "data": group})
 }
 
-// Delete 删除业务分组（软删除）：先将该分组下告警规则的 group_id 置空，避免悬空引用
+// Delete 删除业务分组（软删除）：子分组上移到被删分组的父级，再将该分组下告警规则的 group_id 置空，避免悬空引用
 func (c *BusinessGroupController) Delete(ctx *gin.Context) {
 	id := ctx.Param("id")
 
@@ -133,6 +176,12 @@ func (c *BusinessGroupController) Delete(ctx *gin.Context) {
 			return
 		}
 		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询业务分组失败", "error": err.Error()})
+		return
+	}
+
+	// 子分组上移一级，挂在被删分组的父级下
+	if err := c.DB.Model(&models.BusinessGroup{}).Where("parent_id = ?", id).Update("parent_id", group.ParentID).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "迁移子分组失败", "error": err.Error()})
 		return
 	}
 

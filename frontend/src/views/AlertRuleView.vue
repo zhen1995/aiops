@@ -1,136 +1,238 @@
 <template>
   <div>
-    <PageHeader :title="$t('alert.rules.title')" :desc="$t('alert.rules.desc')">
-      <button class="btn btn-primary" @click="openCreateModal" :disabled="loading">+ {{ $t('alert.rules.addRule') }}</button>
-    </PageHeader>
+    <PageHeader :title="$t('alert.rules.title')" :desc="$t('alert.rules.desc')" />
 
-    <div class="card">
-      <div class="card-head-flex">
-        <div>
-          <h3 class="card-title">{{ $t('alert.rules.listTitle') }}</h3>
-          <p class="card-sub">{{ $t('alert.rules.listSub') }}</p>
+    <div class="page-split">
+      <!-- 左侧：业务分组树面板 -->
+      <aside class="card group-panel">
+        <div class="gp-head">
+          <span class="gp-title">{{ $t('group.title') }}</span>
+          <button class="gp-add" :title="$t('group.modal.createTitle')" @click="openGroupModal">+</button>
         </div>
-        <div class="toolbar-right">
-          <select v-model="filterGroupId" class="form-input group-filter" @change="reloadFirstPage">
-            <option value="">{{ $t('alert.rules.filterAllGroups') }}</option>
-            <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
-          </select>
-          <span v-if="filterKw" class="filter-tag">
-            {{ $t('alert.rules.keyword', { kw: filterKw }) }}
-            <em @click="clearKeyword">×</em>
-          </span>
-          <button class="btn btn-sm" @click="loadData" :disabled="loading">
-            {{ loading ? $t('alert.rules.loading') : $t('alert.rules.refresh') }}
-          </button>
+        <div class="gp-search">
+          <input
+            v-model="groupKeyword"
+            class="gp-search-input"
+            :placeholder="$t('group.panel.searchPlaceholder')"
+          />
         </div>
-      </div>
-      <div class="table-scroll">
-      <table class="table rules-table">
-        <thead>
-          <tr>
-            <th class="col-status">{{ $t('alert.rules.colStatus') }}</th>
-            <th>{{ $t('alert.rules.colRuleName') }}</th>
-            <th>{{ $t('alert.rules.colGroup') }}</th>
-            <th>{{ $t('alert.rules.colSeverity') }}</th>
-            <th>PromQL</th>
-            <th>{{ $t('alert.rules.colNotifyRule') }}</th>
-            <th>{{ $t('alert.rules.colEnabled') }}</th>
-            <th>{{ $t('alert.rules.colCreatedAt') }}</th>
-            <th>{{ $t('alert.rules.colActions') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="rule in rules" :key="rule.id">
-            <td class="col-status">
+        <div class="gp-tree">
+          <div class="gp-node" :class="{ active: !filterGroupId }" @click="selectGroup('')">
+            <span class="gp-arrow gp-arrow-spacer" />
+            <span class="gp-label">{{ $t('group.panel.allRules') }}</span>
+            <span v-if="total > 0" class="gp-count">{{ total }}</span>
+          </div>
+
+          <template v-for="g in treeFlat" :key="g.id">
+            <div
+              class="gp-node"
+              :class="{ active: filterGroupId === g.id }"
+              :style="{ paddingLeft: 8 + g.depth * 16 + 'px' }"
+              @click="selectGroup(g.id)"
+            >
               <span
-                class="status-icon"
-                :class="ruleStatusClass(rule)"
-                :title="ruleStatusTitle(rule)"
-                @click="openEventsModal(rule)"
-              >
-                <template v-if="activeCount(rule.id) > 0">
-                  <span class="status-dot status-alert">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                      <path d="M12 2L1 21h22L12 2zm0 6l7.53 13H4.47L12 8zm-1 5v4h2v-4h-2zm0 5v2h2v-2h-2z"/>
-                    </svg>
-                  </span>
-                  <span class="status-badge" :title="$t('alert.rules.activeBadge', { count: activeCount(rule.id) })">{{ activeCount(rule.id) }}</span>
-                </template>
-                <template v-else>
-                  <span class="status-dot status-ok">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                    </svg>
-                  </span>
-                </template>
-              </span>
-            </td>
-            <td><b>{{ rule.name }}</b></td>
-            <td>
-              <span v-if="rule.group_name" class="group-chip">{{ rule.group_name }}</span>
-              <span v-else class="muted">—</span>
-            </td>
-            <td>
-              <LevelTag :level="severityLevel(rule.severity)">
-                {{ severityText(rule.severity) }}
-              </LevelTag>
-            </td>
-            <td class="mono" :title="rule.prom_ql">{{ rule.prom_ql || '-' }}</td>
-            <td>
-              <template v-if="rule.notify_rule_id">
-                <span class="notify-link">{{ (notifyRules.find(nr => nr.id === rule.notify_rule_id) || {}).name || rule.notify_rule_id }}</span>
-              </template>
-              <span v-else class="muted">—</span>
-            </td>
-            <td>
-              <LevelTag :level="rule.is_enabled === 1 ? 'running' : 'info'">
-                {{ rule.is_enabled === 1 ? $t('alert.rules.enabledOn') : $t('alert.rules.enabledOff') }}
-              </LevelTag>
-            </td>
-            <td class="muted col-time">{{ fmtTime(rule.created_at) }}</td>
-            <td>
-              <div class="ops">
-                <button class="btn btn-sm" @click="openEditModal(rule)">{{ $t('alert.rules.edit') }}</button>
-                <button class="btn btn-sm" :class="rule.is_enabled === 1 ? '' : 'btn-primary'" @click="toggleEnabled(rule)">
-                  {{ rule.is_enabled === 1 ? $t('alert.rules.disable') : $t('alert.rules.enable') }}
-                </button>
-                <button class="btn btn-sm btn-danger" @click="deleteRule(rule)">{{ $t('alert.rules.delete') }}</button>
-              </div>
-            </td>
-          </tr>
-          <tr v-if="!loading && rules.length === 0">
-            <td colspan="9" class="empty-row">{{ filterKw ? $t('alert.rules.emptyNoMatch') : $t('alert.rules.empty') }}</td>
-          </tr>
-          <tr v-if="loading">
-            <td colspan="9" class="empty-row">{{ $t('alert.rules.loading') }}</td>
-          </tr>
-        </tbody>
-      </table>
-      </div>
+                v-if="g.hasChildren"
+                class="gp-arrow"
+                @click.stop="toggleExpand(g.id)"
+              >{{ isExpanded(g.id) ? '▾' : '▸' }}</span>
+              <span v-else class="gp-arrow gp-arrow-spacer" />
 
-      <!-- 分页栏 -->
-      <div class="pagination" v-if="total > 0">
-        <span class="pager-total">{{ $t('alert.rules.pager.total', { total }) }}</span>
-        <div class="pager-pages">
-          <button class="pager-btn" :disabled="page === 1 || loading" @click="changePage(page - 1)">‹</button>
-          <button
-            v-for="(p, idx) in pageNumbers"
-            :key="idx"
-            class="pager-btn"
-            :class="{ active: p === page }"
-            :disabled="p === '…'"
-            @click="typeof p === 'number' && changePage(p)"
-          >{{ p }}</button>
-          <button class="pager-btn" :disabled="page >= totalPages || loading" @click="changePage(page + 1)">›</button>
+              <input
+                v-if="editingGroupId === g.id"
+                v-model="editingName"
+                class="gp-rename-input"
+                maxlength="128"
+                @click.stop
+                @keyup.enter="commitRename"
+                @keyup.esc="cancelRename"
+                @blur="commitRename"
+                v-focus
+              />
+              <span v-else class="gp-label" :title="g.name">{{ g.name }}</span>
+
+              <span v-if="editingGroupId !== g.id" class="gp-count" v-show="g.rule_count > 0">{{ g.rule_count }}</span>
+
+              <span v-if="editingGroupId !== g.id" class="gp-ops">
+                <button class="gp-op" :title="$t('group.edit')" @click.stop="startRename(g)">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                  </svg>
+                </button>
+                <button class="gp-op gp-op-danger" :title="$t('group.delete')" @click.stop="deleteGroup(g)">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+                    <path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                  </svg>
+                </button>
+              </span>
+            </div>
+          </template>
+
+          <div v-if="!groupLoading && groups.length === 0" class="gp-hint">{{ $t('group.panel.empty') }}</div>
+          <div v-else-if="groupKeyword && treeFlat.length === 0" class="gp-hint">{{ $t('group.panel.noMatch') }}</div>
+          <div v-if="groupLoading" class="gp-hint">{{ $t('group.loading') }}</div>
         </div>
-        <select v-model.number="limit" class="pager-size" @change="changeLimit">
-          <option v-for="n in [10, 20, 50, 100]" :key="n" :value="n">{{ $t('alert.rules.pager.perPage', { n }) }}</option>
-        </select>
-        <span class="pager-jump">
-          {{ $t('alert.rules.pager.jumpTo') }}
-          <input v-model.number="jumpTo" type="number" min="1" :max="totalPages" @keyup.enter="jumpToPage" />
-          {{ $t('alert.rules.pager.pageUnit') }}
-        </span>
+      </aside>
+
+      <!-- 右侧：规则列表 -->
+      <div class="card rules-card">
+        <div class="card-head-flex">
+          <div>
+            <h3 class="card-title">{{ $t('alert.rules.listTitle') }}</h3>
+            <p class="card-sub">{{ $t('alert.rules.listSub') }}</p>
+          </div>
+          <div class="toolbar-right">
+            <span v-if="currentGroup" class="filter-tag">
+              {{ $t('group.panel.filtering', { name: currentGroup.name }) }}
+              <em @click="selectGroup('')">×</em>
+            </span>
+            <span v-if="filterKw" class="filter-tag">
+              {{ $t('alert.rules.keyword', { kw: filterKw }) }}
+              <em @click="clearKeyword">×</em>
+            </span>
+            <button class="btn btn-sm" @click="loadData" :disabled="loading">
+              {{ loading ? $t('alert.rules.loading') : $t('alert.rules.refresh') }}
+            </button>
+            <button class="btn btn-primary btn-sm" @click="openCreateModal" :disabled="loading">
+              + {{ $t('alert.rules.addRule') }}
+            </button>
+            <div class="more-wrap">
+              <button class="btn btn-sm" @click="moreOpen = !moreOpen">
+                {{ $t('alert.rules.more') }} ▾
+              </button>
+              <div v-if="moreOpen" class="more-mask" @click="moreOpen = false"></div>
+              <div v-if="moreOpen" class="more-menu">
+                <div
+                  class="more-item"
+                  :class="{ disabled: selectedCount === 0 }"
+                  @click="onBatchDelete"
+                >{{ $t('alert.rules.batchDelete') }}</div>
+                <div
+                  class="more-item"
+                  :class="{ disabled: selectedCount === 0 }"
+                  @click="onOpenCloneToGroup"
+                >{{ $t('alert.rules.cloneToGroup') }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="table-scroll">
+        <table class="table rules-table">
+          <thead>
+            <tr>
+              <th class="col-check"><input type="checkbox" :checked="allChecked" @change="toggleSelectAll" /></th>
+              <th class="col-status">{{ $t('alert.rules.colStatus') }}</th>
+              <th>{{ $t('alert.rules.colRuleName') }}</th>
+              <th>{{ $t('alert.rules.colGroup') }}</th>
+              <th>{{ $t('alert.rules.colSeverity') }}</th>
+              <th>PromQL</th>
+              <th>{{ $t('alert.rules.colNotifyRule') }}</th>
+              <th>{{ $t('alert.rules.colEnabled') }}</th>
+              <th>{{ $t('alert.rules.colCreatedAt') }}</th>
+              <th>{{ $t('alert.rules.colActions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="rule in rules" :key="rule.id">
+              <td class="col-check"><input type="checkbox" :checked="selectedIds.has(rule.id)" @change="toggleSelect(rule)" /></td>
+              <td class="col-status">
+                <span
+                  class="status-icon"
+                  :class="ruleStatusClass(rule)"
+                  :title="ruleStatusTitle(rule)"
+                  @click="openEventsModal(rule)"
+                >
+                  <template v-if="activeCount(rule.id) > 0">
+                    <span class="status-dot status-alert">
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M12 2L1 21h22L12 2zm0 6l7.53 13H4.47L12 8zm-1 5v4h2v-4h-2zm0 5v2h2v-2h-2z"/>
+                      </svg>
+                    </span>
+                    <span class="status-badge" :title="$t('alert.rules.activeBadge', { count: activeCount(rule.id) })">{{ activeCount(rule.id) }}</span>
+                  </template>
+                  <template v-else>
+                    <span class="status-dot status-ok">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                      </svg>
+                    </span>
+                  </template>
+                </span>
+              </td>
+              <td>
+                <a class="rule-name-link" :title="$t('alert.rules.edit')" @click="openEditModal(rule)">{{ rule.name }}</a>
+              </td>
+              <td>
+                <span v-if="rule.group_name" class="group-chip">{{ rule.group_name }}</span>
+                <span v-else class="muted">—</span>
+              </td>
+              <td>
+                <LevelTag :level="severityLevel(rule.severity)">
+                  {{ severityText(rule.severity) }}
+                </LevelTag>
+              </td>
+              <td class="mono" :title="rule.prom_ql">{{ rule.prom_ql || '-' }}</td>
+              <td>
+                <template v-if="rule.notify_rule_id">
+                  <span class="notify-link">{{ (notifyRules.find(nr => nr.id === rule.notify_rule_id) || {}).name || rule.notify_rule_id }}</span>
+                </template>
+                <span v-else class="muted">—</span>
+              </td>
+              <td>
+                <label class="switch" :title="rule.is_enabled === 1 ? $t('alert.rules.disable') : $t('alert.rules.enable')">
+                  <input type="checkbox" :checked="rule.is_enabled === 1" @change="toggleEnabled(rule)" />
+                  <span class="slider"></span>
+                </label>
+              </td>
+              <td class="muted col-time">{{ fmtTime(rule.created_at) }}</td>
+              <td>
+                <div class="ops">
+                  <button class="gp-op row-del-op" :title="$t('alert.rules.clone')" @click="openCloneModal(rule)">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+                      <path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/>
+                    </svg>
+                  </button>
+                  <button class="gp-op row-del-op" :title="$t('alert.rules.delete')" @click="deleteRule(rule)">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+                      <path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="!loading && rules.length === 0">
+              <td colspan="10" class="empty-row">{{ filterKw ? $t('alert.rules.emptyNoMatch') : $t('alert.rules.empty') }}</td>
+            </tr>
+            <tr v-if="loading">
+              <td colspan="10" class="empty-row">{{ $t('alert.rules.loading') }}</td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+
+        <!-- 分页栏 -->
+        <div class="pagination" v-if="total > 0">
+          <span class="pager-total">{{ $t('alert.rules.pager.total', { total }) }}</span>
+          <div class="pager-pages">
+            <button class="pager-btn" :disabled="page === 1 || loading" @click="changePage(page - 1)">‹</button>
+            <button
+              v-for="(p, idx) in pageNumbers"
+              :key="idx"
+              class="pager-btn"
+              :class="{ active: p === page }"
+              :disabled="p === '…'"
+              @click="typeof p === 'number' && changePage(p)"
+            >{{ p }}</button>
+            <button class="pager-btn" :disabled="page >= totalPages || loading" @click="changePage(page + 1)">›</button>
+          </div>
+          <select v-model.number="limit" class="pager-size" @change="changeLimit">
+            <option v-for="n in [10, 20, 50, 100]" :key="n" :value="n">{{ $t('alert.rules.pager.perPage', { n }) }}</option>
+          </select>
+          <span class="pager-jump">
+            {{ $t('alert.rules.pager.jumpTo') }}
+            <input v-model.number="jumpTo" type="number" min="1" :max="totalPages" @keyup.enter="jumpToPage" />
+            {{ $t('alert.rules.pager.pageUnit') }}
+          </span>
+        </div>
       </div>
     </div>
 
@@ -170,7 +272,7 @@
       </div>
     </div>
 
-    <!-- 新建/编辑 弹窗 -->
+    <!-- 新建/编辑 规则弹窗 -->
     <div v-if="modalVisible" class="modal-mask" @click.self="closeModal">
       <div class="modal">
         <div class="modal-header">
@@ -230,7 +332,7 @@
             <label class="form-label">{{ $t('alert.rules.form.groupLabel') }}</label>
             <select v-model="form.group_id" class="form-input">
               <option value="">{{ $t('alert.rules.form.noGroup') }}</option>
-              <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
+              <option v-for="g in groupOptions" :key="g.id" :value="g.id">{{ g.label }}</option>
             </select>
           </div>
 
@@ -275,11 +377,85 @@
         </div>
       </div>
     </div>
+
+    <!-- 新建/编辑 业务分组弹窗 -->
+    <div v-if="groupModalVisible" class="modal-mask" @click.self="closeGroupModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>{{ $t('group.modal.createTitle') }}</h3>
+          <span class="modal-close" @click="closeGroupModal">×</span>
+        </div>
+        <div class="modal-body">
+          <div class="form-item">
+            <label class="form-label required">{{ $t('group.form.nameLabel') }}</label>
+            <input
+              v-model="groupForm.name"
+              class="form-input"
+              :placeholder="$t('group.form.namePlaceholder')"
+              maxlength="128"
+              @keyup.enter="saveGroup"
+            />
+            <span v-if="groupError" class="form-error">{{ groupError }}</span>
+          </div>
+          <div class="form-item">
+            <label class="form-label">{{ $t('group.form.parentLabel') }}</label>
+            <select v-model="groupForm.parent_id" class="form-input">
+              <option value="">{{ $t('group.form.parentNone') }}</option>
+              <option v-for="g in groupOptions" :key="g.id" :value="g.id">{{ g.label }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" @click="closeGroupModal" :disabled="groupSaving">{{ $t('group.form.cancel') }}</button>
+          <button class="btn btn-primary" @click="saveGroup" :disabled="groupSaving">
+            {{ groupSaving ? $t('group.form.saving') : $t('group.form.save') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 克隆到其他业务分组弹窗 -->
+    <div v-if="cloneModal.visible" class="modal-mask" @click.self="cloneModal.visible = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>{{ $t('alert.rules.cloneToGroup') }}</h3>
+          <span class="modal-close" @click="cloneModal.visible = false">×</span>
+        </div>
+        <div class="modal-body">
+          <div class="form-item">
+            <label class="form-label">{{ $t('alert.rules.cloneTarget') }}</label>
+            <div class="sel-wrap">
+              <button type="button" class="sel-trigger" @click="cloneGroupOpen = !cloneGroupOpen">
+                <span class="sel-trigger-label">{{ cloneTargetLabel }}</span>
+                <span class="sel-arrow">▾</span>
+              </button>
+              <div v-if="cloneGroupOpen" class="more-mask" @click="cloneGroupOpen = false"></div>
+              <div v-if="cloneGroupOpen" class="sel-menu">
+                <div
+                  v-for="g in groupOptions"
+                  :key="g.id"
+                  class="sel-option"
+                  :class="{ active: cloneModal.targetGroupId === g.id }"
+                  @click="pickCloneTarget(g)"
+                >{{ g.label }}</div>
+              </div>
+            </div>
+            <span class="form-hint">{{ $t('alert.rules.cloneHint', { count: selectedCount }) }}</span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" @click="cloneModal.visible = false" :disabled="cloneModal.saving">{{ $t('group.form.cancel') }}</button>
+          <button class="btn btn-primary" @click="submitClone" :disabled="cloneModal.saving">
+            {{ cloneModal.saving ? $t('group.form.saving') : $t('group.form.save') }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import PageHeader from '../components/PageHeader.vue'
@@ -291,6 +467,10 @@ import { businessGroupApi } from '../api/businessGroup.js'
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
+
+const vFocus = {
+  mounted: (el) => { el.focus(); el.select && el.select() }
+}
 
 const severityText = (s) => ({ 1: t('alert.severity.p1'), 2: t('alert.severity.p2'), 3: t('alert.severity.p3') }[s] || `P${s}`)
 
@@ -376,9 +556,82 @@ const groups = ref([])
 const loading = ref(false)
 const saving = ref(false)
 
+// 规则多选（更多菜单：批量删除 / 克隆到其他业务组）
+const selectedIds = ref(new Set())
+const moreOpen = ref(false)
+
+const selectedCount = computed(() => selectedIds.value.size)
+const allChecked = computed(() => rules.value.length > 0 && rules.value.every(r => selectedIds.value.has(r.id)))
+
+function toggleSelect(rule) {
+  const s = new Set(selectedIds.value)
+  if (s.has(rule.id)) s.delete(rule.id)
+  else s.add(rule.id)
+  selectedIds.value = s
+}
+
+function toggleSelectAll() {
+  if (allChecked.value) {
+    selectedIds.value = new Set()
+  } else {
+    selectedIds.value = new Set(rules.value.map(r => r.id))
+  }
+}
+
+// 克隆到其他业务分组弹窗
+const cloneModal = reactive({ visible: false, targetGroupId: '', saving: false })
+const cloneGroupOpen = ref(false)
+
+const cloneTargetLabel = computed(() => {
+  const g = groups.value.find(x => x.id === cloneModal.targetGroupId)
+  return g ? g.name : '-'
+})
+
+function pickCloneTarget(g) {
+  cloneModal.targetGroupId = g.id
+  cloneGroupOpen.value = false
+}
+
+function onBatchDelete() {
+  if (selectedCount.value === 0) return
+  moreOpen.value = false
+  if (!confirm(t('alert.rules.confirmBatchDelete', { count: selectedCount.value }))) return
+  alertRuleApi.batchDelete([...selectedIds.value])
+    .then(async () => {
+      selectedIds.value = new Set()
+      await loadData()
+      await loadGroups()
+    })
+    .catch(err => alert(t('alert.rules.msg.batchDeleteFailed', { msg: err.message })))
+}
+
+function onOpenCloneToGroup() {
+  if (selectedCount.value === 0) return
+  moreOpen.value = false
+  cloneGroupOpen.value = false
+  cloneModal.targetGroupId = filterGroupId.value || (groupOptions.value[0] && groupOptions.value[0].id) || ''
+  cloneModal.visible = true
+}
+
+async function submitClone() {
+  if (!cloneModal.targetGroupId) return
+  cloneModal.saving = true
+  try {
+    await alertRuleApi.clone({ ids: [...selectedIds.value], group_id: cloneModal.targetGroupId })
+    cloneModal.saving = false
+    cloneModal.visible = false
+    selectedIds.value = new Set()
+    await loadData()
+    await loadGroups()
+  } catch (err) {
+    alert(t('alert.rules.msg.cloneFailed', { msg: err.message }))
+    cloneModal.saving = false
+  }
+}
+
 // 全局搜索落地：/alert-rules?q=关键字，服务端过滤规则名称与 PromQL
 const filterKw = ref(route.query.q ? String(route.query.q) : '')
-// 业务分组筛选（服务端过滤）
+// 业务分组筛选（服务端过滤），由左侧分组树驱动
 const filterGroupId = ref('')
 // 分页
 const page = ref(1)
@@ -403,7 +656,176 @@ const pageNumbers = computed(() => {
   return pages
 })
 
-// 弹窗状态
+// -------- 业务分组树 --------
+const groupKeyword = ref('')
+const groupLoading = ref(false)
+const expanded = ref(new Set())
+const editingGroupId = ref(null)
+const editingName = ref('')
+let renameSnapshot = ''
+
+// 子分组映射：parent_id -> groups
+const childrenMap = computed(() => {
+  const m = {}
+  for (const g of groups.value) {
+    const pid = g.parent_id || ''
+    if (!m[pid]) m[pid] = []
+    m[pid].push(g)
+  }
+  return m
+})
+
+const isExpanded = (id) => expanded.value.has(id)
+
+function toggleExpand(id) {
+  const s = new Set(expanded.value)
+  if (s.has(id)) s.delete(id)
+  else s.add(id)
+  expanded.value = s
+}
+
+// 树扁平化输出（含深度），供模板逐行渲染；搜索关键字时展示匹配分组（忽略展开状态，平铺展示）
+const treeFlat = computed(() => {
+  const kw = groupKeyword.value.trim().toLowerCase()
+  const out = []
+  const walk = (nodes, depth) => {
+    for (const n of nodes) {
+      const children = childrenMap.value[n.id] || []
+      out.push({ ...n, depth, hasChildren: children.length > 0 })
+      if (children.length > 0 && isExpanded(n.id)) walk(children, depth + 1)
+    }
+  }
+  if (kw) {
+    for (const g of groups.value) {
+      if (g.name.toLowerCase().includes(kw)) {
+        out.push({ ...g, depth: 0, hasChildren: false })
+      }
+    }
+    return out
+  }
+  walk(childrenMap.value[''] || [], 0)
+  return out
+})
+
+// 全部分组的层级缩进选项（用于规则表单与新建分组弹窗的父分组选择）
+const groupOptions = computed(() => {
+  const out = []
+  const walk = (nodes, depth) => {
+    for (const n of nodes) {
+      out.push({ id: n.id, label: '　'.repeat(depth) + n.name })
+      walk(childrenMap.value[n.id] || [], depth + 1)
+    }
+  }
+  walk(childrenMap.value[''] || [], 0)
+  return out
+})
+
+const currentGroup = computed(() => groups.value.find(g => g.id === filterGroupId.value) || null)
+
+async function loadGroups() {
+  groupLoading.value = true
+  try {
+    groups.value = await businessGroupApi.list() || []
+    // 新加载的分组默认展开（与已有展开状态取并集）
+    const s = new Set(expanded.value)
+    for (const g of groups.value) {
+      if ((childrenMap.value[g.id] || []).length > 0) s.add(g.id)
+    }
+    expanded.value = s
+  } catch {
+    groups.value = []
+  } finally {
+    groupLoading.value = false
+  }
+}
+
+function selectGroup(id) {
+  if (editingGroupId.value) return
+  if (filterGroupId.value === id) return
+  filterGroupId.value = id
+  page.value = 1
+  loadData()
+}
+
+function startRename(g) {
+  editingGroupId.value = g.id
+  editingName.value = g.name
+  renameSnapshot = g.name
+}
+
+async function commitRename() {
+  const id = editingGroupId.value
+  if (!id) return
+  const name = editingName.value.trim()
+  editingGroupId.value = null
+  if (!name || name === renameSnapshot) return
+  try {
+    await businessGroupApi.update(id, { name })
+    await loadGroups()
+    await loadData()
+  } catch (err) {
+    alert(t('group.rename.saveFailed', { msg: err.message }))
+    await loadGroups()
+  }
+}
+
+function cancelRename() {
+  editingGroupId.value = null
+  editingName.value = ''
+}
+
+async function deleteGroup(g) {
+  if (!confirm(t('group.msg.confirmDelete', { name: g.name }))) return
+  try {
+    await businessGroupApi.remove(g.id)
+    if (filterGroupId.value === g.id) {
+      filterGroupId.value = ''
+      page.value = 1
+    }
+    await loadGroups()
+    await loadData()
+  } catch (err) {
+    alert(t('group.msg.deleteFailed', { msg: err.message }))
+  }
+}
+
+// -------- 新建分组弹窗 --------
+const groupModalVisible = ref(false)
+const groupSaving = ref(false)
+const groupForm = reactive({ name: '', parent_id: '' })
+const groupError = ref('')
+
+function openGroupModal() {
+  groupForm.name = ''
+  groupForm.parent_id = ''
+  groupError.value = ''
+  groupModalVisible.value = true
+}
+
+function closeGroupModal() {
+  if (groupSaving.value) return
+  groupModalVisible.value = false
+}
+
+async function saveGroup() {
+  groupError.value = ''
+  if (!groupForm.name.trim()) {
+    groupError.value = t('group.error.nameRequired')
+    return
+  }
+  groupSaving.value = true
+  try {
+    await businessGroupApi.create({ name: groupForm.name, parent_id: groupForm.parent_id })
+    groupSaving.value = false
+    closeGroupModal()
+    await loadGroups()
+  } catch (err) {
+    alert(t('group.msg.createFailed', { msg: err.message }))
+    groupSaving.value = false
+  }
+}
+
+// -------- 规则弹窗状态 --------
 const modalVisible = ref(false)
 const isEdit = ref(false)
 const editingId = ref(null)
@@ -433,6 +855,9 @@ async function loadData() {
     })
     rules.value = data?.list || []
     total.value = data?.total || 0
+    // 数据刷新后剔除已不存在的勾选（如被删除）
+    const alive = new Set(rules.value.map(r => r.id))
+    selectedIds.value = new Set([...selectedIds.value].filter(id => alive.has(id)))
     // 当前页已空（如删除末页最后一条）时回退到上一页
     if (rules.value.length === 0 && page.value > 1 && total.value > 0) {
       page.value--
@@ -496,6 +921,24 @@ function openCreateModal() {
   isEdit.value = false
   editingId.value = null
   resetForm()
+  modalVisible.value = true
+}
+
+// 克隆：以新建模式打开弹窗并预填被克隆规则的内容（名称保持原样，直接保存将触发唯一性校验）
+function openCloneModal(rule) {
+  isEdit.value = false
+  editingId.value = null
+  resetForm()
+  form.name = rule.name
+  form.prom_ql = rule.prom_ql
+  form.eval_interval = rule.eval_interval || 60
+  form.duration = rule.duration
+  form.severity = rule.severity
+  form.group_id = rule.group_id || ''
+  form.notify_rule_id = rule.notify_rule_id || ''
+  form.repeat_interval_minutes = rule.repeat_interval_minutes || 0
+  form.max_send_count = rule.max_send_count || 0
+  form.is_enabled = rule.is_enabled
   modalVisible.value = true
 }
 
@@ -573,6 +1016,7 @@ async function saveRule() {
     closeModal()
     if (!isEdit.value) page.value = 1
     await loadData()
+    await loadGroups()
   } catch (err) {
     alert(t(isEdit.value ? 'alert.rules.msg.updateFailed' : 'alert.rules.msg.createFailed', { msg: err.message }))
     saving.value = false
@@ -597,6 +1041,7 @@ async function deleteRule(rule) {
   try {
     await alertRuleApi.remove(rule.id)
     await loadData()
+    await loadGroups()
   } catch (err) {
     alert(t('alert.rules.msg.deleteFailed', { msg: err.message }))
   }
@@ -612,14 +1057,6 @@ async function loadNotifyRules() {
   }
 }
 
-async function loadGroups() {
-  try {
-    groups.value = await businessGroupApi.list() || []
-  } catch {
-    groups.value = []
-  }
-}
-
 onMounted(() => {
   loadData()
   loadNotifyRules()
@@ -628,11 +1065,198 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.group-filter.form-input {
-  width: 160px;
+/* ========== 左右两栏布局 ========== */
+.page-split {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+/* ========== 左侧分组树面板 ========== */
+.group-panel {
+  width: 240px;
   flex-shrink: 0;
+  padding: 14px;
+  box-sizing: border-box;
+}
+
+.gp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.gp-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.gp-add {
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  background: var(--c-surface);
+  color: var(--c-text-2);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gp-add:hover {
+  border-color: var(--c-primary);
+  color: var(--c-primary);
+}
+
+.gp-search {
+  margin-bottom: 8px;
+}
+
+.gp-search-input {
+  width: 100%;
   padding: 6px 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  background: var(--c-surface);
+  color: var(--c-text);
   font-size: 12.5px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.gp-search-input:focus { border-color: var(--c-primary); }
+.gp-search-input::placeholder { color: var(--c-text-3); }
+
+.gp-tree {
+  max-height: calc(100vh - 280px);
+  overflow-y: auto;
+}
+
+.gp-node {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--c-text-2);
+  transition: background 0.15s;
+  user-select: none;
+}
+
+.gp-node:hover { background: var(--c-primary-soft, rgba(22, 119, 255, 0.08)); }
+
+.gp-node.active {
+  background: var(--c-primary-tint);
+  color: var(--c-primary);
+  font-weight: 600;
+}
+
+.gp-arrow {
+  width: 14px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--c-text-3);
+}
+
+.gp-arrow-spacer { visibility: hidden; }
+
+.gp-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gp-count {
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--c-primary-tint);
+  color: var(--c-primary);
+  border-radius: 9px;
+  padding: 0 6px;
+  flex-shrink: 0;
+}
+
+.gp-node.active .gp-count {
+  background: var(--c-primary);
+  color: #fff;
+}
+
+.gp-ops {
+  display: inline-flex;
+  gap: 2px;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+.gp-node:hover .gp-ops { opacity: 1; }
+
+.gp-op {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--c-text-3);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.15s;
+}
+
+.gp-op:hover { background: var(--c-primary-tint); color: var(--c-primary); }
+.gp-op-danger:hover { background: #ffe5e5; color: var(--c-danger); }
+
+.gp-rename-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid var(--c-primary);
+  border-radius: 4px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.gp-hint {
+  padding: 14px 8px;
+  font-size: 12px;
+  color: var(--c-text-3);
+  text-align: center;
+}
+
+/* ========== 右侧规则卡片 ========== */
+.rules-card {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 工具栏与表格间距 + 按钮尺寸 */
+.rules-card .card-head-flex {
+  margin-bottom: 14px;
+}
+
+.rules-card .toolbar-right .btn {
+  padding: 7px 16px;
+  font-size: 13px;
+  height: 32px;
 }
 
 .toolbar-right {
@@ -640,6 +1264,128 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+/* 更多操作下拉菜单 */
+.more-wrap {
+  position: relative;
+}
+
+.more-mask {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 90;
+}
+
+.more-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 160px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  padding: 4px;
+}
+
+.more-item {
+  padding: 7px 12px;
+  font-size: 12.5px;
+  color: var(--c-text-2);
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.more-item:hover:not(.disabled) {
+  background: var(--c-primary-soft, rgba(22, 119, 255, 0.08));
+  color: var(--c-primary);
+}
+
+.more-item.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 自定义下拉选择（克隆到其他业务分组） */
+.sel-wrap {
+  position: relative;
+}
+
+.sel-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: 13px;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+
+.sel-trigger:hover {
+  border-color: var(--c-primary);
+}
+
+.sel-trigger-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sel-arrow {
+  color: var(--c-text-3);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.sel-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  z-index: 110;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+.sel-option {
+  padding: 7px 12px;
+  font-size: 13px;
+  color: var(--c-text-2);
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.15s;
+}
+
+.sel-option:hover {
+  background: var(--c-primary-soft, rgba(22, 119, 255, 0.08));
+  color: var(--c-primary);
+}
+
+.sel-option.active {
+  background: var(--c-primary-tint);
+  color: var(--c-primary);
+  font-weight: 600;
 }
 
 .table-scroll {
@@ -674,6 +1420,30 @@ onMounted(() => {
   border-radius: var(--radius-tag, 10px);
   padding: 2px 9px;
   white-space: nowrap;
+}
+
+/* 规则名称：可点击，点击弹出编辑弹窗 */
+.rule-name-link {
+  color: var(--c-text);
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.rule-name-link:hover {
+  color: var(--c-primary);
+  text-decoration: underline;
+}
+
+/* 删除图标按钮（夜莺风格，常显） */
+.row-del-op {
+  width: 24px;
+  height: 24px;
+}
+
+/* 列表内的启停开关 */
+td .switch {
+  vertical-align: middle;
 }
 
 /* 分页栏 */
@@ -768,6 +1538,8 @@ onMounted(() => {
 .filter-tag em:hover { color: var(--c-danger); }
 
 /* ========== 状态图标列 ========== */
+.col-check { width: 34px; text-align: center; }
+.col-check input { cursor: pointer; accent-color: var(--c-primary); }
 .col-status { width: 60px; text-align: center; }
 .status-icon {
   display: inline-flex;

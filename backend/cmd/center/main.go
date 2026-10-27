@@ -264,7 +264,9 @@ func main() {
 		ruleGroup.GET("/:id", ruleCtrl.Get)
 		ruleGroup.POST("", ruleCtrl.Create)
 		ruleGroup.PUT("/:id", ruleCtrl.Update)
+		ruleGroup.DELETE("/batch", ruleCtrl.BatchDelete)
 		ruleGroup.DELETE("/:id", ruleCtrl.Delete)
+		ruleGroup.POST("/clone", ruleCtrl.CloneToGroup)
 		ruleGroup.PATCH("/:id/toggle", ruleCtrl.ToggleEnabled)
 	}
 

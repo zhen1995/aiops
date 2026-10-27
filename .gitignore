@@ -12,3 +12,5 @@ __pycache__/
 .pytest_cache/
 .env
 /backend/uploads/knowledge/
+/.archify
+/.archify-upgrade

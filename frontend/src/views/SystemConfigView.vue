@@ -61,6 +61,35 @@
       </div>
     </div>
 
+    <div class="card">
+      <div class="card-head-flex">
+        <div>
+          <h3 class="card-title">{{ $t('system.logRetention.title') }}</h3>
+          <p class="card-sub">{{ $t('system.logRetention.sub') }}</p>
+        </div>
+      </div>
+
+      <div class="form-item">
+        <label class="form-label required">{{ $t('system.logRetention.daysLabel') }}</label>
+        <input
+          v-model.number="logRetentionDays"
+          type="number"
+          min="1"
+          max="365"
+          class="form-input days-input"
+          :disabled="loading"
+        />
+        <span class="form-hint">{{ $t('system.logRetention.daysHint') }}</span>
+        <span v-if="logRetentionError" class="form-error">{{ logRetentionError }}</span>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" @click="saveLogRetention" :disabled="loading || savingLogRetention">
+          {{ savingLogRetention ? $t('system.actions.saving') : $t('system.actions.save') }}
+        </button>
+      </div>
+    </div>
+
     <div class="card tips-card">
       <h3 class="card-title">{{ $t('system.tips.title') }}</h3>
       <ul class="tips-list">
@@ -83,12 +112,15 @@ const { t } = useI18n({ useScope: 'global' })
 
 const qdrantUrl = ref('')
 const frontendBaseUrl = ref('')
+const logRetentionDays = ref(1)
 const loading = ref(false)
 const saving = ref(false)
 const savingFrontend = ref(false)
+const savingLogRetention = ref(false)
 const testing = ref(false)
 const urlError = ref('')
 const frontendUrlError = ref('')
+const logRetentionError = ref('')
 const testResult = ref(null)
 
 async function loadConfig() {
@@ -97,6 +129,7 @@ async function loadConfig() {
     const data = await systemConfigApi.getSystemConfig()
     qdrantUrl.value = (data && data.qdrant_url) || ''
     frontendBaseUrl.value = (data && data.frontend_base_url) || ''
+    logRetentionDays.value = (data && data.log_analysis_retention_days) || 1
   } catch (err) {
     alert(t('system.messages.loadFailed', { message: err.message }))
   } finally {
@@ -174,6 +207,29 @@ async function saveFrontendUrl() {
 }
 
 onMounted(loadConfig)
+
+function validateLogRetention() {
+  logRetentionError.value = ''
+  const days = Number(logRetentionDays.value)
+  if (!Number.isInteger(days) || days < 1 || days > 365) {
+    logRetentionError.value = t('system.messages.logRetentionInvalid')
+    return false
+  }
+  return true
+}
+
+async function saveLogRetention() {
+  if (!validateLogRetention()) return
+  savingLogRetention.value = true
+  try {
+    await systemConfigApi.updateSystemConfig({ log_analysis_retention_days: Number(logRetentionDays.value) })
+    alert(t('system.messages.saveSuccess'))
+  } catch (err) {
+    alert(t('system.messages.saveFailed', { message: err.message }))
+  } finally {
+    savingLogRetention.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -215,6 +271,17 @@ onMounted(loadConfig)
   color: var(--c-danger);
   font-size: 12px;
   margin-top: 4px;
+}
+
+.form-hint {
+  display: block;
+  color: var(--c-text-3);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.days-input {
+  max-width: 160px;
 }
 
 .actions {

@@ -122,9 +122,17 @@ export default {
     enabledOn: '已启用',
     enabledOff: '已停用',
     edit: '编辑',
+    clone: '克隆',
     enable: '启用',
     disable: '停用',
     delete: '删除',
+    more: '更多',
+    batchDelete: '删除告警规则',
+    cloneToGroup: '克隆到其他业务组',
+    cloneTarget: '目标业务分组',
+    cloneHint: '将选中的 {count} 条规则克隆到目标业务分组（名称冲突自动追加“-副本”后缀）',
+    selectFirst: '请先勾选告警规则',
+    confirmBatchDelete: '确定删除选中的 {count} 条告警规则吗？',
     activeBadge: '告警中 {count} 条',
     emptyNoMatch: '没有匹配关键字的告警规则',
     empty: '暂无告警规则，请点击"新增规则"创建',
@@ -184,7 +192,9 @@ export default {
       createFailed: '新建失败：{msg}',
       toggleFailed: '切换状态失败：{msg}',
       confirmDelete: '确定要删除告警规则"{name}"吗？',
-      deleteFailed: '删除失败：{msg}'
+      deleteFailed: '删除失败：{msg}',
+      batchDeleteFailed: '批量删除失败：{msg}',
+      cloneFailed: '克隆失败：{msg}'
     }
   }
 }

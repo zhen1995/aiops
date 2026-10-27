@@ -13,6 +13,12 @@ export default {
     urlLabel: 'Frontend URL',
     urlPlaceholder: 'e.g.: http://localhost:5173'
   },
+  logRetention: {
+    title: 'Log Analysis Retention',
+    sub: 'Log analysis results are periodically cleaned up by retention days to prevent unbounded table growth',
+    daysLabel: 'Retention Days',
+    daysHint: 'Defaults to 1 day; set between 1 and 365. Expired bucket stats, clusters and templates are deleted automatically'
+  },
   form: {
     qdrantUrl: 'Qdrant URL',
     qdrantUrlPlaceholder: 'e.g.: http://localhost:6333'
@@ -41,6 +47,7 @@ export default {
     testFailed: 'Test failed: {message}',
     urlRequired: 'Please enter the Qdrant URL',
     frontendUrlRequired: 'Please enter the frontend base URL',
-    frontendUrlInvalid: 'The frontend base URL must start with http:// or https://'
+    frontendUrlInvalid: 'The frontend base URL must start with http:// or https://',
+    logRetentionInvalid: 'Retention days must be an integer between 1 and 365'
   }
 }
