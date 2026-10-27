@@ -1422,16 +1422,16 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-/* 规则名称：可点击，点击弹出编辑弹窗 */
+/* 规则名称：主色高亮可点击，点击弹出编辑弹窗 */
 .rule-name-link {
-  color: var(--c-text);
+  color: var(--c-primary);
   font-weight: 600;
   cursor: pointer;
-  transition: color 0.15s;
+  transition: opacity 0.15s;
 }
 
 .rule-name-link:hover {
-  color: var(--c-primary);
+  opacity: 0.8;
   text-decoration: underline;
 }
 
