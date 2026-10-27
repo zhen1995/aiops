@@ -16,7 +16,7 @@ const (
 	AlertEventStatusResolved = "resolved" // 已恢复/已解决
 )
 
-// AlertEvent 告警事件（由系统按告警规则自动探测生成，不再依赖 Nightingale）
+// AlertEvent 告警事件（由系统按告警规则自动探测生成）
 type AlertEvent struct {
 	ID           string     `gorm:"primaryKey;size:64;comment:id" json:"id"`
 	RuleID       string     `gorm:"size:64;index;comment:关联告警规则ID" json:"rule_id"`

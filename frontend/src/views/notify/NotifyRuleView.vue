@@ -267,7 +267,6 @@ onMounted(loadAll)
 .chip-type.webhook { background: #ff8c1a22; color: #d86a00; }
 .chip-type.email { background: #2ea44f22; color: #1f7a45; }
 .chip-type.tpl { background: var(--c-primary-soft, rgba(22,119,255,0.08)); color: var(--c-primary); }
-.chip-type.n9e { background: #ffd91a22; color: #a07200; }
 .chip-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .sev-group { display: flex; gap: 10px; flex-wrap: wrap; }

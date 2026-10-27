@@ -65,7 +65,6 @@ func (r *Registry) ToolMap(ctx context.Context) (map[string]tool.InvokableTool, 
 		r.searchKnowledgeBaseTool,
 		r.searchWikiTool,
 	}
-	builders = append(builders, r.n9eTools()...)
 
 	tm := make(map[string]tool.InvokableTool, len(builders))
 	infos := make([]*schema.ToolInfo, 0, len(builders))

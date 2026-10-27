@@ -12,7 +12,7 @@ An intelligent operations (AIOps) platform for large-scale distributed systems. 
 ## Features
 
 - **AI Chat Assistant**: An LLM agent with a Function Calling loop that invokes read-only data source tools (Prometheus / ElasticSearch / Pyroscope). When ops-data keywords are detected, querying data sources is enforced before answering to prevent hallucination.
-- **Alert Rule Evaluation Engine**: A built-in engine probes PromQL instant queries at each rule's execution interval. Every time series (label combination) is counted independently; alert/recovery events are generated once the rule's duration threshold is met. No Nightingale dependency required.
+- **Alert Rule Evaluation Engine**: A built-in engine probes PromQL instant queries at each rule's execution interval. Every time series (label combination) is counted independently; alert/recovery events are generated once the rule's duration threshold is met.
 - **Alert Noise Reduction**: Two strategies — time-window aggregation (flap suppression) and topology suppression (child service alerts suppressed when an ancestor in the service tree is firing). Intercepted alerts are persisted separately for auditing.
 - **Notification Records**: The full notification lifecycle (intercepted / no rule matched / severity filtered / delivery succeeded or failed) is persisted and traceable.
 - **Dashboard**: KPIs, raw vs. post-denoise trends, severity distribution, service health scores, and more.

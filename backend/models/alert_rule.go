@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// AlertRule 告警规则（系统自建，不再依赖 Nightingale）
+// AlertRule 告警规则（系统自建）
 type AlertRule struct {
 	ID           string         `gorm:"primaryKey;size:64;comment:id" json:"id"`
 	Name         string         `gorm:"size:128;not null;comment:规则名称" json:"name"`

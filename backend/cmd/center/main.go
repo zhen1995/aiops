@@ -95,7 +95,6 @@ func main() {
 		// AI 配置与数据源
 		&models.LLMConfig{},
 		&models.Datasource{},
-		&models.AlertEngineConfig{},
 		// 服务注册
 		&models.Service{},
 		// 告警
@@ -117,8 +116,6 @@ func main() {
 		// 知识库 LLM Wiki
 		&models.KBWikiCategory{},
 		&models.KBWikiEntry{},
-		// 夜莺告警引擎
-		&models.N9eConfig{},
 		// 告警降噪
 		&models.DenoisePolicy{},
 		&models.DenoiseRecord{},
@@ -257,19 +254,6 @@ func main() {
 		serviceGroup.POST("/:id/verify", serviceCtrl.Verify)
 	}
 
-	// 告警引擎配置相关路由
-	engineCtrl := controllers.NewAlertEngineController(db)
-	engineGroup := api.Group("/alert-engines")
-	{
-		engineGroup.GET("", engineCtrl.List)
-		engineGroup.GET("/:id", engineCtrl.Get)
-		engineGroup.POST("", engineCtrl.Create)
-		engineGroup.PUT("/:id", engineCtrl.Update)
-		engineGroup.DELETE("/:id", engineCtrl.Delete)
-		engineGroup.PATCH("/:id/toggle", engineCtrl.ToggleEnabled)
-		engineGroup.GET("/:id/test", engineCtrl.Test)
-	}
-
 	// 告警规则相关路由（系统自建）
 	ruleCtrl := controllers.NewAlertRuleController(db, alertEngine)
 	ruleGroup := api.Group("/alert-rules")
@@ -316,22 +300,6 @@ func main() {
 	// 全局搜索聚合路由
 	searchCtrl := controllers.NewSearchController(db)
 	api.GET("/search", searchCtrl.Search)
-
-	// 夜莺（Nightingale）引擎配置与告警代理
-	n9eCtrl := controllers.NewN9eController(db)
-	n9eGroup := api.Group("/n9e")
-	{
-		// 引擎配置 CRUD
-		n9eGroup.GET("/configs", n9eCtrl.ListConfig)
-		n9eGroup.POST("/configs", n9eCtrl.SaveConfig)
-		n9eGroup.DELETE("/configs/:id", n9eCtrl.DeleteConfig)
-		n9eGroup.POST("/configs/test", n9eCtrl.TestConfig)
-		// 代理到夜莺的告警接口
-		n9eGroup.GET("/alert-rules", n9eCtrl.GetAlertRules)
-		n9eGroup.GET("/busi-groups", n9eCtrl.GetBusiGroups)
-		n9eGroup.GET("/alert-cur-events", n9eCtrl.GetCurEvents)
-		n9eGroup.GET("/alert-his-events", n9eCtrl.GetHisEvents)
-	}
 
 	// 根因分析相关路由（针对告警事件触发 AI 根因分析）
 	rootCauseCtrl := controllers.NewRootCauseController(db)

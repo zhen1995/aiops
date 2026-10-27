@@ -73,7 +73,7 @@ export default {
   },
   rule: {
     pageTitle: '通知规则',
-    pageDesc: '配置通知媒介与消息模板的多对多关联，可绑定夜莺告警规则',
+    pageDesc: '配置通知媒介与消息模板的多对多关联，可绑定告警规则',
     create: '+ 新建通知规则',
     modal: {
       editTitle: '编辑通知规则',
@@ -190,7 +190,7 @@ export default {
       id: '告警事件唯一 ID',
       severityLabel: '告警级别中文（P1-紧急 / P2-警告 / P3-提醒）',
       triggerValue: '触发值（PromQL 表达式计算结果）',
-      busiGroupName: '夜莺业务组名称',
+      busiGroupName: '业务分组名称',
       cluster: '告警集群标识',
       triggerTime: '触发时间',
       lastEvalTime: '最近一次 PromQL 命中时间',
@@ -209,7 +209,7 @@ export default {
       add: '加法',
       mul: '乘法',
       humanizeDuration: '秒数 → 人类可读（3分 / 2时 / 1.5天）',
-      humanizeDurationIfc: 'humanizeDuration 别名，兼容夜莺模板',
+      humanizeDurationIfc: 'humanizeDuration 别名，兼容常见告警模板',
       durationHuman: '简化版（旧模板用，已废弃建议用 humanizeDuration）'
     },
     error: {

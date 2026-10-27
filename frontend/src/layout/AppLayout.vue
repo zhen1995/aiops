@@ -148,7 +148,6 @@ const isGroupActive = (m) => m.children?.some((c) => isActive(c.path))
 
 const expanded = reactive({
   'layout.menu.alertGroup': true,
-  'layout.menu.n9eGroup': false,
   'layout.menu.inspectionGroup': false,
   'layout.menu.orgGroup': false
 })
@@ -176,15 +175,6 @@ const allMenus = [
       { path: '/notify/templates', tkey: 'layout.menu.notifyTemplates', auth: '消息模板' },
       { path: '/notify/rules', tkey: 'layout.menu.notifyRules', auth: '通知规则' },
       { path: '/notify/records', tkey: 'layout.menu.notifyRecords', auth: '通知记录' }
-    ]
-  },
-  {
-    tkey: 'layout.menu.n9eGroup',
-    icon: ic('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>'),
-    children: [
-      { path: '/n9e/config', tkey: 'layout.menu.n9eConfig', auth: '夜莺引擎配置' },
-      { path: '/n9e/alert-rules', tkey: 'layout.menu.n9eAlertRules', auth: '夜莺告警规则' },
-      { path: '/n9e/alert-events', tkey: 'layout.menu.n9eAlertEvents', auth: '夜莺告警事件' }
     ]
   },
   { path: '/rca', tkey: 'layout.menu.rca', auth: '根因分析', icon: ic('<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>') },

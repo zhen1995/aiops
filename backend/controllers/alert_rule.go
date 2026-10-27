@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// AlertRuleController 告警规则控制器（系统自建，不再代理 Nightingale）
+// AlertRuleController 告警规则控制器
 type AlertRuleController struct {
 	DB     *gorm.DB
 	engine *alerting.Engine

@@ -19,11 +19,6 @@ const routes = [
   { path: '/notify/templates', name: 'notify-templates', component: () => import('../views/notify/NotifyTemplateView.vue'), meta: { title: 'layout.menu.notifyTemplates', auth: '消息模板' } },
   { path: '/notify/rules', name: 'notify-rules', component: () => import('../views/notify/NotifyRuleView.vue'), meta: { title: 'layout.menu.notifyRules', auth: '通知规则' } },
   { path: '/notify', redirect: '/notify/templates' },
-  // 夜莺
-  { path: '/n9e/config', name: 'n9e-config', component: () => import('../views/n9e/EngineConfigView.vue'), meta: { title: 'layout.menu.n9eConfig', auth: '夜莺引擎配置' } },
-  { path: '/n9e/alert-rules', name: 'n9e-alert-rules', component: () => import('../views/n9e/AlertRulesView.vue'), meta: { title: 'layout.menu.n9eAlertRules', auth: '夜莺告警规则' } },
-  { path: '/n9e/alert-events', name: 'n9e-alert-events', component: () => import('../views/n9e/AlertEventsView.vue'), meta: { title: 'layout.menu.n9eAlertEvents', auth: '夜莺告警事件' } },
-  { path: '/n9e', redirect: '/n9e/config' },
   { path: '/rca', name: 'rca', component: () => import('../views/RcaView.vue'), meta: { title: 'layout.menu.rca', auth: '根因分析' } },
   { path: '/logs', name: 'logs', component: () => import('../views/LogAnalysisView.vue'), meta: { title: 'layout.menu.logs', auth: '日志分析' } },
   { path: '/ai-config', redirect: '/ai-config/llm' },

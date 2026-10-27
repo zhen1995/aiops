@@ -73,7 +73,7 @@ export default {
   },
   rule: {
     pageTitle: 'Notification Rules',
-    pageDesc: 'Configure many-to-many associations between notification media and message templates, bindable to Nightingale alert rules',
+    pageDesc: 'Configure many-to-many associations between notification media and message templates, bindable to alert rules',
     create: '+ New Notification Rule',
     modal: {
       editTitle: 'Edit Notification Rule',
@@ -190,7 +190,7 @@ export default {
       id: 'Unique alert event ID',
       severityLabel: 'Alert severity in Chinese (P1-critical / P2-warning / P3-notice)',
       triggerValue: 'Trigger value (result of the PromQL expression)',
-      busiGroupName: 'Nightingale business group name',
+      busiGroupName: 'Business group name',
       cluster: 'Alert cluster identifier',
       triggerTime: 'Trigger time',
       lastEvalTime: 'Most recent PromQL evaluation hit time',
@@ -209,7 +209,7 @@ export default {
       add: 'Addition',
       mul: 'Multiplication',
       humanizeDuration: 'Seconds → human readable (3m / 2h / 1.5d)',
-      humanizeDurationIfc: 'Alias of humanizeDuration, compatible with Nightingale templates',
+      humanizeDurationIfc: 'Alias of humanizeDuration, compatible with common alert templates',
       durationHuman: 'Simplified version (legacy templates; deprecated, use humanizeDuration)'
     },
     error: {
