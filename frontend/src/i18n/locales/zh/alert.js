@@ -196,5 +196,48 @@ export default {
       batchDeleteFailed: '批量删除失败：{msg}',
       cloneFailed: '克隆失败：{msg}'
     }
-  }
+  },
+  shield: {
+    title: '屏蔽规则',
+    desc: '配置告警屏蔽规则：屏蔽期间内，事件标签命中的告警不产生告警事件与通知',
+    add: '新建屏蔽规则',
+    edit: '编辑屏蔽规则',
+    colName: '规则名称',
+    colTags: '事件标签',
+    colStart: '屏蔽开始时间',
+    colEnd: '屏蔽结束时间',
+    colStatus: '状态',
+    colCreator: '创建人',
+    colActions: '操作',
+    nameLabel: '规则名称',
+    namePlaceholder: '例如：订单服务发版屏蔽',
+    tagsLabel: '事件标签',
+    tagsHint: '全部为 k=v 形式，告警事件的标签包含全部配置标签时命中屏蔽',
+    tagPlaceholder: 'key=value',
+    addTag: '添加标签',
+    startLabel: '屏蔽开始时间',
+    endLabel: '屏蔽结束时间',
+    quick: '快捷时长',
+    duration: '屏蔽时长',
+    remarkLabel: '屏蔽原因',
+    remarkPlaceholder: '例如：机器重启维护，预计 1 小时内完成',
+    enable: '启用',
+    disable: '停用',
+    empty: '暂无屏蔽规则',
+    confirmDelete: '确定删除屏蔽规则"{name}"吗？',
+    shieldBtn: '屏蔽',
+    err: {
+      nameRequired: '请输入规则名称',
+      tagsRequired: '请至少配置一个事件标签',
+      tagFormat: '事件标签必须为 key=value 形式',
+      timeRequired: '请选择屏蔽开始与结束时间',
+      timeRange: '屏蔽结束时间必须晚于开始时间'
+    },
+    msg: {
+      loadFailed: '加载屏蔽规则失败：{msg}',
+      saveFailed: '保存屏蔽规则失败：{msg}',
+      deleteFailed: '删除屏蔽规则失败：{msg}',
+      toggleFailed: '切换状态失败：{msg}'
+    }
+  },
 }

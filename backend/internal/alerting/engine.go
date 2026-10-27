@@ -15,6 +15,7 @@ import (
 
 	"aiops/internal/datasource"
 	"aiops/internal/denoise"
+	"aiops/internal/shield"
 	"aiops/internal/notify"
 	"aiops/models"
 
@@ -40,6 +41,7 @@ type ruleState struct {
 type Engine struct {
 	db      *gorm.DB
 	denoise *denoise.DenoiseService // 可选降噪依赖（nil 时跳过降噪）
+	shield  *shield.Service        // 可选屏蔽依赖（nil 时跳过屏蔽）
 	stop    chan struct{}
 
 	mu       sync.Mutex
@@ -66,6 +68,11 @@ func (e *Engine) loadDomain() string {
 // SetDenoise 注入降噪服务（由 main.go 在引擎启动后调用；denoise 包不反向依赖本包）
 func (e *Engine) SetDenoise(svc *denoise.DenoiseService) {
 	e.denoise = svc
+}
+
+// SetShield 注入屏蔽服务（由 main.go 在引擎启动后调用；shield 包不反向依赖本包）
+func (e *Engine) SetShield(svc *shield.Service) {
+	e.shield = svc
 }
 
 // Start 启动引擎，加载所有启用的告警规则并开始评估
@@ -294,6 +301,19 @@ func (e *Engine) findFiringEventLocked(ruleID, tags string) string {
 func (e *Engine) fireLocked(rule models.AlertRule, sample datasource.InstantSample, now time.Time) (string, error) {
 	targetIdent := targetIdent(sample.Labels)
 	tags := serializeTags(sample.Labels)
+
+	// 屏蔽：命中启用中的屏蔽规则（时间窗内 + 标签全部匹配）时不产生告警事件与通知
+	if e.shield != nil {
+		if ok, ruleName := e.shield.Match(tags, now); ok {
+			fmt.Printf("[告警屏蔽] 规则 %s (%s) 命中屏蔽规则「%s」，已拦截\n", rule.Name, targetIdent, ruleName)
+			rec := e.newNotifyRecord(rule, nil, &sample, now)
+			rec.Status = models.NotifyRecordStatusIntercepted
+			rec.Strategy = e.shield.Strategy()
+			rec.Reason = "命中屏蔽规则：" + ruleName
+			e.recordNotify(rec)
+			return "", nil
+		}
+	}
 
 	// 降噪：时间窗口聚合 → 拓扑抑制（均为独立 db 查询，不会与 e.mu 死锁）
 	if e.denoise != nil {

@@ -8,6 +8,7 @@ import (
 
 	"aiops/internal/datasource"
 	"aiops/internal/knowledge"
+	"aiops/internal/wiki"
 	"aiops/models"
 
 	"github.com/cloudwego/eino/components/tool"
@@ -21,6 +22,7 @@ type Registry struct {
 	db      *gorm.DB
 	manager *datasource.Manager
 	kb      *knowledge.Service
+	wiki    *wiki.Service
 }
 
 // NewRegistry 创建工具注册表
@@ -31,6 +33,11 @@ func NewRegistry(db *gorm.DB) *Registry {
 // SetKnowledge 注入知识库编排服务（须在首次构建 Agent 前调用）
 func (r *Registry) SetKnowledge(svc *knowledge.Service) {
 	r.kb = svc
+}
+
+// SetWiki 注入知识库 Wiki 服务（须在首次构建 Agent 前调用）
+func (r *Registry) SetWiki(svc *wiki.Service) {
+	r.wiki = svc
 }
 
 // Tools 返回所有工具实例及其 ToolInfo，用于绑定到 ChatModel
@@ -56,6 +63,7 @@ func (r *Registry) ToolMap(ctx context.Context) (map[string]tool.InvokableTool, 
 		r.queryElasticsearchTool,
 		r.queryPyroscopeTool,
 		r.searchKnowledgeBaseTool,
+		r.searchWikiTool,
 	}
 	builders = append(builders, r.n9eTools()...)
 
@@ -468,6 +476,52 @@ func (r *Registry) searchKnowledgeBaseTool() (tool.InvokableTool, error) {
 				out = append(out, &SearchKnowledgeBaseOutput{
 					ChunkID: h.ChunkID, DocumentID: h.DocumentID, Title: h.Title,
 					Content: h.Content, Score: h.Score,
+				})
+			}
+			return out, nil
+		},
+	)
+}
+
+// ---------- search_wiki ----------
+
+// SearchWikiInput search_wiki 工具入参
+type SearchWikiInput struct {
+	Query string `json:"query" jsonschema:"required,description=检索关键词，例如：MySQL 主从延迟处理"`
+	Limit int    `json:"limit" jsonschema:"description=返回词条数量，默认 5，最大 10"`
+}
+
+// SearchWikiOutput 单个命中词条
+type SearchWikiOutput struct {
+	EntryID      string `json:"entry_id"`
+	Title        string `json:"title"`
+	Summary      string `json:"summary"`
+	Content      string `json:"content"`
+	CategoryName string `json:"category_name"`
+	SourceName   string `json:"source_name"`
+}
+
+func (r *Registry) searchWikiTool() (tool.InvokableTool, error) {
+	return utils.InferTool[SearchWikiInput, []*SearchWikiOutput](
+		"search_wiki",
+		"检索知识库 Wiki 中的结构化词条（已发布的权威知识页，含概念说明、操作步骤、故障处理等）。当用户询问运维知识、操作方法、故障处理流程、平台使用说明等结构性问题时优先调用本工具，其次才是 search_knowledge_base 的文档片段检索。",
+		func(ctx context.Context, in SearchWikiInput) ([]*SearchWikiOutput, error) {
+			if r.wiki == nil {
+				return nil, fmt.Errorf("Wiki 服务未初始化")
+			}
+			limit := in.Limit
+			if limit <= 0 || limit > 10 {
+				limit = 5
+			}
+			hits, err := r.wiki.SearchEntries(in.Query, limit, false)
+			if err != nil {
+				return nil, err
+			}
+			out := make([]*SearchWikiOutput, 0, len(hits))
+			for _, h := range hits {
+				out = append(out, &SearchWikiOutput{
+					EntryID: h.ID, Title: h.Title, Summary: h.Summary,
+					Content: h.Content, CategoryName: h.CategoryName, SourceName: h.SourceName,
 				})
 			}
 			return out, nil

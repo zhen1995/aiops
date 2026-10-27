@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -16,6 +17,8 @@ import (
 	"aiops/internal/inspection"
 	"aiops/internal/knowledge"
 	"aiops/internal/loganalysis"
+	"aiops/internal/shield"
+	"aiops/internal/wiki"
 	"aiops/middleware"
 	"aiops/models"
 
@@ -100,6 +103,7 @@ func main() {
 		&models.BusinessGroup{},
 		&models.AlertEvent{},
 		&models.RootCauseAnalysis{},
+		&models.AlertShieldRule{},
 		// 巡检与通知
 		&models.InspectionTask{},
 		&models.InspectionReport{},
@@ -110,6 +114,9 @@ func main() {
 		// 知识库
 		&models.KBDocument{},
 		&models.KBChunk{},
+		// 知识库 LLM Wiki
+		&models.KBWikiCategory{},
+		&models.KBWikiEntry{},
 		// 夜莺告警引擎
 		&models.N9eConfig{},
 		// 告警降噪
@@ -155,6 +162,11 @@ func main() {
 	// 告警降噪服务：注入引擎，并在策略表为空时种子插入两条默认策略
 	denoiseSvc := denoise.NewService(db)
 	alertEngine.SetDenoise(denoiseSvc)
+	shieldSvc := shield.NewService(db)
+	if err := shieldSvc.Load(); err != nil {
+		log.Printf("[告警屏蔽] 加载屏蔽规则失败: %v", err)
+	}
+	alertEngine.SetShield(shieldSvc)
 	if err := seedDenoisePolicies(db); err != nil {
 		fmt.Println("初始化降噪策略失败:", err)
 	}
@@ -185,10 +197,12 @@ func main() {
 	// 知识库服务（对话 Agent 工具与知识库路由共用）
 	kbClient := knowledge.NewClient(cfg.Knowledge.PythonBaseURL)
 	kbSvc := knowledge.NewService(db, kbClient, cfg.Knowledge.UploadDir)
+	wikiSvc := wiki.NewService(db)
 
 	// Agent 工具注册表：注入知识库服务后再用于对话控制器
 	agentRegistry := agent.NewRegistry(db)
 	agentRegistry.SetKnowledge(kbSvc)
+	agentRegistry.SetWiki(wikiSvc)
 
 	// Chat 对话相关路由
 	chatCtrl := controllers.NewChatController(db, agentRegistry)
@@ -280,7 +294,6 @@ func main() {
 		bgGroup.DELETE("/:id", bgCtrl.Delete)
 	}
 
-
 	// 告警事件代理路由
 	eventCtrl := controllers.NewAlertEventController(db)
 	api.GET("/alert-events", eventCtrl.List)
@@ -303,7 +316,6 @@ func main() {
 	// 全局搜索聚合路由
 	searchCtrl := controllers.NewSearchController(db)
 	api.GET("/search", searchCtrl.Search)
-
 
 	// 夜莺（Nightingale）引擎配置与告警代理
 	n9eCtrl := controllers.NewN9eController(db)
@@ -405,6 +417,37 @@ func main() {
 		kbGroup.POST("/retrieve", kbCtrl.Retrieve)
 		kbGroup.DELETE("/:id", kbCtrl.Delete)
 		kbGroup.POST("/:id/reindex", kbCtrl.Reindex)
+	}
+
+	// 知识库 LLM Wiki（分类树 / 词条 CRUD 与发布流 / 混合检索 / LLM 生成）
+	kwCtrl := controllers.NewKnowledgeWikiController(db, wikiSvc, kbSvc)
+	kwGroup := api.Group("/knowledge-wiki")
+	{
+		kwGroup.GET("/categories", kwCtrl.ListCategories)
+		kwGroup.POST("/categories", kwCtrl.CreateCategory)
+		kwGroup.PUT("/categories/:id", kwCtrl.UpdateCategory)
+		kwGroup.DELETE("/categories/:id", kwCtrl.DeleteCategory)
+		kwGroup.GET("/entries", kwCtrl.ListEntries)
+		kwGroup.POST("/entries", kwCtrl.CreateEntry)
+		kwGroup.POST("/entries/generate-from-document", kwCtrl.GenerateFromDocument)
+		kwGroup.GET("/entries/:id", kwCtrl.GetEntry)
+		kwGroup.PUT("/entries/:id", kwCtrl.UpdateEntry)
+		kwGroup.DELETE("/entries/:id", kwCtrl.DeleteEntry)
+		kwGroup.POST("/entries/:id/publish", kwCtrl.PublishEntry)
+		kwGroup.POST("/entries/:id/withdraw", kwCtrl.WithdrawEntry)
+		kwGroup.POST("/entries/:id/archive", kwCtrl.ArchiveEntry)
+		kwGroup.GET("/search", kwCtrl.Search)
+	}
+
+	// 告警屏蔽规则
+	shieldCtrl := controllers.NewShieldRuleController(db, shieldSvc)
+	shieldGroup := api.Group("/shield-rules")
+	{
+		shieldGroup.GET("", shieldCtrl.List)
+		shieldGroup.POST("", shieldCtrl.Create)
+		shieldGroup.PUT("/:id", shieldCtrl.Update)
+		shieldGroup.PATCH("/:id/toggle", shieldCtrl.Toggle)
+		shieldGroup.DELETE("/:id", shieldCtrl.Delete)
 	}
 
 	// 日志分析相关路由（趋势 / 聚类 / Drain 模板）

@@ -196,5 +196,48 @@ export default {
       batchDeleteFailed: 'Batch delete failed: {msg}',
       cloneFailed: 'Clone failed: {msg}'
     }
-  }
+  },
+  shield: {
+    title: 'Shield Rules',
+    desc: 'Configure alert shielding: during the shield window, alerts whose event tags match produce no events and no notifications',
+    add: 'New Shield Rule',
+    edit: 'Edit Shield Rule',
+    colName: 'Rule Name',
+    colTags: 'Event Tags',
+    colStart: 'Shield Starts At',
+    colEnd: 'Shield Ends At',
+    colStatus: 'Status',
+    colCreator: 'Creator',
+    colActions: 'Actions',
+    nameLabel: 'Rule Name',
+    namePlaceholder: 'e.g. Order service release shield',
+    tagsLabel: 'Event Tags',
+    tagsHint: 'All in key=value form; an alert matches when its event tags contain every configured tag',
+    tagPlaceholder: 'key=value',
+    addTag: 'Add Tag',
+    startLabel: 'Shield Start Time',
+    endLabel: 'Shield End Time',
+    quick: 'Quick Duration',
+    duration: 'Duration',
+    remarkLabel: 'Shield Reason',
+    remarkPlaceholder: 'e.g. Server reboot maintenance, expected within 1 hour',
+    enable: 'Enable',
+    disable: 'Disable',
+    empty: 'No shield rules yet',
+    confirmDelete: 'Delete shield rule "{name}"?',
+    shieldBtn: 'Shield',
+    err: {
+      nameRequired: 'Please enter the rule name',
+      tagsRequired: 'Please configure at least one event tag',
+      tagFormat: 'Event tags must be in key=value form',
+      timeRequired: 'Please select shield start and end time',
+      timeRange: 'Shield end time must be later than start time'
+    },
+    msg: {
+      loadFailed: 'Failed to load shield rules: {msg}',
+      saveFailed: 'Failed to save shield rule: {msg}',
+      deleteFailed: 'Failed to delete shield rule: {msg}',
+      toggleFailed: 'Failed to toggle status: {msg}'
+    }
+  },
 }

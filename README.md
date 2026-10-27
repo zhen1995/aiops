@@ -19,7 +19,7 @@ An intelligent operations (AIOps) platform for large-scale distributed systems. 
 - **Root Cause Analysis**: An asynchronous Eino Graph workflow that collects evidence first, then synthesizes a structured conclusion (evidence chain / confidence / remediation suggestions).
 - **Log Analysis**: Incrementally pulls logs from ES per service, parses and clusters them with Drain3 template extraction (Python service), and persists idempotently — providing log volume trends, ERROR/WARN cluster views, template distribution, and first-seen timestamps to help surface anomalous log patterns quickly.
 - **Scheduled Inspections**: Cron-based scheduling with LLM-generated Markdown reports, delivered via DingTalk bot or Webhook.
-- **Operations Knowledge Base**: Document parsing, chunking, and vectorization into Qdrant; the chat agent can search and cite it (optional component).
+- **Operations Knowledge Base**: Document parsing, chunking, and vectorization into Qdrant (RAG); the chat agent can search and cite it (optional component). Ships with **LLM Wiki** — wiki entries as first-class structured knowledge with category trees, tags, and a draft → published → archived review flow; the LLM can distill draft entries from text documents, and the chat agent prioritizes wiki entries over document chunks in hybrid retrieval.
 - **Global Search / i18n (Chinese, English) / RBAC**: User, role, and permission seeding.
 
 ## Tech Stack
@@ -177,6 +177,17 @@ The embedding model must expose an **Embeddings API** (any OpenAI-compatible pro
 | OpenAI | `https://api.openai.com/v1` | `text-embedding-3-small` | Requires network access to OpenAI and an API key |
 
 > Note: **DeepSeek's official API does not provide an Embeddings endpoint**, and Kimi coding subscription keys cannot be used for embedding either — misconfiguration causes document indexing to fail (see `kb_document.error_msg` for the error). Embedding dimensions vary by model (768/1024/1536); the collection is created automatically with the actual dimension of the model in use on first ingestion. If you switch models, clear the Qdrant data and re-upload your documents.
+
+### LLM Wiki
+
+On top of document RAG, the knowledge base ships with **LLM Wiki** (design: `docs/知识库LLM Wiki改造设计方案.md`): wiki entries are first-class structured knowledge, with original documents acting as source material — closing the loop of *accumulate → distill → review → publish → retrieve & cite*.
+
+- **Wiki browsing**: the default tab of the knowledge base page, with a category tree on the left (hierarchical, hover to rename/delete) and the entry list plus a Markdown detail view (category, tags, source references) on the right.
+- **Entry review flow**: entries move through *draft → published → archived*; only published entries are searchable and citable by the chat agent.
+- **LLM distillation**: for text documents (txt/md/log, etc.), one click on "Generate Entries" distills candidate draft entries via the default chat model; humans confirm them on the "Review" tab before publishing.
+- **Hybrid retrieval & citation**: the chat agent gains a `search_wiki` tool (keyword matching over entries, preferred over document chunk retrieval), and answers can cite entry sources; `GET /api/knowledge-wiki/search` returns both entries and document chunks.
+
+LLM Wiki only requires a default chat model and works without the vectorization service; the document RAG part still needs Qdrant and an embedding model as described above.
 
 ## Production Deployment
 

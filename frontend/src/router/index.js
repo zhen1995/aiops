@@ -9,6 +9,7 @@ const routes = [
   { path: '/chat', name: 'chat', component: () => import('../views/ChatView.vue'), meta: { title: 'layout.menu.chat', auth: '对话' } },
   { path: '/dashboard', name: 'dashboard', component: () => import('../views/Dashboard.vue'), meta: { title: 'layout.menu.dashboard', auth: '总览大盘' } },
   { path: '/alerts/denoise', name: 'alerts-denoise', component: () => import('../views/DenoiseView.vue'), meta: { title: 'layout.menu.alertDenoise', auth: '告警降噪' } },
+  { path: '/alerts/shields', name: 'alert-shields', component: () => import('../views/ShieldRuleView.vue'), meta: { title: 'layout.menu.alertShields', auth: '屏蔽规则' } },
   // 业务分组已合并进告警规则页（左侧分组树），保留重定向兼容旧链接
   { path: '/alerts/business-groups', redirect: '/alert-rules' },
   { path: '/alerts/events', name: 'alert-events', component: () => import('../views/AnomalyView.vue'), meta: { title: 'layout.menu.alertEvents', auth: '告警事件' } },

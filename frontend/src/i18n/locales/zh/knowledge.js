@@ -46,5 +46,73 @@ export default {
     reindexFailed: '重新索引失败',
     deleteConfirm: '确定删除该文档吗？删除后不可恢复。',
     deleteFailed: '删除失败'
-  }
+  },
+  wiki: {
+    tabs: {
+      wiki: 'Wiki 浏览',
+      docs: '文档源',
+      review: '待审核'
+    },
+    status: {
+      draft: '草稿',
+      published: '已发布',
+      archived: '已归档'
+    },
+    category: {
+      title: '知识分类',
+      add: '新建分类',
+      name: '分类名称',
+      parent: '父分类',
+      none: '无（顶级分类）',
+      empty: '暂无分类，点击右上角 + 新建',
+      confirmDelete: '确定删除分类"{name}"吗？子分类将上移，其下词条变为未分类。',
+      edit: '编辑分类'
+    },
+    entry: {
+      add: '新建词条',
+      edit: '编辑词条',
+      detail: '词条详情',
+      colTitle: '标题',
+      colStatus: '状态',
+      colCategory: '分类',
+      colSummary: '摘要',
+      colUpdatedAt: '更新时间',
+      colActions: '操作',
+      titleLabel: '词条标题',
+      titlePlaceholder: '例如：MySQL 主从延迟处理',
+      categoryLabel: '所属分类',
+      uncategorized: '未分类',
+      tagsLabel: '标签（逗号分隔）',
+      tagsPlaceholder: '例如：MySQL, 主从复制, 故障处理',
+      summaryLabel: '摘要',
+      summaryPlaceholder: '一句话概括词条内容（50 字以内）',
+      contentLabel: '正文（Markdown）',
+      contentPlaceholder: '支持 Markdown 语法',
+      source: '来源',
+      publish: '发布',
+      archive: '归档',
+      withdraw: '退回草稿',
+      confirmDelete: '确定删除词条"{title}"吗？',
+      empty: '暂无词条',
+      searchPlaceholder: '搜索标题/摘要',
+      generate: '生成词条',
+      generating: '生成中...',
+      generateDone: '已生成 {count} 个词条草稿，请到「待审核」页签查看'
+    },
+    error: {
+      titleRequired: '请输入词条标题',
+      contentRequired: '请输入词条正文',
+      categoryNameRequired: '请输入分类名称'
+    },
+    msg: {
+      loadCategoriesFailed: '加载分类失败：{msg}',
+      loadEntriesFailed: '加载词条失败：{msg}',
+      saveEntryFailed: '保存词条失败：{msg}',
+      deleteEntryFailed: '删除词条失败：{msg}',
+      statusFailed: '状态变更失败：{msg}',
+      generateFailed: '生成词条失败：{msg}',
+      saveCategoryFailed: '保存分类失败：{msg}',
+      deleteCategoryFailed: '删除分类失败：{msg}'
+    }
+  },
 }

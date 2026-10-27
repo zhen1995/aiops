@@ -245,7 +245,14 @@
             <span v-if="eventsModal.list.length > 0" class="title-sub">{{ $t('alert.rules.eventsActive', { count: eventsModal.list.length }) }}</span>
             <span v-else class="title-sub title-ok">{{ $t('alert.rules.eventsNone') }}</span>
           </h3>
-          <span class="modal-close" @click="eventsModal.visible = false">×</span>
+          <div class="header-ops">
+            <button
+              v-if="eventsModal.list.length > 0"
+              class="btn btn-sm btn-primary"
+              @click="shieldFromEvent"
+            >{{ $t('alert.shield.shieldBtn') }}</button>
+            <span class="modal-close" @click="eventsModal.visible = false">×</span>
+          </div>
         </div>
         <div class="modal-body events-modal-body">
           <div v-if="eventsModal.loading" class="empty-inner">{{ $t('alert.rules.loading') }}</div>
@@ -456,7 +463,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, nextTick } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import PageHeader from '../components/PageHeader.vue'
 import LevelTag from '../components/LevelTag.vue'
@@ -467,6 +474,7 @@ import { businessGroupApi } from '../api/businessGroup.js'
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
+const router = useRouter()
 
 const vFocus = {
   mounted: (el) => { el.focus(); el.select && el.select() }
@@ -542,6 +550,17 @@ async function openEventsModal(rule) {
   let list = activeFiringEvents.value.filter(e => e.rule_id === rule.id)
   eventsModal.list = list
   eventsModal.loading = false
+}
+
+// 从活跃告警事件快速创建屏蔽规则：跳转屏蔽规则页并预填事件标签
+function shieldFromEvent() {
+  const ev = eventsModal.list[0]
+  if (!ev) return
+  eventsModal.visible = false
+  router.push({
+    path: '/alerts/shields',
+    query: { create: '1', tags: ev.tags || '', rule_name: eventsModal.rule?.name || '' }
+  })
 }
 
 function parseTags(s) {
@@ -1583,6 +1602,12 @@ td .switch {
 
 /* ========== 活跃事件弹窗 ========== */
 .modal-lg { width: 620px; }
+
+.header-ops {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 
 .events-modal-body { padding: 8px 24px 20px; }
 .title-sub { font-size: 13px; font-weight: 400; color: var(--c-text-2); margin-left: 6px; }
