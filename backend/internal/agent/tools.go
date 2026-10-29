@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"aiops/internal/anomaly"
 	"aiops/internal/datasource"
@@ -544,6 +547,7 @@ type DetectAnomaliesInput struct {
 	Query          string `json:"query" jsonschema:"required,description=PromQL 查询表达式，例如 sum by (instance) (rate(http_requests_total[5m]))"`
 	Start          string `json:"start,omitempty" jsonschema:"description=开始时间，支持 6h、1d、ISO 等，默认 6 小时前"`
 	End            string `json:"end,omitempty" jsonschema:"description=结束时间，支持 now、ISO 等，默认现在"`
+	CompareOffset  string `json:"compare_offset,omitempty" jsonschema:"description=历史同时段对比偏移，如 7d、24h、168h；设置后自动多拉一个偏移前的同 query 序列做周期对比，输出 periodic_deviation 信号"`
 }
 
 // DetectAnomaliesOutput 异常检测信号摘要（不含原始点）
@@ -578,9 +582,31 @@ func (r *Registry) detectAnomaliesTool() (tool.InvokableTool, error) {
 			if err != nil {
 				return nil, err
 			}
+
+			// 历史同时段对比：设置 compare_offset 时，服务端自动多拉一个偏移前的同 query 序列
+			var history map[string][][2]interface{}
+			if offset := strings.TrimSpace(in.CompareOffset); offset != "" {
+				d, err := parseOffset(offset)
+				if err != nil {
+					return nil, err
+				}
+				histRes, err := queryShifted(ctx, ds, in.Query, in.Start, in.End, d)
+				if err != nil {
+					return nil, fmt.Errorf("历史同时段查询失败: %w", err)
+				}
+				history = make(map[string][][2]interface{}, len(histRes.Series))
+				for _, s := range histRes.Series {
+					history[seriesKey(s.Labels)] = s.Values
+				}
+			}
+
 			series := make([]anomaly.SeriesInput, 0, len(res.Series))
 			for _, s := range res.Series {
-				series = append(series, anomaly.SeriesInput{Metric: s.Name, Labels: s.Labels, Points: s.Values})
+				item := anomaly.SeriesInput{Metric: s.Name, Labels: s.Labels, Points: s.Values}
+				if history != nil {
+					item.HistoryPoints = history[seriesKey(s.Labels)]
+				}
+				series = append(series, anomaly.SeriesInput(item))
 			}
 			detectResp, err := anomaly.NewClient(r.pythonBaseURL).Detect(ctx, &anomaly.DetectRequest{Series: series})
 			if err != nil {
@@ -594,6 +620,68 @@ func (r *Registry) detectAnomaliesTool() (tool.InvokableTool, error) {
 			}, nil
 		},
 	)
+}
+
+// parseOffset 解析偏移量，支持 30m / 12h / 7d
+func parseOffset(s string) (time.Duration, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, fmt.Errorf("偏移量不能为空")
+	}
+	num, unit := s[:len(s)-1], s[len(s)-1]
+	var mul time.Duration
+	switch unit {
+	case 'm':
+		mul = time.Minute
+	case 'h':
+		mul = time.Hour
+	case 'd':
+		mul = 24 * time.Hour
+	default:
+		return 0, fmt.Errorf("非法偏移量 %q（支持 30m/12h/7d）", s)
+	}
+	v, err := strconv.Atoi(num)
+	if err != nil || v <= 0 {
+		return 0, fmt.Errorf("非法偏移量 %q（支持 30m/12h/7d）", s)
+	}
+	return time.Duration(v) * mul, nil
+}
+
+// seriesKey 序列标签的稳定键（用于当前序列与历史序列按标签对齐）
+func seriesKey(labels map[string]string) string {
+	if len(labels) == 0 {
+		return "{}"
+	}
+	keys := make([]string, 0, len(labels))
+	for k := range labels {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	b.WriteString("{")
+	for i, k := range keys {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		fmt.Fprintf(&b, "%s=%s", k, labels[k])
+	}
+	b.WriteString("}")
+	return b.String()
+}
+
+// queryShifted 查询 [start-offset, end-offset] 的同 query 序列（历史同时段）
+func queryShifted(ctx context.Context, ds *models.Datasource, query, start, end string, offset time.Duration) (*datasource.PrometheusQueryResult, error) {
+	now := time.Now()
+	startT, err := datasource.ParseTime(start, now)
+	if err != nil {
+		return nil, err
+	}
+	endT, err := datasource.ParseTime(end, now)
+	if err != nil {
+		return nil, err
+	}
+	return datasource.NewPrometheusClient(ds).QueryRange(ctx, query,
+		startT.Add(-offset).Format(time.RFC3339), endT.Add(-offset).Format(time.RFC3339), "", 0, 0)
 }
 
 // MarshalResult 将工具结果序列化为 JSON 字符串，并做大小兜底

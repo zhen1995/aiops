@@ -89,8 +89,11 @@ func runAnalysis(db *gorm.DB, analysisID string, event models.AlertEvent) {
 		return
 	}
 
-	// 3. 构建告警事件上下文字符串
+	// 3. 构建告警事件上下文字符串（含程序侧拓扑定位结果，作为综合分析的候选故障域先验）
 	eventCtx := buildEventContext(event)
+	if loc := localizeByTopology(db, event, localizeWindow); loc != "" {
+		eventCtx += "\n[拓扑定位（程序侧聚合，近 " + localizeWindow.String() + " firing 告警）]\n" + loc
+	}
 
 	// 4. 编译并执行 Graph 工作流
 	var evidence string

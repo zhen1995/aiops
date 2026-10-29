@@ -12,11 +12,12 @@ import (
 	"time"
 )
 
-// SeriesInput 单条待检测时序
+// SeriesInput 单条待检测时序；HistoryPoints 为上一周期同时段序列（可选，用于周期对比）
 type SeriesInput struct {
-	Metric string            `json:"metric"`
-	Labels map[string]string `json:"labels,omitempty"`
-	Points [][2]interface{}  `json:"points"` // [ts(毫秒或ISO), value]
+	Metric        string            `json:"metric"`
+	Labels        map[string]string `json:"labels,omitempty"`
+	Points        [][2]interface{}  `json:"points"` // [ts(毫秒或ISO), value]
+	HistoryPoints [][2]interface{}  `json:"history_points,omitempty"`
 }
 
 // DetectRequest 异常检测请求

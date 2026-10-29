@@ -71,3 +71,26 @@ def test_max_signals_limit():
     series = [_series(f"m{i}", [1.0] * 20 + [50.0 + i]) for i in range(15)]
     out = _detect(series)
     assert len(out["signals"]) <= 10
+
+
+def test_baseline_fit_deviation():
+    # 稳定上行趋势（每天 +1），末尾突然翻倍——环比均值对比可能不敏感，拟合基线应检出
+    values = [float(i) for i in range(40)] + [80.0, 82.0, 84.0, 86.0]
+    out = _detect([_series("trend", values)])
+    assert out["signals"], "趋势曲线上的突增应被拟合基线检出"
+    types = [s["type"] for s in out["signals"]]
+    assert any(t in ("baseline_deviation", "spike", "drop", "level_shift") for t in types)
+
+
+def test_periodic_deviation_with_history():
+    # 当前序列平稳在 50，历史同时段也是 50（无异常）→ 无信号
+    cur = _series("p1", [50.0] * 24)
+    cur["history_points"] = [[p[0], 50.0] for p in cur["points"]]
+    assert _detect([cur])["signals"] == []
+
+    # 历史同时段在 10，当前在 50 → 周期性强于平时
+    cur2 = _series("p2", [50.0] * 24)
+    cur2["history_points"] = [[p[0], 10.0] for p in cur2["points"]]
+    out = _detect([cur2])
+    assert out["signals"], "高于历史同时段应检出"
+    assert out["signals"][0]["type"] == "periodic_deviation"

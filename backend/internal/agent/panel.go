@@ -78,11 +78,11 @@ type SubTask struct {
 
 // PanelCallbacks 会诊过程回调（供 SSE 控制器转发给前端）
 type PanelCallbacks struct {
-	OnPanelStart   func(subtasks []SubTask)                // 会诊开始（专家名单确定）
-	OnSpecialist   func(key, title, status, conclusion string) // status: running/completed/failed
-	OnToolCall     func(expert, name, args string)         // 专家的工具调用
-	OnToolResult   func(expert, name, result string)       // 专家的工具结果
-	OnChunk        func(chunk string)                      // 主持人的最终答案片段
+	OnPanelStart func(subtasks []SubTask)                    // 会诊开始（专家名单确定）
+	OnSpecialist func(key, title, status, conclusion string) // status: running/completed/failed
+	OnToolCall   func(expert, name, args string)             // 专家的工具调用
+	OnToolResult func(expert, name, result string)           // 专家的工具结果
+	OnChunk      func(chunk string)                          // 主持人的最终答案片段
 }
 
 // ChatModelFactory 创建一个新的 ChatModel（每次调用必须返回独立实例）
