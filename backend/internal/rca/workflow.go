@@ -7,9 +7,10 @@ import (
 	"strings"
 
 	"aiops/internal/agent"
+	"aiops/internal/wiki"
 
-	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/components/model"
+	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 	"gorm.io/gorm"
 )
@@ -26,9 +27,11 @@ const (
 func buildGraph(cm model.ChatModel, db *gorm.DB, eventCtx string, evidenceOut *string) (compose.Runnable[string, string], error) {
 	g := compose.NewGraph[string, string]()
 
-	// collect 节点：构建证据收集 Agent，调用只读数据源工具后返回证据汇总文本
+	// collect 节点：构建证据收集 Agent，调用只读数据源工具 + Wiki 知识检索后返回证据汇总文本
 	collect := compose.InvokableLambda(func(ctx context.Context, input string) (string, error) {
-		ag := agent.New(cm, agent.NewRegistry(db), agent.Options{
+		reg := agent.NewRegistry(db)
+		reg.SetWiki(wiki.NewService(db))
+		ag := agent.New(cm, reg, agent.Options{
 			Instructions:  collectPrompt,
 			MaxIterations: 25, // 证据收集是多步工具调用，取与夜莺一致的上限；达上限时返回部分证据而非失败
 		})

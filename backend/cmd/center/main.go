@@ -200,6 +200,7 @@ func main() {
 	agentRegistry := agent.NewRegistry(db)
 	agentRegistry.SetKnowledge(kbSvc)
 	agentRegistry.SetWiki(wikiSvc)
+	agentRegistry.SetPythonBaseURL(cfg.Knowledge.PythonBaseURL)
 
 	// Chat 对话相关路由
 	chatCtrl := controllers.NewChatController(db, agentRegistry)

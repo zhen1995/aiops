@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"aiops/internal/anomaly"
 	"aiops/internal/datasource"
 	"aiops/internal/knowledge"
 	"aiops/internal/wiki"
@@ -19,10 +20,11 @@ import (
 
 // Registry 维护一组可调用工具，内部依赖 datasource.Manager 获取配置
 type Registry struct {
-	db      *gorm.DB
-	manager *datasource.Manager
-	kb      *knowledge.Service
-	wiki    *wiki.Service
+	db            *gorm.DB
+	manager       *datasource.Manager
+	kb            *knowledge.Service
+	wiki          *wiki.Service
+	pythonBaseURL string // Python 算法服务地址（异常检测技能）
 }
 
 // NewRegistry 创建工具注册表
@@ -38,6 +40,11 @@ func (r *Registry) SetKnowledge(svc *knowledge.Service) {
 // SetWiki 注入知识库 Wiki 服务（须在首次构建 Agent 前调用）
 func (r *Registry) SetWiki(svc *wiki.Service) {
 	r.wiki = svc
+}
+
+// SetPythonBaseURL 注入 Python 算法服务地址（异常检测技能依赖；须在首次构建 Agent 前调用）
+func (r *Registry) SetPythonBaseURL(baseURL string) {
+	r.pythonBaseURL = baseURL
 }
 
 // Tools 返回所有工具实例及其 ToolInfo，用于绑定到 ChatModel
@@ -64,6 +71,7 @@ func (r *Registry) ToolMap(ctx context.Context) (map[string]tool.InvokableTool, 
 		r.queryPyroscopeTool,
 		r.searchKnowledgeBaseTool,
 		r.searchWikiTool,
+		r.detectAnomaliesTool,
 	}
 
 	tm := make(map[string]tool.InvokableTool, len(builders))
@@ -524,6 +532,66 @@ func (r *Registry) searchWikiTool() (tool.InvokableTool, error) {
 				})
 			}
 			return out, nil
+		},
+	)
+}
+
+// ---------- detect_anomalies ----------
+
+// DetectAnomaliesInput detect_anomalies 工具入参
+type DetectAnomaliesInput struct {
+	DataSourceName string `json:"data_source_name" jsonschema:"required,description=要查询的 Prometheus 数据源名称"`
+	Query          string `json:"query" jsonschema:"required,description=PromQL 查询表达式，例如 sum by (instance) (rate(http_requests_total[5m]))"`
+	Start          string `json:"start,omitempty" jsonschema:"description=开始时间，支持 6h、1d、ISO 等，默认 6 小时前"`
+	End            string `json:"end,omitempty" jsonschema:"description=结束时间，支持 now、ISO 等，默认现在"`
+}
+
+// DetectAnomaliesOutput 异常检测信号摘要（不含原始点）
+type DetectAnomaliesOutput struct {
+	DataSource string           `json:"data_source"`
+	Query      string           `json:"query"`
+	Summary    string           `json:"summary"`
+	Signals    []anomaly.Signal `json:"signals"`
+}
+
+// detectAnomaliesTool 服务端闭环：拉取原始时序（程序侧）→ Python 确定性检测 → 只把异常信号摘要返回模型
+func (r *Registry) detectAnomaliesTool() (tool.InvokableTool, error) {
+	return utils.InferTool[DetectAnomaliesInput, *DetectAnomaliesOutput](
+		"detect_anomalies",
+		"对 Prometheus 指标做确定性异常检测（基线漂移、3-sigma/IQR 离群、突变点），返回异常信号摘要而非原始数据。适合长时间窗、多序列的排障分析；简单看值请用 query_prometheus。",
+		func(ctx context.Context, in DetectAnomaliesInput) (*DetectAnomaliesOutput, error) {
+			ds, err := r.manager.FindEnabled(ctx, in.DataSourceName)
+			if err != nil {
+				return nil, err
+			}
+			if ds.Type != datasource.TypePrometheus {
+				return nil, fmt.Errorf("数据源 %s 不是 Prometheus 类型", in.DataSourceName)
+			}
+			if in.Start == "" {
+				in.Start = "6h"
+			}
+			if in.End == "" {
+				in.End = "now"
+			}
+			// 原始时序仅在程序侧流转，不进模型上下文
+			res, err := datasource.NewPrometheusClient(ds).QueryRange(ctx, in.Query, in.Start, in.End, "", 0, 0)
+			if err != nil {
+				return nil, err
+			}
+			series := make([]anomaly.SeriesInput, 0, len(res.Series))
+			for _, s := range res.Series {
+				series = append(series, anomaly.SeriesInput{Metric: s.Name, Labels: s.Labels, Points: s.Values})
+			}
+			detectResp, err := anomaly.NewClient(r.pythonBaseURL).Detect(ctx, &anomaly.DetectRequest{Series: series})
+			if err != nil {
+				return nil, err
+			}
+			return &DetectAnomaliesOutput{
+				DataSource: in.DataSourceName,
+				Query:      in.Query,
+				Summary:    detectResp.Summary,
+				Signals:    detectResp.Signals,
+			}, nil
 		},
 	)
 }

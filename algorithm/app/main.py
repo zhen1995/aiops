@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 
-from .routers import knowledge, logs
+from .routers import anomaly, knowledge, logs
 
 app = FastAPI(title="aiops-analyzer", version="0.1.0")
 app.include_router(knowledge.router)
 app.include_router(logs.router)
+app.include_router(anomaly.router)
 
 
 @app.get("/health")
