@@ -2,7 +2,7 @@
 
 [中文](README.zh.md) | English
 
-An intelligent operations (AIOps) platform for large-scale distributed systems. It unifies multi-source observability data — Prometheus metrics, ELK logs, and Pyroscope profiling — and combines it with LLM-powered agents to deliver conversational querying, alert rule evaluation, alert event management, alert noise reduction, scheduled inspection reports, root cause analysis, and an operations knowledge base.
+An intelligent operations (AIOps) platform for large-scale distributed systems. It unifies multi-source observability data — Prometheus metrics, ELK logs, and Pyroscope profiling — and combines it with LLM-powered agents to deliver conversational querying, alert rule evaluation, alert event management, alert shielding, alert noise reduction, scheduled inspection reports, root cause analysis, and an operations knowledge base.
 
 <p align="center">
   <img src="example.png" alt="AIOPS platform usage example" width="920">
@@ -11,13 +11,14 @@ An intelligent operations (AIOps) platform for large-scale distributed systems. 
 
 ## Features
 
-- **AI Chat Assistant**: An LLM agent with a Function Calling loop that invokes read-only data source tools (Prometheus / ElasticSearch / Pyroscope). When ops-data keywords are detected, querying data sources is enforced before answering to prevent hallucination.
-- **Alert Rule Evaluation Engine**: A built-in engine probes PromQL instant queries at each rule's execution interval. Every time series (label combination) is counted independently; alert/recovery events are generated once the rule's duration threshold is met.
+- **AI Chat Assistant**: An LLM agent with a Function Calling loop that invokes read-only data source tools (Prometheus / ElasticSearch / Pyroscope). When ops-data keywords are detected, querying data sources is enforced before answering to prevent hallucination. A `detect_anomalies` tool runs the full loop server-side — raw series are pulled and analyzed by deterministic algorithms, and only the anomaly-signal summary reaches the model (compute in programs, reasoning in the model).
+- **Alert Rule Evaluation Engine**: A built-in engine probes PromQL instant queries at each rule's execution interval. Every time series (label combination) is counted independently; alert/recovery events are generated once the rule's duration threshold is met. The rules page ships a hierarchical business-group tree (hover to rename/delete, click to filter), rule cloning, batch delete / clone-to-group, and one-click shield-rule creation from active alerts.
+- **Alert Shielding**: Suppress alerts by event tags within a time window — no alert events and no notifications are produced while shielded, with intercepted attempts audited. Quick durations (30m~30d) and pre-filled creation from an active alert are supported.
 - **Alert Noise Reduction**: Two strategies — time-window aggregation (flap suppression) and topology suppression (child service alerts suppressed when an ancestor in the service tree is firing). Intercepted alerts are persisted separately for auditing.
 - **Notification Records**: The full notification lifecycle (intercepted / no rule matched / severity filtered / delivery succeeded or failed) is persisted and traceable.
 - **Dashboard**: KPIs, raw vs. post-denoise trends, severity distribution, service health scores, and more.
-- **Root Cause Analysis**: An asynchronous Eino Graph workflow that collects evidence first, then synthesizes a structured conclusion (evidence chain / confidence / remediation suggestions).
-- **Log Analysis**: Incrementally pulls logs from ES per service, parses and clusters them with Drain3 template extraction (Python service), and persists idempotently — providing log volume trends, ERROR/WARN cluster views, template distribution, and first-seen timestamps to help surface anomalous log patterns quickly.
+- **Root Cause Analysis**: An asynchronous Eino Graph workflow that collects evidence first (metrics / logs / profiling + knowledge base wiki retrieval), then synthesizes a structured conclusion (evidence chain / confidence / remediation suggestions).
+- **Log Analysis**: Incrementally pulls logs from ES per service, parses and clusters them with Drain3 template extraction (Python service), and persists idempotently — providing log volume trends, ERROR/WARN cluster views, template distribution, and first-seen timestamps to help surface anomalous log patterns quickly. Results are auto-cleaned by the retention days configured in System Config to prevent unbounded growth.
 - **Scheduled Inspections**: Cron-based scheduling with LLM-generated Markdown reports, delivered via DingTalk bot or Webhook.
 - **Operations Knowledge Base**: Document parsing, chunking, and vectorization into Qdrant (RAG); the chat agent can search and cite it (optional component). Ships with **LLM Wiki** — wiki entries as first-class structured knowledge with category trees, tags, and a draft → published → archived review flow; the LLM can distill draft entries from text documents, and the chat agent prioritizes wiki entries over document chunks in hybrid retrieval.
 - **Global Search / i18n (Chinese, English) / RBAC**: User, role, and permission seeding.
@@ -40,14 +41,14 @@ aiops/
 │   ├── cmd/center/          # Entrypoint (routes, AutoMigrate, engine/scheduler startup)
 │   ├── configs/             # Viper configuration (config.yaml)
 │   ├── controllers/         # HTTP controllers
-│   ├── internal/            # agent / alerting / chat / datasource / inspection / rca / notify / knowledge
+│   ├── internal/            # agent / alerting / chat / datasource / inspection / rca / notify / knowledge / wiki / shield / loganalysis
 │   ├── middleware/          # JWT auth middleware (SSE supports query token)
 │   └── models/              # GORM models
 ├── frontend/                # Vue 3 + Vite frontend
 │   ├── src/api/             # API client layer (JWT, 401 redirect to login)
 │   ├── src/views/           # Page views
 │   └── vite.config.js       # Dev proxy: /api -> localhost:8080
-├── algorithm/               # Python algorithm service (KB parsing/embedding/retrieval, optional)
+├── algorithm/               # Python algorithm service (KB parsing/embedding/retrieval + log Drain parsing + metric anomaly detection, optional)
 ├── deploy/                  # Docker deployment assets (Nginx site config)
 ├── docker-compose.yml       # One-command full-stack deployment (MySQL/backend/frontend/analyzer/Qdrant)
 ├── qdrant/                  # Qdrant deployment files (docker-compose.yml + config.yaml)
@@ -88,8 +89,8 @@ Open `http://localhost` in a browser (or the port you set via `AIOPS_WEB_PORT`) 
 | Go | 1.26+ |
 | MySQL | 8.0+ |
 | Node.js | 18+ |
-| Docker | Required only for the knowledge base |
-| Python | 3.10+, required only for the knowledge base |
+| Docker | Required only for the knowledge base / anomaly detection |
+| Python | 3.10+, required only for the knowledge base / anomaly detection |
 
 ### 1. Initialize the Database
 

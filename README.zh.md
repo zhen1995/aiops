@@ -2,7 +2,7 @@
 
 中文 | [English](README.md)
 
-面向大规模分布式系统的智能运维平台：融合 Prometheus 指标、ELK 日志、性能剖析等多源监控数据，结合大模型（LLM）Agent 实现智能对话问答、告警规则评估、告警事件管理、告警降噪、定时巡检报告、根因分析与运维知识库。
+面向大规模分布式系统的智能运维平台：融合 Prometheus 指标、ELK 日志、性能剖析等多源监控数据，结合大模型（LLM）Agent 实现智能对话问答、告警规则评估、告警事件管理、告警屏蔽、告警降噪、定时巡检报告、根因分析与运维知识库。
 
 <p align="center">
   <img src="example_zh.png" alt="AIOPS 平台使用示例" width="920">
@@ -11,13 +11,14 @@
 
 ## 功能特性
 
-- **AI 对话助手**：基于大模型 Function Calling 循环调用只读数据源工具（Prometheus / ElasticSearch / Pyroscope），命中运维数据关键词时强制先查数据源，防止幻觉。
-- **告警规则评估引擎**：内置引擎按「执行频率」用 PromQL 即时查询探测，每条时序序列（标签组合）独立计数，满足「持续时间」后自动产生 / 恢复告警事件。
+- **AI 对话助手**：基于大模型 Function Calling 循环调用只读数据源工具（Prometheus / ElasticSearch / Pyroscope），命中运维数据关键词时强制先查数据源，防止幻觉；提供 `detect_anomalies` 异常检测工具——服务端完成"拉取原始时序 → 确定性算法检测 → 只把异常信号摘要给模型"，原始数据不进模型上下文（计算交给程序，推理交给模型）。
+- **告警规则评估引擎**：内置引擎按「执行频率」用 PromQL 即时查询探测，每条时序序列（标签组合）独立计数，满足「持续时间」后自动产生 / 恢复告警事件；规则页内置业务分组树（父子层级、悬停重命名/删除、点击过滤），支持规则克隆、批量删除与克隆到业务分组，活跃告警可一键跳转创建屏蔽规则。
+- **告警屏蔽**：按事件标签 + 起止时间窗口屏蔽告警，屏蔽期间不产生告警事件与通知，拦截留痕可审计；支持 30m~30d 快捷时长与从活跃告警一键预填创建。
 - **告警降噪**：时间窗口聚合防抖与拓扑抑制（服务树祖先 firing 时抑制后代告警）两种策略，被拦截的记录单独落库可审计。
 - **通知记录**：告警通知全链路（被拦截 / 未配规则 / 级别过滤 / 发送成功或失败）统一落库可追溯。
 - **总览大盘**：KPI、原始 vs 降噪趋势、级别分布、服务健康度等多维度统计。
-- **根因分析**：Eino Graph 工作流异步执行，先收集证据再综合分析，输出结构化结论（证据链 / 可信度 / 修复建议）。
-- **日志分析**：按服务从 ES 增量拉取日志，经 Python Drain3 模板提取与聚类后幂等落库，提供日志量趋势、异常级别聚类（ERROR/WARN）、模板分布与首次出现时间等分析视图，帮助快速定位异常日志模式。
+- **根因分析**：Eino Graph 工作流异步执行，先收集证据（指标 / 日志 / 性能剖析 + 知识库 Wiki 检索）再综合分析，输出结构化结论（证据链 / 可信度 / 修复建议）。
+- **日志分析**：按服务从 ES 增量拉取日志，经 Python Drain3 模板提取与聚类后幂等落库，提供日志量趋势、异常级别聚类（ERROR/WARN）、模板分布与首次出现时间等分析视图，帮助快速定位异常日志模式；分析结果按「系统配置」中的保留天数自动清理，防止数据无限增长。
 - **定时巡检**：Cron 调度 + LLM 生成 Markdown 报告，支持钉钉机器人 / Webhook 推送。
 - **运维知识库**：文档解析、切块、向量化入 Qdrant（RAG），对话 Agent 可检索引用（可选组件）；内置 **LLM Wiki**——词条为结构化知识一等公民，支持分类树、标签、草稿→发布→归档审核流，LLM 可从文本文档提炼词条草稿，对话 Agent 优先检索 Wiki 词条、文档向量补充。
 - **全局搜索 / 多语言（中、英）/ RBAC 权限**：用户、角色、权限种子化管理。
@@ -39,14 +40,14 @@ aiops/
 │   ├── cmd/center/          # 服务入口（路由、AutoMigrate、引擎/调度器启动）
 │   ├── configs/             # Viper 配置（config.yaml）
 │   ├── controllers/         # HTTP 控制器
-│   ├── internal/            # agent / alerting / chat / datasource / inspection / rca / notify / knowledge
+│   ├── internal/            # agent / alerting / chat / datasource / inspection / rca / notify / knowledge / wiki / shield / loganalysis
 │   ├── middleware/          # JWT 认证中间件（SSE 支持 query token）
 │   └── models/              # GORM 模型
 ├── frontend/                # Vue 3 + Vite 前端
 │   ├── src/api/             # 接口封装层（JWT、401 跳登录）
 │   ├── src/views/           # 页面视图
 │   └── vite.config.js       # 含 /api → localhost:8080 开发代理
-├── algorithm/               # Python 算法服务（知识库解析/向量化/检索，可选）
+├── algorithm/               # Python 算法服务（知识库解析/向量化/检索 + 日志 Drain 解析 + 指标异常检测，可选）
 ├── deploy/                  # Docker 部署配套（Nginx 站点配置）
 ├── docker-compose.yml       # 全栈一键部署编排（MySQL/后端/前端/算法服务/Qdrant）
 ├── qdrant/                  # Qdrant 向量库独立部署文件（docker-compose.yml + config.yaml）
@@ -87,8 +88,8 @@ docker compose up -d --build
 | Go | 1.26+ |
 | MySQL | 8.0+ |
 | Node.js | 18+ |
-| Docker | 仅知识库功能需要 |
-| Python | 3.10+，仅知识库功能需要 |
+| Docker | 仅知识库 / 异常检测功能需要 |
+| Python | 3.10+，仅知识库 / 异常检测功能需要 |
 
 ### 1. 初始化数据库
 
